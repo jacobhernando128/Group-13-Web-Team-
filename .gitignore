@@ -19,3 +19,6 @@ artifacts/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Firebase Key
+hippo-connect-firebase-adminsdk-fbsvc-aa302bf0e8.json
