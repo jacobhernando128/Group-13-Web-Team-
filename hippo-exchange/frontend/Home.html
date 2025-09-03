@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Exchange Center — Home</title>
+  <title>Hippo Exchange — Home</title>
+
+  <!-- Fonts / Tailwind (CDN for demo; swap to local build in prod) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,128 +13,84 @@
 
   <!-- Leaflet (no token needed) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-  <style>
-    :root { --bg1:#6c5776; --bg2:#9b8dae; }
-    html, body { height: 100%; }
-    body {
-      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      margin: 0;
-      background: linear-gradient(120deg, var(--bg1), var(--bg2));
-      background-size: 200% 200%;
-      animation: gradientShift 18s ease infinite;
-      color: #0f172a;
-    }
-    @keyframes gradientShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
-
-    .blob { position:absolute; filter:blur(70px); opacity:.35; pointer-events:none; }
-    .blob-1 { width:360px; height:360px; top:-60px; left:-60px; background:#ffffff; border-radius:50%; }
-    .blob-2 { width:440px; height:440px; bottom:-90px; right:-60px; background:#fef3c7; border-radius:50%; }
-
-    .glass {
-      background: rgba(255,255,255,0.85);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-      border-radius: 1rem;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.4);
-    }
-    .glass-dark {
-      background: rgba(17,24,39,0.55);
-      color: #e5e7eb;
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-      border-radius: 1rem;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
-    }
-    .input {
-      transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
-      background: rgba(255,255,255,0.85);
-      border-color: rgba(0,0,0,0.08);
-    }
-    .input:focus { box-shadow: 0 0 0 4px rgba(37,99,235,0.12); border-color:#3b82f6; outline: none; }
-
-    .dark-scrollbar::-webkit-scrollbar{ width:8px }
-    .dark-scrollbar::-webkit-scrollbar-thumb{ background-color:#94a3b8; border-radius:4px }
-    .dark-scrollbar::-webkit-scrollbar-track{ background-color:transparent }
-
-    .badge { background:#2563eb; color:white; font-weight:600 }
-
-    /* Location modal */
-    .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:60;display:none}
-    .modal-overlay.active{display:flex}
-    .modal-card{width:100%;max-width:720px;margin:auto;background:#1f2937;color:#e5e7eb;border-radius:1rem;box-shadow:0 20px 60px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08)}
-    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.06)}
-    .modal-body{padding:16px 20px}
-    .field{background:#111827;border:1px solid #374151;border-radius:.75rem;padding:10px 12px;display:flex;gap:10px;align-items:center}
-    .field input{background:transparent;outline:none;color:#e5e7eb;width:100%}
-    .radius{background:#111827;border:1px solid #374151;border-radius:.75rem}
-    #location-map{height:360px;border-radius:.75rem;overflow:hidden}
-    .geo-btn{position:absolute;right:14px;top:14px;background:#fff;color:#111827;border-radius:.75rem;padding:8px;border:0;box-shadow:0 6px 14px rgba(0,0,0,.28)}
-  </style>
+  <!-- App styles -->
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="relative min-h-screen overflow-hidden">
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
+  <!-- Decorative blobs -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
 
-  <div class="flex flex-col md:flex-row h-screen max-h-screen relative z-10">
-    <!-- Mobile Menu Button -->
-    <div class="md:hidden p-4 absolute top-0 left-0 z-50">
-      <button id="menu-button" class="text-white/90 focus:outline-none glass-dark px-2 py-2 rounded-lg">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
+  <!-- Mobile Backdrop -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+  <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
+    <!-- Mobile Menu Button (Hamburger only) -->
+    <div class="md:hidden fixed top-4 left-4 z-50">
+      <button id="menu-button"
+              class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 12h16m-7 6h7"/>
+        </svg>
       </button>
     </div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-40 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300">
-       <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
-                <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
-            </div>
-
+    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
+          </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
         </div>
-
-        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white">
+        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
 
       <div class="relative mt-4">
-        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       </div>
 
-      <!-- Navigation Links -->
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
-          <li><a href="#" class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-            <span>Browse all</span></a></li>
-          <li><a href="#" class="flex items-center gap-2 p-2 rounded-lg hover:bg:white/10 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-            <span>Notifications</span></a></li>
-          <li><a href="#" class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-2-3H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V7a2 2 0 00-2-2z"/></svg>
-            <span>Inbox</span></a></li>
-          <li><a href="#" class="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            <span>Exchange access</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bolt"></span><span>Exchange access</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
         </ul>
       </nav>
 
-      <button class="w-full px-4 py-2 rounded-lg font-semibold shadow" style="background:#2563eb;color:#fff">+ Create new listing</button>
-      <button class="w-full px-4 py-2 rounded-lg font-semibold mt-2 bg-white/20 hover:bg-white/30 text-white border border-white/30 transition">Create multiple listings</button>
+      <button class="btn-primary w-full">+ Create new listing</button>
+      <button class="btn-ghost w-full mt-2">Create multiple listings</button>
 
-      <div class="mt-auto pt-4">
-        <h3 class="font-semibold text-slate-200 mb-2">Location</h3>
-        <div class="glass flex items-center gap-2 p-2">
-          <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          <span id="sidebar-location" class="text-slate-800">Algord, Tennessee — 40 miles</span>
+      <section class="mt-auto pt-4" aria-label="Account">
+        <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
+        <div class="glass p-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <div class="min-w-0">
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
+              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="text-xs text-slate-600">Balance</span>
+            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+          </div>
         </div>
-      </div>
+      </section>
     </aside>
 
     <!-- Main Content -->
@@ -140,122 +98,39 @@
       <header class="glass flex flex-col md:flex-row justify-between items-center mb-6 p-4">
         <div class="flex items-center gap-4 mb-4 md:mb-0">
           <h2 class="text-2xl font-bold text-slate-800">Today's picks</h2>
-
-          <!-- Location pill like your screenshot -->
-          <button id="open-location" class="flex items-center gap-2 rounded-md px-3 py-1.5 text-slate-700 bg-sky-50 border border-slate-300 hover:bg-sky-100 transition">
-            <!-- gear-ish icon -->
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <!-- Location pill -->
+          <button id="open-location" class="location-pill">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6l.94-1.88a1 1 0 011.79 0L16 6l2.1.3a1 1 0 01.83.98v1.44a1 1 0 01-.35.76L17.7 11l.88 2.04a1 1 0 01-.5 1.3l-1.32.66-.66 1.32a1 1 0 01-1.3.5L12 16.3l-2.1.52a1 1 0 01-1.3-.5l-.66-1.32-1.32-.66a1 1 0 01-.5-1.3L6 11 5.42 9.48a1 1 0 01-.35-.76V7.28a1 1 0 01.83-.98L8 6l1.27-1.88a1 1 0 011.79 0L12 6z"/>
             </svg>
             <span id="header-location">Cookeville, TN — 40 mi</span>
-            <!-- eye icon -->
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
             </svg>
           </button>
         </div>
-        <div class="flex items-center gap-2">
-          <a href="#" class="text-blue-700 font-semibold">HXB</a>
-        </div>
       </header>
 
-      <!-- Listings Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <!-- Reusable card -->
-        <template id="item-card-template">
-          <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-            <div class="relative">
-              <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-              <span class="absolute top-2 left-2 badge text-xs font-semibold px-2 py-1 rounded-full">Just listed</span>
-            </div>
-            <div class="p-4">
-              <h3 class="text-lg font-semibold text-slate-900">$—</h3>
-              <p class="text-slate-700 text-sm">Title</p>
-              <p class="text-slate-600 text-xs mt-1" data-bind="location">Location</p>
-            </div>
-          </div>
-        </template>
+    <!-- Listings Grid (single instance) -->
+    <div id="listings-grid"
+        class="listings-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    </div>
 
-        <!-- Example cards (bind first and fifth to auto-update location) -->
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <div class="relative">
-            <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-            <span class="absolute top-2 left-2 badge text-xs font-semibold px-2 py-1 rounded-full">Just listed</span>
-          </div>
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$300</h3>
-            <p class="text-slate-700 text-sm">Gaming Desktop (for sale & trade)</p>
-            <p class="text-slate-600 text-xs mt-1" data-bind="location">Cookeville, TN</p>
-          </div>
+    <!-- Card template (not rendered) -->
+    <template id="item-card-template">
+      <article class="card glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1" data-id="">
+        <div class="relative">
+          <img class="card-img w-full h-[170px] object-cover" alt="Listing image" />
+          <span class="badge absolute top-2 left-2">Just listed</span>
         </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$399</h3>
-            <p class="text-slate-700 text-sm">Budget Friendly Entry Level Gaming PC</p>
-            <p class="text-slate-600 text-xs mt-1">Ships to you</p>
-          </div>
+        <div class="card-footer p-4">
+          <h3 class="price text-lg font-semibold text-slate-900"></h3>
+          <p class="title text-slate-700 text-sm"></p>
+          <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
         </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$320</h3>
-            <p class="text-slate-700 text-sm">QNAP NAS 8TB file movie server</p>
-            <p class="text-slate-600 text-xs mt-1">Knoxville, TN</p>
-          </div>
-        </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$25</h3>
-            <p class="text-slate-700 text-sm">Dell Optiplex</p>
-            <p class="text-slate-600 text-xs mt-1">Ships to you</p>
-          </div>
-        </div>
-
-        <!-- duplicates -->
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$300</h3>
-            <p class="text-slate-700 text-sm">Gaming Desktop (for sale & trade)</p>
-            <p class="text-slate-600 text-xs mt-1" data-bind="location">Cookeville, TN</p>
-          </div>
-        </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$399</h3>
-            <p class="text-slate-700 text-sm">Budget Friendly Entry Level Gaming PC</p>
-            <p class="text-slate-600 text-xs mt-1">Ships to you</p>
-          </div>
-        </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$320</h3>
-            <p class="text-slate-700 text-sm">QNAP NAS 8TB file movie server</p>
-            <p class="text-slate-600 text-xs mt-1">Knoxville, TN</p>
-          </div>
-        </div>
-
-        <div class="glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1">
-          <img src="https://placehold.co/600x400/ffffff/111111?text=Listing+Image" alt="Item Image" class="w-full h-[170px] object-cover">
-          <div class="p-4">
-            <h3 class="text-lg font-semibold text-slate-900">$25</h3>
-            <p class="text-slate-700 text-sm">Dell Optiplex</p>
-            <p class="text-slate-600 text-xs mt-1">Ships to you</p>
-          </div>
-        </div>
-      </div>
-    </main>
-  </div>
+      </article>
+    </template>
 
   <!-- Location Modal -->
   <div id="location-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="location-title">
@@ -292,156 +167,13 @@
           </button>
         </div>
         <div class="flex justify-end pt-2">
-          <button id="apply-location" class="px-5 py-2 rounded-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white">Apply</button>
+          <button id="apply-location" class="btn-primary">Apply</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // ... keep your sidebar/menu JS above ...
-
-    // ----- Location modal + bindings -----
-    const openBtn = document.getElementById('open-location');
-    const modal = document.getElementById('location-modal');
-    const closeModalBtn = document.getElementById('close-location');
-    const applyBtn = document.getElementById('apply-location');
-    const inputEl = document.getElementById('location-input');
-    const radiusEl = document.getElementById('radius-select');
-    const headerEl = document.getElementById('header-location');
-    const sidebarEl = document.getElementById('sidebar-location');
-    const geoBtn = document.getElementById('geo-btn');
-
-    let map, marker, circle;
-    let lastGeocodedQuery = '';  // track what the map is currently showing
-    const defaultPos = { lat: 36.1628, lng: -85.5016 }; // Cookeville area
-
-    function milesToMeters(mi){ return parseFloat(mi) * 1609.344; }
-
-    function ensureMap(){
-      if (map) return;
-      map = L.map('location-map', { zoomControl: true, scrollWheelZoom: true })
-              .setView([defaultPos.lat, defaultPos.lng], 10);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-      marker = L.marker([defaultPos.lat, defaultPos.lng], { draggable: true }).addTo(map);
-      circle = L.circle([defaultPos.lat, defaultPos.lng], {
-        radius: milesToMeters((radiusEl.value || '40').split(' ')[0]),
-        color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.12, weight: 2
-      }).addTo(map);
-      marker.on('drag', (e)=> circle.setLatLng(e.latlng));
-    }
-
-    function openModal(){ modal.classList.add('active'); ensureMap(); setTimeout(()=> map.invalidateSize(), 100); }
-    function closeModal(){ modal.classList.remove('active'); }
-
-    openBtn.addEventListener('click', openModal);
-    closeModalBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
-
-    radiusEl.addEventListener('change', ()=>{
-      const miles = (radiusEl.value || '40').split(' ')[0];
-      circle.setRadius(milesToMeters(miles));
-    });
-
-    // Light geocoder (no token)
-    async function geocode(query){
-      if(!query) return null;
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
-      try {
-        const res = await fetch(url, { headers:{'Accept-Language':'en'} });
-        const data = await res.json();
-        if(data && data[0]){
-          const { lat, lon, display_name } = data[0];
-          return { lat: parseFloat(lat), lon: parseFloat(lon), display_name };
-        }
-      } catch(err){ console.error('Geocode failed', err); }
-      return null;
-    }
-
-    function setMapTo(lat, lon){
-      const ll = [lat, lon];
-      marker.setLatLng(ll);
-      circle.setLatLng(ll);
-      map.setView(ll, 11);
-    }
-
-    // Debounced geocode while typing
-    let t = null;
-    inputEl.addEventListener('input', () => {
-      clearTimeout(t);
-      const q = inputEl.value.trim();
-      t = setTimeout(async () => {
-        if(!q || q === lastGeocodedQuery) return;
-        const result = await geocode(q);
-        if(result){
-          setMapTo(result.lat, result.lon);
-          lastGeocodedQuery = q;
-        }
-      }, 500); // 500ms debounce
-    });
-
-    // Keep Enter behavior too
-    inputEl.addEventListener('keydown', async (e)=>{
-      if(e.key === 'Enter'){
-        e.preventDefault();
-        const q = inputEl.value.trim();
-        if(q){
-          const result = await geocode(q);
-          if(result){
-            setMapTo(result.lat, result.lon);
-            lastGeocodedQuery = q;
-            inputEl.value = result.display_name;
-          }
-        }
-      }
-    });
-
-    geoBtn.addEventListener('click', ()=>{
-      if(!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition((pos)=>{
-        const { latitude, longitude } = pos.coords;
-        ensureMap();
-        setMapTo(latitude, longitude);
-        lastGeocodedQuery = ''; // raw coords, not a query
-      });
-    });
-
-    function updateUI(cityText, milesText){
-      headerEl.textContent = `${cityText} — ${milesText}`;
-      sidebarEl.textContent = `${cityText} — ${milesText.includes('mi') ? milesText : milesText + ' mi'}`;
-      document.querySelectorAll('[data-bind="location"]').forEach(n => n.textContent = cityText);
-    }
-
-    // Geocode on Apply if the text changed and we haven't geocoded it yet
-    applyBtn.addEventListener('click', async ()=>{
-      const milesText = radiusEl.value || '40 mi';
-      let cityText = inputEl.value && inputEl.value.trim() ? inputEl.value.trim() : 'Custom location';
-
-      if(cityText && cityText !== lastGeocodedQuery){
-        const result = await geocode(cityText);
-        if(result){
-          ensureMap();
-          setMapTo(result.lat, result.lon);
-          cityText = result.display_name.split(',').slice(0,2).join(','); // nicer short label
-          lastGeocodedQuery = inputEl.value.trim();
-        }
-      } else {
-        // if user only changed radius, still ensure circle size is correct
-        const miles = (milesText || '40').split(' ')[0];
-        circle.setRadius(milesToMeters(miles));
-      }
-
-      // Friendly short label
-      const shortCity = cityText.split(',').slice(0,2).join(',');
-      updateUI(shortCity, milesText);
-      closeModal();
-    });
-  });
-    </script>
+  <!-- Home JS -->
+  <script defer src="./home.js"></script>
 </body>
 </html>
-

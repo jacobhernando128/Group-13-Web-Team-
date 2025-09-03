@@ -5,103 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Hippo Exchange — Sign in / Register</title>
 
-  <!-- Inter font -->
+  <!-- Inter + Tailwind -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <style>
-    :root {
-      --bg1: #6c5776;
-      --bg2: #9b8dae;
-    }
-
-    html, body {
-      height: 100%;
-    }
-
-    body {
-      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
-      margin: 0;
-      min-height: 100vh;
-      /* animated gradient background */
-      background: linear-gradient(120deg, var(--bg1), var(--bg2));
-      background-size: 200% 200%;
-      animation: gradientShift 18s ease infinite;
-    }
-
-    @keyframes gradientShift {
-      0%   { background-position: 0% 50%; }
-      50%  { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-
-    /* decorative blurred blobs */
-    .blob {
-      position: absolute;
-      filter: blur(70px);
-      opacity: 0.35;
-      pointer-events: none;
-    }
-    .blob-1 { width: 350px; height: 350px; top: -60px; left: -60px; background: #ffffff; border-radius: 50%; }
-    .blob-2 { width: 420px; height: 420px; bottom: -80px; right: -60px; background: #fef3c7; border-radius: 50%; }
-
-    /* glassmorphism card */
-    .glass {
-      background: rgba(255,255,255,0.85);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-      border-radius: 1.5rem;
-      box-shadow:
-        0 10px 30px rgba(0,0,0,0.10),
-        inset 0 1px 0 rgba(255,255,255,0.4);
-      transition: transform .3s ease, box-shadow .3s ease;
-    }
-    .glass:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 18px 45px rgba(0,0,0,0.18);
-    }
-
-    /* fade utility */
-    .fade { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s ease; }
-    .fade.active { opacity: 1; visibility: visible; }
-
-    /* input focus ring tweaks */
-    .input {
-      transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
-    }
-    .input:focus {
-      box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
-    }
-
-    /* submit button sheen */
-    .btn-sheen {
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-    .btn-sheen::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      translate: -120% 0;
-      background: linear-gradient(120deg, rgba(255,255,255,.14), rgba(255,255,255,.04));
-      transform: skewX(-18deg);
-      transition: translate .7s ease;
-      z-index: -1;
-    }
-    .btn-sheen:hover::after { translate: 120% 0; }
-
-    /* show/hide password toggle */
-    .toggle-eye { cursor: pointer; }
-  </style>
+  <!-- Shared site styles (your gradient, glass, blobs, buttons, etc.) -->
+  <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
+<body class="min-h-screen">
+  <!-- Decorative blobs (reuse global styles) -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
 
   <main class="relative min-h-screen flex items-stretch justify-center">
     <div class="w-full max-w-7xl px-6 md:px-10 py-10 grid lg:grid-cols-2 gap-8 items-center">
@@ -118,6 +34,7 @@
           </div>
           <h1 class="text-3xl sm:text-4xl font-extrabold drop-shadow-sm">Hippo Exchange</h1>
         </div>
+
         <p class="text-white/90 text-lg md:text-xl max-w-xl leading-relaxed">
           Borrow. Lend. Share. A simple marketplace where your stuff finds its second life.
         </p>
@@ -144,7 +61,7 @@
         <div id="message-box" class="hidden mb-4 p-3 rounded-lg text-sm transition-all duration-300"></div>
 
         <div class="flex flex-col items-stretch relative min-h-[620px]">
-          <!-- Forms container (stacked, fade swap) -->
+          <!-- Register -->
           <form id="register-form" class="fade active absolute inset-0 flex flex-col" novalidate>
             <div class="text-center mb-6">
               <h3 class="text-2xl font-bold text-blue-700">Create an account</h3>
@@ -236,8 +153,7 @@
               <label for="terms" class="text-sm text-slate-600">I agree to the <a href="#" class="text-blue-600 hover:underline">Terms</a> and <a href="#" class="text-blue-600 hover:underline">Privacy Policy</a>.</label>
             </div>
 
-            <button type="submit"
-              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
+            <button type="submit" class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
               Create account
             </button>
 
@@ -288,8 +204,7 @@
               </div>
             </label>
 
-            <button type="submit"
-              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
+            <button type="submit" class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
               Log in
             </button>
 
@@ -299,158 +214,22 @@
             </p>
           </form>
 
-          <!-- App content (post-login) -->
+          <!-- Post-login placeholder -->
           <div id="app-section" class="hidden fade absolute inset-0 flex flex-col items-center justify-center text-center p-6">
             <h2 class="text-2xl font-semibold text-gray-700 mb-2">Welcome to Hippo Exchange!</h2>
             <p class="text-lg text-gray-600 mb-4">You are now logged in.</p>
             <p id="user-id" class="text-sm text-gray-500 mb-6"></p>
-            <div class="text-sm text-gray-500 mb-6">
-              <p>This is a placeholder for your main application content.</p>
-              <p>You can start building your marketplace features here!</p>
-            </div>
-            <button id="logout-btn" class="w-full max-w-sm flex justify-center py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Log out</button>
+            <button id="logout-btn"
+              class="w-full max-w-sm flex justify-center py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+              Log out
+            </button>
           </div>
         </div>
       </section>
     </div>
   </main>
 
-  <script type="module">
-    // Placeholder for your backend API URL.
-    const BACKEND_API_URL = 'https://your-backend-api.com/api/v1';
-
-    // Elements
-    const messageBox = document.getElementById('message-box');
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const showRegisterBtn = document.getElementById('show-register-btn');
-    const showLoginBtn = document.getElementById('show-login-btn');
-    const appSection = document.getElementById('app-section');
-    const userIdDisplay = document.getElementById('user-id');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    // Message helper
-    function showMessage(message, type = 'info') {
-      let bg, text;
-      switch (type) {
-        case 'success':
-          bg = 'bg-green-100'; text = 'text-green-800'; break;
-        case 'error':
-          bg = 'bg-red-100'; text = 'text-red-800'; break;
-        default:
-          bg = 'bg-blue-100'; text = 'text-blue-800'; break;
-      }
-      messageBox.textContent = message;
-      messageBox.className = 'mb-4 p-3 rounded-lg text-sm transition-all duration-300 ' + bg + ' ' + text;
-      messageBox.classList.remove('hidden');
-      if (!message) messageBox.classList.add('hidden');
-    }
-
-    // Auth UI state
-    function setAuthUI(isLoggedIn) {
-      if (isLoggedIn) {
-        registerForm.classList.remove('active');
-        loginForm.classList.remove('active');
-        appSection.classList.remove('hidden');
-        appSection.classList.add('active');
-      } else {
-        appSection.classList.remove('active');
-        appSection.classList.add('hidden');
-        registerForm.classList.add('active');
-        loginForm.classList.remove('active');
-      }
-    }
-
-    // Form swapper
-    function showForm(formToShow, formToHide) {
-      formToHide.classList.remove('active');
-      setTimeout(() => formToShow.classList.add('active'), 250);
-    }
-    showRegisterBtn.addEventListener('click', () => { showForm(registerForm, loginForm); showMessage(''); });
-    showLoginBtn.addEventListener('click', () => { showForm(loginForm, registerForm); showMessage(''); });
-
-    // Toggle password visibility
-    document.querySelectorAll('.toggle-eye').forEach(span => {
-      span.addEventListener('click', () => {
-        const id = span.getAttribute('data-toggle');
-        const input = document.getElementById(id);
-        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-        input.setAttribute('type', type);
-      });
-    });
-
-    // Registration submit
-    registerForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const firstname = e.target['register-firstname'].value.trim();
-      const lastname = e.target['register-lastname'].value.trim();
-      const email = e.target['register-email'].value.trim();
-      const phone = e.target['register-phone'].value.trim();
-      const password = e.target['register-password'].value;
-      const confirmPassword = e.target['confirm-password'].value;
-
-      if (password !== confirmPassword) {
-        showMessage('Passwords do not match.', 'error');
-        return;
-      }
-
-      try {
-        const response = await fetch(`${BACKEND_API_URL}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ firstname, lastname, email, phone, password }),
-        });
-
-        if (response.ok) {
-          showMessage('Registration successful! Please log in.', 'success');
-          showForm(loginForm, registerForm);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Registration failed.');
-        }
-      } catch (err) {
-        console.error('Registration failed:', err);
-        showMessage(err.message, 'error');
-      }
-    });
-
-    // Login submit
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = e.target['login-email'].value.trim();
-      const password = e.target['login-password'].value;
-
-      try {
-        const response = await fetch(`${BACKEND_API_URL}/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-
-        if (response.ok) {
-          const data = await response.json().catch(() => ({ userId: 'unknown' }));
-          showMessage('Login successful!', 'success');
-          userIdDisplay.textContent = `Your User ID: ${data.userId ?? '—'}`;
-          setAuthUI(true);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || 'Login failed.');
-        }
-      } catch (err) {
-        console.error('Login failed:', err);
-        showMessage(err.message, 'error');
-      }
-    });
-
-    // Logout
-    logoutBtn?.addEventListener('click', () => {
-      setAuthUI(false);
-      showMessage('You have been logged out.', 'info');
-      setTimeout(() => messageBox.classList.add('hidden'), 2500);
-    });
-
-    // Init
-    setAuthUI(false);
-  </script>
+  <!-- Page script -->
+  <script defer src="./login.js"></script>
 </body>
 </html>

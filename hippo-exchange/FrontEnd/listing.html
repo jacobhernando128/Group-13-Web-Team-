@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hippo Exchange — Listing</title>
+
+  <!-- Fonts / Tailwind -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="relative min-h-screen overflow-hidden">
+  <!-- bg blobs -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+
+  <!-- Backdrop for mobile sidebar -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+  <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
+    <!-- Mobile menu button (hamburger; auto-hides when menu open via styles.css) -->
+    <div class="md:hidden fixed top-4 left-4 z-50">
+      <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sidebar (same shell as home) -->
+    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover"/>
+          </div>
+          <h1 class="text-lg font-bold">Hippo Exchange</h1>
+        </div>
+        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="relative mt-4">
+        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+
+      <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
+        <ul class="space-y-2">
+          <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bolt"></span><span>Exchange access</span></a></li>
+          <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
+        </ul>
+      </nav>
+
+      <button class="btn-primary w-full">+ Create new listing</button>
+      <button class="btn-ghost w-full mt-2">Create multiple listings</button>
+
+      <section class="mt-auto pt-4" aria-label="Account">
+        <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
+        <div class="glass p-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <div class="min-w-0">
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
+              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="text-xs text-slate-600">Balance</span>
+            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main content -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
+        <!-- header -->
+        <header class="glass listing-toolbar p-3 mb-6 flex items-center gap-3">
+        <a id="back-btn" href="home.html"
+            class="btn-back flex items-center gap-2"
+            aria-label="Go back">
+            <!-- Left arrow -->
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            <span class="hidden sm:inline">Back</span>
+        </a>
+
+        <h2 id="listing-title" class="text-xl md:text-2xl font-bold text-slate-800 truncate">Loading…</h2>
+        </header>
+
+      <!-- Details layout -->
+      <section class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Gallery -->
+        <article class="lg:col-span-2 glass p-3 rounded-lg">
+          <div class="relative rounded-xl overflow-hidden">
+            <img id="hero-img" class="w-full detail-hero object-cover" alt="Listing image"/>
+            <span id="badge" class="badge">Just listed</span>
+          </div>
+
+          <div id="thumbs" class="mt-3 flex gap-3 overflow-x-auto pb-1"></div>
+
+          <!-- Description card -->
+          <div class="glass mt-4 p-4 rounded-lg">
+            <h3 class="font-semibold text-slate-800 mb-2">Details</h3>
+            <ul id="details-list" class="list-disc pl-6 space-y-1 text-slate-700">
+              <!-- filled by JS -->
+            </ul>
+            <p id="long-desc" class="mt-3 text-slate-700"></p>
+          </div>
+        </article>
+
+        <!-- Side panel -->
+        <aside class="lg:col-span-1 lg:sticky lg:top-6 space-y-4">
+          <div class="glass p-4 rounded-lg">
+            <div class="flex items-baseline justify-between">
+              <div>
+                <div id="price" class="text-2xl font-bold text-slate-900">$—</div>
+                <div id="condition" class="text-sm text-slate-600 mt-0.5"></div>
+              </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+              <button class="btn-primary w-full" id="message-btn">Message seller</button>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="btn-ghost w-full" id="save-btn">Save</button>
+                <button class="btn-ghost w-full" id="share-btn">Share</button>
+              </div>
+            </div>
+
+            <div class="mt-5">
+              <h4 class="font-semibold text-slate-800">Fulfillment</h4>
+              <p id="fulfillment" class="text-slate-600 text-sm mt-1"></p>
+            </div>
+          </div>
+
+          <!-- Map -->
+          <div class="glass p-3 rounded-lg">
+            <div class="text-sm text-slate-700 mb-2" id="location-label"></div>
+            <div id="detail-map" class="h-[220px] rounded-lg overflow-hidden"></div>
+          </div>
+
+          <!-- Seller -->
+          <div class="glass p-4 rounded-lg">
+            <div class="flex items-center gap-3">
+              <img id="seller-avatar" class="w-10 h-10 rounded-full ring-2 ring-white/40" alt="Seller avatar"/>
+              <div>
+                <div id="seller-name" class="font-semibold">Seller</div>
+                <div id="seller-meta" class="text-xs text-slate-600">—</div>
+              </div>
+            </div>
+            <button class="btn-ghost w-full mt-3" id="view-profile">View profile</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <!-- home shell JS (menu, modal, etc.) -->
+  <script defer src="./home.js"></script>
+  <!-- Listing page JS -->
+  <script defer src="./listing.js"></script>
+
+  <!-- quick demo data: delete if you fetch from your API -->
+  <script>
+    window.mockListing = {
+      id: "end-grain-boards",
+      title: "END GRAIN CUTTING BOARDS",
+      price: 100,
+      condition: "New",
+      isNew: true,
+      images: [
+        "https://images.unsplash.it/800/500?image=1067",
+        "https://images.unsplash.it/800/500?image=1070",
+        "https://images.unsplash.it/800/500?image=1063",
+        "https://images.unsplash.it/800/500?image=1057"
+      ],
+      bullets: [
+        "Butcher block cutting boards — various hardwoods",
+        "Natural colors (no stain/paint). Finished with food-safe oil + wax",
+        "Configured as end grain — protects knife edges, extends board life"
+      ],
+      description: "Located Northwest in Indy! Near Rick’s Boatyard. Multiple patterns and species (walnut, maple, cherry, purpleheart, padauk).",
+      ships: true,
+      pickup: "Indianapolis, IN",
+      locationLabel: "Indianapolis, IN",
+      lat: 39.7684, lng: -86.1581,
+      seller: {
+        name: "Nalij Holyfield Sr.",
+        avatar: "hippo-exchange-logo.png",
+        since: "Joined 2018 • Highly rated on Marketplace"
+      }
+    };
+  </script>
+</body>
+</html>
