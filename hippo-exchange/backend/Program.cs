@@ -1,5 +1,7 @@
 using Google.Cloud.Firestore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Hosting;
 
 namespace HippoExchange
 {
@@ -9,16 +11,14 @@ namespace HippoExchange
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Get project id (Cloud Run sets GOOGLE_CLOUD_PROJECT automatically; local can use appsettings)
+            // Project Id: env first, then appsettings
             var projectId =
                 Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT")
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
-            // Firestore client (uses ADC on GCP; no key file needed when running on Cloud Run/VM with SA)
+            // Services
             builder.Services.AddSingleton(_ => FirestoreDb.Create(projectId));
-
-            // Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -30,16 +30,38 @@ namespace HippoExchange
                 });
             });
 
+            // (Optional) CORS for local fetch() from your pages
+            builder.Services.AddCors(o =>
+            {
+                o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+            });
+
             var app = builder.Build();
 
-            // Enable Swagger in Development
+            // Dev tooling
             if (app.Environment.IsDevelopment())
             {
+                app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
             }
 
-            // Health
+            app.UseHttpsRedirection();
+
+            // ---- Serve your frontend from backend/wwwroot ----
+            var defaults = new DefaultFilesOptions();
+            defaults.DefaultFileNames.Clear();
+            // Pick the first one that exists in wwwroot:
+            defaults.DefaultFileNames.Add("Home.html");
+            defaults.DefaultFileNames.Add("index.html");
+            defaults.DefaultFileNames.Add("Login.html");
+            app.UseDefaultFiles(defaults);
+
+            app.UseStaticFiles();       // serves backend/wwwroot/**
+
+            app.UseCors();              // (optional) enable the CORS policy
+
+            // ----------------- API endpoints -----------------
             app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
             // Create

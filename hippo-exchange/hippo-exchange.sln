@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36414.22 d17.14
+VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hippo-exchange", "hippo-exchange.csproj", "{810864F9-5671-48D3-A5FE-519E05B4EA00}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hippo-exchange", "backend\hippo-exchange.csproj", "{9490E64C-01C0-E46B-F518-C5B3BDE6309C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +11,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{810864F9-5671-48D3-A5FE-519E05B4EA00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{810864F9-5671-48D3-A5FE-519E05B4EA00}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{810864F9-5671-48D3-A5FE-519E05B4EA00}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{810864F9-5671-48D3-A5FE-519E05B4EA00}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9490E64C-01C0-E46B-F518-C5B3BDE6309C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9490E64C-01C0-E46B-F518-C5B3BDE6309C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9490E64C-01C0-E46B-F518-C5B3BDE6309C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9490E64C-01C0-E46B-F518-C5B3BDE6309C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
