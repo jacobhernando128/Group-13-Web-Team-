@@ -52,9 +52,9 @@ namespace HippoExchange
             var defaults = new DefaultFilesOptions();
             defaults.DefaultFileNames.Clear();
             // Pick the first one that exists in wwwroot:
+            defaults.DefaultFileNames.Add("Login.html");
             defaults.DefaultFileNames.Add("Home.html");
             defaults.DefaultFileNames.Add("index.html");
-            defaults.DefaultFileNames.Add("Login.html");
             app.UseDefaultFiles(defaults);
 
             app.UseStaticFiles();       // serves backend/wwwroot/**
