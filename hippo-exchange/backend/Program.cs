@@ -1,8 +1,5 @@
 using Google.Cloud.Firestore;
 using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Hosting;
-using Microsoft.AspNetCore.Routing;
 
 namespace HippoExchange
 {
@@ -10,19 +7,19 @@ namespace HippoExchange
     {
         public static void Main(string[] args)
         {
+            
             var builder = WebApplication.CreateBuilder(args);
 
-            // Project Id: env first, then appsettings
+            // Get project id (Cloud Run sets GOOGLE_CLOUD_PROJECT automatically; local can use appsettings)
             var projectId =
                 Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT")
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
-            var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone";v
+            // Firestore client (uses ADC on GCP; no key file needed when running on Cloud Run/VM with SA)
+            builder.Services.AddSingleton(_ => FirestoreDb.Create(projectId));
 
-            // Services
-            builder.Services.AddSingleton(_ =>
-                new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build());
+            // Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -34,53 +31,17 @@ namespace HippoExchange
                 });
             });
 
-            // (Optional) CORS for local fetch() from your pages
-            builder.Services.AddCors(o =>
-            {
-                o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
-            });
-
             var app = builder.Build();
 
-            // Dev tooling
+            // Enable Swagger in Development
             if (app.Environment.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
             }
 
-            app.UseHttpsRedirection();
-
-            // ---- Serve your frontend from backend/wwwroot ----
-            var defaults = new DefaultFilesOptions();
-            defaults.DefaultFileNames.Clear();
-            // Pick the first one that exists in wwwroot:
-            defaults.DefaultFileNames.Add("Login.html");
-            defaults.DefaultFileNames.Add("Home.html");
-            defaults.DefaultFileNames.Add("index.html");
-            app.UseDefaultFiles(defaults);
-
-            app.UseStaticFiles();       // serves backend/wwwroot/**
-
-            app.UseCors();              // (optional) enable the CORS policy
-
-            // ----------------- API endpoints -----------------
+            // Health
             app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-
-            app.MapGet("/health/firestore", async (Google.Cloud.Firestore.FirestoreDb db, ILogger<Program> logger) =>
-            {
-                try
-                {
-                    await db.Collection("users").Limit(1).GetSnapshotAsync();
-                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId });
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Firestore health check failed");
-                    return Results.Problem(title: "Firestore check failed", detail: ex.Message, statusCode: 503);
-                }
-            });
 
             // Create
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
@@ -131,7 +92,36 @@ namespace HippoExchange
                 await db.Collection("items").Document(id).DeleteAsync();
                 return Results.NoContent();
             });
+            Console.WriteLine($"Environment: {app.Environment.EnvironmentName}");
 
+            // Get all items for a specific user
+            app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
+            {
+                var q = db.Collection("items").WhereEqualTo(nameof(Item.OwnerId), userId);
+                var snaps = await q.GetSnapshotAsync();
+                return snaps.Select(s => s.ConvertTo<Item>());
+            });
+
+            // Get user profile
+            app.MapGet("/users/{userId}", async (FirestoreDb db, string userId) =>
+            {
+                var snap = await db.Collection("users").Document(userId).GetSnapshotAsync();
+                return snap.Exists ? Results.Ok(snap.ConvertTo<User>()) : Results.NotFound();
+            });
+
+            // Create user endpoint
+            app.MapPost("/users", async (FirestoreDb db, User user) =>
+            {
+                user.Id = Guid.NewGuid().ToString("n");
+                user.CreatedUtc = DateTime.UtcNow;
+                await db.Collection("users").Document(user.Id).SetAsync(user);
+                return Results.Created($"/users/{user.Id}", user);
+            });
+
+
+
+
+            app.MapGet("/", () => Results.Redirect("/swagger"));
             app.Run();
         }
     }
@@ -147,5 +137,24 @@ namespace HippoExchange
         [FirestoreProperty] public string? Description { get; set; }
         [FirestoreProperty] public bool Available { get; set; } = true;
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+    }
+
+    [FirestoreData]
+    public class User
+    {
+        [FirestoreDocumentId]
+        public string? Id { get; set; }
+
+        [FirestoreProperty]
+        public string Email { get; set; } = default!;
+
+        [FirestoreProperty]
+        public string Name { get; set; } = default!;
+
+        [FirestoreProperty]
+        public string? ProfilePicture { get; set; }
+
+        [FirestoreProperty]
+        public DateTime CreatedUtc { get; set; }
     }
 }
