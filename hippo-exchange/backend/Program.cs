@@ -2,6 +2,7 @@ using Google.Cloud.Firestore;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Routing;
 
 namespace HippoExchange
 {
@@ -17,8 +18,11 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
+            var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone";v
+
             // Services
-            builder.Services.AddSingleton(_ => FirestoreDb.Create(projectId));
+            builder.Services.AddSingleton(_ =>
+                new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build());
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -63,6 +67,20 @@ namespace HippoExchange
 
             // ----------------- API endpoints -----------------
             app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+            app.MapGet("/health/firestore", async (Google.Cloud.Firestore.FirestoreDb db, ILogger<Program> logger) =>
+            {
+                try
+                {
+                    await db.Collection("users").Limit(1).GetSnapshotAsync();
+                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Firestore health check failed");
+                    return Results.Problem(title: "Firestore check failed", detail: ex.Message, statusCode: 503);
+                }
+            });
 
             // Create
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
