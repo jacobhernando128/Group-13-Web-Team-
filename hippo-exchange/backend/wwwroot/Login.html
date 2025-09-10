@@ -24,14 +24,6 @@
       <!-- Left / Brand -->
       <section class="text-white">
         <div class="flex items-center gap-3 mb-6">
-          <div class="h-12 w-12 rounded-2xl bg-white/25 border border-white/30 flex items-center justify-center shadow">
-            <!-- hippo-ish icon -->
-            <svg viewBox="0 0 24 24" class="h-7 w-7 text-white" fill="currentColor" aria-hidden="true">
-              <path d="M5 10a7 7 0 0 1 14 0v2h1a2 2 0 1 1 0 4h-1.25A5.5 5.5 0 0 1 13 21H9a5 5 0 0 1-5-5v-3a3 3 0 0 1 1-2.236V10Z"/>
-              <circle cx="9" cy="10" r="1.2" fill="#111827"/>
-              <circle cx="15" cy="10" r="1.2" fill="#111827"/>
-            </svg>
-          </div>
           <h1 class="text-3xl sm:text-4xl font-extrabold drop-shadow-sm">Hippo Exchange</h1>
         </div>
 
@@ -94,6 +86,18 @@
               </label>
 
               <label class="block md:col-span-2">
+                <span class="sr-only">Username</span>
+                <div class="relative">
+                  <span class="absolute left-3 top-2.5 text-slate-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5.33 0-8 2.67-8 6v1h16v-1c0-3.33-2.67-6-8-6Z"/></svg>
+                  </span>
+                  <input id="register-username" name="username" type="username" required
+                         class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                         placeholder="Username" autocomplete="username">
+                </div>
+              </label>
+
+              <label class="block md:col-span-2">
                 <span class="sr-only">Email</span>
                 <div class="relative">
                   <span class="absolute left-3 top-2.5 text-slate-400">
@@ -129,6 +133,29 @@
                   <span data-toggle="register-password" class="toggle-eye absolute right-3 top-2.5 text-slate-400" aria-label="Show password">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5c5 0 9 3.5 10.5 7-1.5 3.5-5.5 7-10.5 7S3 15.5 1.5 12C3 8.5 7 5 12 5Zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
                   </span>
+                </div>
+                <!-- Password Requirements -->
+                <div id="password-requirements" class="mt-2 text-xs text-slate-600 space-y-1">
+                  <div class="password-req" data-requirement="length">
+                    <span class="req-icon text-red-500">✗</span>
+                    <span class="req-text">At least 8 characters</span>
+                  </div>
+                  <div class="password-req" data-requirement="uppercase">
+                    <span class="req-icon text-red-500">✗</span>
+                    <span class="req-text">One uppercase letter</span>
+                  </div>
+                  <div class="password-req" data-requirement="lowercase">
+                    <span class="req-icon text-red-500">✗</span>
+                    <span class="req-text">One lowercase letter</span>
+                  </div>
+                  <div class="password-req" data-requirement="number">
+                    <span class="req-icon text-red-500">✗</span>
+                    <span class="req-text">One number</span>
+                  </div>
+                  <div class="password-req" data-requirement="special">
+                    <span class="req-icon text-red-500">✗</span>
+                    <span class="req-text">One special character</span>
+                  </div>
                 </div>
               </label>
 
@@ -200,7 +227,7 @@
                   <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                   Remember me
                 </label>
-                <a href="#" class="text-sm text-blue-700 hover:underline">Forgot password?</a>
+                <a href="./forgot-password.html" class="text-sm text-blue-700 hover:underline">Forgot password?</a>
               </div>
             </label>
 

@@ -95,6 +95,33 @@ document.addEventListener('DOMContentLoaded', () => {
   load();
 });
 
+// Signout functionality
+document.addEventListener('DOMContentLoaded', () => {
+  // Find the signout button and add event listener
+  const signoutButton = document.querySelector('a[href="./Login.html"]');
+  if (signoutButton) {
+    signoutButton.addEventListener('click', (e) => {
+      e.preventDefault(); // Prevent default link behavior
+      signOut();
+    });
+  }
+});
+
+function signOut() {
+  // Clear any stored authentication data
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('userData');
+  sessionStorage.removeItem('userToken');
+  sessionStorage.removeItem('userData');
+  
+  // Clear any cookies (if using them for auth)
+  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  
+  // Redirect to login page
+  window.location.href = './Login.html';
+}
+
 
 /* ===== Location modal + map (restore) ===== */
 const openBtn = document.getElementById('open-location');
