@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hippo Exchange — Home</title>
+
+  <!-- Fonts / Tailwind (CDN for demo; swap to local build in prod) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet (no token needed) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="relative min-h-screen overflow-hidden">
+  <!-- Decorative blobs -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+
+  <!-- Mobile Backdrop -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+  <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
+    <!-- Mobile Menu Button (Hamburger only) -->
+    <div class="md:hidden fixed top-4 left-4 z-50">
+      <button id="menu-button"
+              class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 12h16m-7 6h7"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
+          </div>
+          <h1 class="text-lg font-bold">Hippo Exchange</h1>
+        </div>
+        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="relative mt-4">
+        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+
+      <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
+        <ul class="space-y-2">
+          <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="#" class="nav-link"><span class="icon-bolt"></span><span>Exchange access</span></a></li>
+          <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
+        </ul>
+      </nav>
+
+      <button class="btn-primary w-full">+ Create new listing</button>
+      <button class="btn-ghost w-full mt-2">Create multiple listings</button>
+
+      <section class="mt-auto pt-4" aria-label="Account">
+        <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
+        <div class="glass p-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <div class="min-w-0">
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
+              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="text-xs text-slate-600">Balance</span>
+            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
+      <header class="glass flex flex-col md:flex-row justify-between items-center mb-6 p-4">
+        <div class="flex items-center gap-4 mb-4 md:mb-0">
+          <h2 class="text-2xl font-bold text-slate-800">Today's picks</h2>
+          <!-- Location pill -->
+          <button id="open-location" class="location-pill">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6l.94-1.88a1 1 0 011.79 0L16 6l2.1.3a1 1 0 01.83.98v1.44a1 1 0 01-.35.76L17.7 11l.88 2.04a1 1 0 01-.5 1.3l-1.32.66-.66 1.32a1 1 0 01-1.3.5L12 16.3l-2.1.52a1 1 0 01-1.3-.5l-.66-1.32-1.32-.66a1 1 0 01-.5-1.3L6 11 5.42 9.48a1 1 0 01-.35-.76V7.28a1 1 0 01.83-.98L8 6l1.27-1.88a1 1 0 011.79 0L12 6z"/>
+            </svg>
+            <span id="header-location">Cookeville, TN — 40 mi</span>
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+    <!-- Listings Grid (single instance) -->
+    <div id="listings-grid"
+        class="listings-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    </div>
+
+    <!-- Card template (not rendered) -->
+    <template id="item-card-template">
+      <article class="card glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1" data-id="">
+        <div class="relative">
+          <img class="card-img w-full h-[170px] object-cover" alt="Listing image" />
+          <span class="badge absolute top-2 left-2">Just listed</span>
+        </div>
+        <div class="card-footer p-4">
+          <h3 class="price text-lg font-semibold text-slate-900"></h3>
+          <p class="title text-slate-700 text-sm"></p>
+          <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
+        </div>
+      </article>
+    </template>
+
+  <!-- Location Modal -->
+  <div id="location-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="location-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="location-title" class="text-xl font-bold">Change location</h3>
+        <button id="close-location" class="text-slate-300 hover:text-white" aria-label="Close">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body space-y-4">
+        <div>
+          <label class="block text-sm text-slate-300 mb-2">Search by city, neighborhood or ZIP code.</label>
+          <div class="field">
+            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <input id="location-input" type="text" placeholder="Algood, Tennessee" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-300 mb-2">Radius</label>
+          <select id="radius-select" class="radius w-full px-3 py-2">
+            <option>5 mi</option>
+            <option>10 mi</option>
+            <option>20 mi</option>
+            <option selected>40 mi</option>
+            <option>60 mi</option>
+            <option>100 mi</option>
+          </select>
+        </div>
+        <div class="relative">
+          <div id="location-map"></div>
+          <button id="geo-btn" class="geo-btn" title="Use my location">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z"/></svg>
+          </button>
+        </div>
+        <div class="flex justify-end pt-2">
+          <button id="apply-location" class="btn-primary">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Home JS -->
+  <script defer src="./home.js"></script>
+</body>
+</html>

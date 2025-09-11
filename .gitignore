@@ -1,0 +1,24 @@
+# IDE
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build
+bin/
+obj/
+out/
+publish/
+artifacts/
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Firebase Key
+hippo-connect-firebase-adminsdk-fbsvc-aa302bf0e8.json
