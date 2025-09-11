@@ -159,7 +159,6 @@ namespace HippoExchange
 
 
 
-            app.MapGet("/", () => Results.Redirect("/swagger"));
             app.Run();
         }
     }
