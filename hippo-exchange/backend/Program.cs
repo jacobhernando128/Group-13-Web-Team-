@@ -18,7 +18,9 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
-            var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone"; 
+
+            var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone";
+
 
             // Services
             builder.Services.AddSingleton(_ =>
@@ -158,8 +160,6 @@ namespace HippoExchange
 
 
 
-
-            app.MapGet("/", () => Results.Redirect("/swagger"));
             app.Run();
         }
     }
@@ -195,4 +195,8 @@ namespace HippoExchange
         [FirestoreProperty]
         public DateTime CreatedUtc { get; set; }
     }
+
 }
+
+
+

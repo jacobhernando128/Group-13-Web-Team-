@@ -30,7 +30,7 @@ body {
   color: #e5e7eb;
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  border-radius: 1rem;
+  border-radius: 0rem 1rem 1rem 0rem;
   box-shadow: 0 10px 30px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 .input {
@@ -229,3 +229,32 @@ body {
 
 /* Clickable eye icon area */
 .toggle-eye { cursor: pointer; }
+
+/* Password requirements styling */
+.password-req {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.password-req.valid {
+  color: #059669; /* green-600 */
+}
+
+.password-req.valid .req-icon {
+  color: #059669; /* green-600 */
+}
+
+.password-req.invalid .req-icon {
+  color: #dc2626; /* red-600 */
+}
+
+.req-icon {
+  font-weight: bold;
+  transition: color 0.2s ease;
+}
+
+.req-text {
+  transition: color 0.2s ease;
+}

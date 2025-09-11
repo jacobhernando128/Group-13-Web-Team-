@@ -12,6 +12,11 @@
   const appSection     = document.getElementById('app-section');
   const userIdDisplay  = document.getElementById('user-id');
   const logoutBtn      = document.getElementById('logout-btn');
+<<<<<<< HEAD
+=======
+  const passwordInput  = document.getElementById('register-password');
+  const passwordReqs   = document.getElementById('password-requirements');
+>>>>>>> b55186782b56b5dde0ad0ae430ab84fa4e64302b
 
   // Helpers
   function showMessage(message, type = 'info') {
@@ -50,6 +55,50 @@
     setTimeout(() => formToShow.classList.add('active'), 220);
   }
 
+<<<<<<< HEAD
+=======
+  // Password validation function
+  function validatePassword(password) {
+    const requirements = {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    };
+    return requirements;
+  }
+
+  // Update password requirements display
+  function updatePasswordRequirements(password) {
+    if (!passwordReqs) return;
+    
+    const requirements = validatePassword(password);
+    
+    Object.keys(requirements).forEach(req => {
+      const reqElement = passwordReqs.querySelector(`[data-requirement="${req}"]`);
+      if (reqElement) {
+        const icon = reqElement.querySelector('.req-icon');
+        if (requirements[req]) {
+          reqElement.classList.add('valid');
+          reqElement.classList.remove('invalid');
+          icon.textContent = '✓';
+        } else {
+          reqElement.classList.add('invalid');
+          reqElement.classList.remove('valid');
+          icon.textContent = '✗';
+        }
+      }
+    });
+  }
+
+  // Check if password meets all requirements
+  function isPasswordValid(password) {
+    const requirements = validatePassword(password);
+    return Object.values(requirements).every(req => req === true);
+  }
+
+>>>>>>> b55186782b56b5dde0ad0ae430ab84fa4e64302b
   // Form toggles
   showRegister?.addEventListener('click', () => { swapForms(registerForm, loginForm); showMessage(''); });
   showLogin?.addEventListener('click',    () => { swapForms(loginForm, registerForm); showMessage(''); });
@@ -64,6 +113,14 @@
     });
   });
 
+<<<<<<< HEAD
+=======
+  // Password input validation
+  passwordInput?.addEventListener('input', (e) => {
+    updatePasswordRequirements(e.target.value);
+  });
+
+>>>>>>> b55186782b56b5dde0ad0ae430ab84fa4e64302b
   // Register submit
   registerForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -74,6 +131,15 @@
     const password        = e.target['register-password'].value;
     const confirmPassword = e.target['confirm-password'].value;
 
+<<<<<<< HEAD
+=======
+    // Validate password requirements
+    if (!isPasswordValid(password)) {
+      showMessage('Password does not meet all requirements. Please check the requirements below.', 'error');
+      return;
+    }
+
+>>>>>>> b55186782b56b5dde0ad0ae430ab84fa4e64302b
     if (password !== confirmPassword) {
       showMessage('Passwords do not match.', 'error');
       return;
@@ -114,9 +180,18 @@
         throw new Error(err.message || 'Login failed.');
       }
       const data = await res.json().catch(() => ({ userId: 'unknown' }));
+<<<<<<< HEAD
       showMessage('Login successful!', 'success');
       userIdDisplay.textContent = `Your User ID: ${data.userId ?? '—'}`;
       setAuthUI(true);
+=======
+      showMessage('Login successful! Redirecting...', 'success');
+      
+      // Redirect to home page after successful login
+      setTimeout(() => {
+        window.location.href = './Home.html';
+      }, 1500);
+>>>>>>> b55186782b56b5dde0ad0ae430ab84fa4e64302b
     } catch (err) {
       console.error(err);
       showMessage(err.message, 'error');
