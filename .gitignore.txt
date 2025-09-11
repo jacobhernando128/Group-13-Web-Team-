@@ -1,0 +1,21 @@
+# IDE
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build
+bin/
+obj/
+out/
+publish/
+artifacts/
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
