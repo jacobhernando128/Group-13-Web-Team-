@@ -1,5 +1,9 @@
 # IDE
 .vs/
+.git/
+bin/
+obj/
+Properties/
 .idea/
 *.suo
 *.user
@@ -19,3 +23,6 @@ artifacts/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Firebase Key
+hippo-connect-firebase*.json

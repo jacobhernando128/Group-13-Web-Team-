@@ -1,5 +1,9 @@
 # IDE
 .vs/
+.git/
+bin/
+obj/
+Properties/
 .idea/
 *.suo
 *.user
@@ -21,4 +25,4 @@ artifacts/
 Thumbs.db
 
 # Firebase Key
-hippo-connect-firebase-adminsdk-fbsvc-aa302bf0e8.json
+hippo-connect-firebase*.json
