@@ -22,7 +22,7 @@ namespace HippoExchange
             var databaseId =
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
-                ?? "(default)";
+                ?? "group13capstone";
 
 
             // Services
