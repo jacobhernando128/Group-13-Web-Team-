@@ -19,7 +19,10 @@ namespace HippoExchange
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
 
-            var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone";
+            var databaseId =
+                Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
+                ?? builder.Configuration["GoogleCloud:DatabaseId"]
+                ?? "(default)";
 
 
             // Services
