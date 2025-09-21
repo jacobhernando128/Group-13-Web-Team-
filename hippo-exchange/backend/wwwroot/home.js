@@ -2,7 +2,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const API_URL = 'listings.json'; // same folder as home.html
   const grid = document.getElementById('listings-grid');
-  const tpl  = document.getElementById('item-card-template');
+  const tpl = document.getElementById('item-card-template');
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
 
@@ -10,10 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
     (val === null || val === undefined || val === '')
       ? '$—'
       : new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-          maximumFractionDigits: 0
-        }).format(Number(val));
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0
+      }).format(Number(val));
 
   const pickHomeFields = (item) => {
     const hero = item.imageUrl || (Array.isArray(item.images) && item.images[0]) || PLACEHOLDER_IMG;
@@ -50,10 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     el.dataset.id = min.id;
-    const img   = el.querySelector('.card-img');
+    const img = el.querySelector('.card-img');
     const price = el.querySelector('.price');
     const title = el.querySelector('.title');
-    const loc   = el.querySelector('[data-field="location"]');
+    const loc = el.querySelector('[data-field="location"]');
     const badge = el.querySelector('.badge');
 
     img.src = min.imageUrl || PLACEHOLDER_IMG;
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     price.textContent = formatPrice(min.price);
     title.textContent = min.title;
-    loc.textContent   = min.locationLabel || (min.ships ? 'Ships to you' : '');
+    loc.textContent = min.locationLabel || (min.ships ? 'Ships to you' : '');
 
     if (!min.isNew) badge?.remove();
 
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Failed to load listings:', err);
       render([
-        { id:'abc123', slug:'gaming-desktop-abc123', title:'Gaming Desktop (for sale & trade)', price:300, locationLabel:'Cookeville, TN', imageUrl:PLACEHOLDER_IMG, isNew:true, ships:false },
+        { id: 'abc123', slug: 'gaming-desktop-abc123', title: 'Gaming Desktop (for sale & trade)', price: 300, locationLabel: 'Cookeville, TN', imageUrl: PLACEHOLDER_IMG, isNew: true, ships: false },
       ]);
     }
   }
@@ -113,11 +113,11 @@ function signOut() {
   localStorage.removeItem('userData');
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
-  
+
   // Clear any cookies (if using them for auth)
   document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  
+
   // Redirect to login page
   window.location.href = './Login.html';
 }
@@ -139,10 +139,10 @@ const defaultPos = { lat: 36.1628, lng: -85.5016 }; // Cookeville area
 
 const milesToMeters = (mi) => parseFloat(mi) * 1609.344;
 
-function ensureMap(){
+function ensureMap() {
   if (map) return;
   map = L.map('location-map', { zoomControl: true, scrollWheelZoom: true })
-          .setView([defaultPos.lat, defaultPos.lng], 10);
+    .setView([defaultPos.lat, defaultPos.lng], 10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
@@ -154,7 +154,7 @@ function ensureMap(){
   marker.on('drag', e => circle.setLatLng(e.latlng));
 }
 
-function setMapTo(lat, lon){
+function setMapTo(lat, lon) {
   const ll = [lat, lon];
   marker.setLatLng(ll);
   circle.setLatLng(ll);
@@ -174,11 +174,11 @@ radiusEl?.addEventListener('change', () => {
   circle?.setRadius(milesToMeters(miles));
 });
 
-async function geocode(query){
-  if(!query) return null;
+async function geocode(query) {
+  if (!query) return null;
   const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
   try {
-    const res = await fetch(url, { headers:{'Accept-Language':'en'} });
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     const data = await res.json();
     if (data && data[0]) {
       const { lat, lon, display_name } = data[0];
@@ -193,9 +193,9 @@ inputEl?.addEventListener('input', () => {
   clearTimeout(t);
   const q = inputEl.value.trim();
   t = setTimeout(async () => {
-    if(!q || q === lastGeocodedQuery) return;
+    if (!q || q === lastGeocodedQuery) return;
     const result = await geocode(q);
-    if(result){ ensureMap(); setMapTo(result.lat, result.lon); lastGeocodedQuery = q; }
+    if (result) { ensureMap(); setMapTo(result.lat, result.lon); lastGeocodedQuery = q; }
   }, 500);
 });
 
@@ -203,9 +203,9 @@ inputEl?.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     const q = inputEl.value.trim();
-    if(q){
+    if (q) {
       const result = await geocode(q);
-      if(result){
+      if (result) {
         ensureMap();
         setMapTo(result.lat, result.lon);
         lastGeocodedQuery = q;
@@ -216,7 +216,7 @@ inputEl?.addEventListener('keydown', async (e) => {
 });
 
 geoBtn?.addEventListener('click', () => {
-  if(!navigator.geolocation) return;
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude, longitude } = pos.coords;
     ensureMap();
@@ -225,7 +225,7 @@ geoBtn?.addEventListener('click', () => {
   });
 });
 
-function updateHeader(cityText, milesText){
+function updateHeader(cityText, milesText) {
   headerEl.textContent = `${cityText} — ${milesText}`;
   // also reflect on visible cards (optional)
   document.querySelectorAll('#listings-grid [data-field="location"]').forEach(n => n.textContent = cityText);
@@ -235,12 +235,12 @@ applyBtn?.addEventListener('click', async () => {
   const milesText = radiusEl.value || '40 mi';
   let cityText = inputEl.value && inputEl.value.trim() ? inputEl.value.trim() : 'Custom location';
 
-  if(cityText && cityText !== lastGeocodedQuery){
+  if (cityText && cityText !== lastGeocodedQuery) {
     const result = await geocode(cityText);
-    if(result){
+    if (result) {
       ensureMap();
       setMapTo(result.lat, result.lon);
-      cityText = result.display_name.split(',').slice(0,2).join(',');
+      cityText = result.display_name.split(',').slice(0, 2).join(',');
       lastGeocodedQuery = inputEl.value.trim();
     }
   } else {
@@ -248,7 +248,7 @@ applyBtn?.addEventListener('click', async () => {
     circle?.setRadius(milesToMeters(miles));
   }
 
-  const shortCity = cityText.split(',').slice(0,2).join(',');
+  const shortCity = cityText.split(',').slice(0, 2).join(',');
   updateHeader(shortCity, milesText);
   modal.classList.remove('active');
 });
