@@ -3,6 +3,7 @@ using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Routing;
+using System.Linq;
 
 namespace HippoExchange
 {
@@ -12,22 +13,21 @@ namespace HippoExchange
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Project Id: env first, then appsettings
+            // ---- Config ----
             var projectId =
                 Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT")
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
-
             var databaseId =
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
-                ?? "group13capstone";
+                ?? "group13capstone"; // <- your confirmed DatabaseId
 
-
-            // Services
+            // ---- Services ----
             builder.Services.AddSingleton(_ =>
                 new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build());
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -39,7 +39,7 @@ namespace HippoExchange
                 });
             });
 
-            // (Optional) CORS for local fetch() from your pages
+            // Optional CORS (safe since front-end is same-origin, but fine to keep)
             builder.Services.AddCors(o =>
             {
                 o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
@@ -47,7 +47,7 @@ namespace HippoExchange
 
             var app = builder.Build();
 
-            // Dev tooling
+            // ---- Dev tooling ----
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -57,23 +57,23 @@ namespace HippoExchange
 
             app.UseHttpsRedirection();
 
-            // ---- Serve your frontend from backend/wwwroot ----
+            // ---- Serve frontend (wwwroot) ----
             var defaults = new DefaultFilesOptions();
             defaults.DefaultFileNames.Clear();
-            // Pick the first one that exists in wwwroot:
             defaults.DefaultFileNames.Add("Login.html");
             defaults.DefaultFileNames.Add("Home.html");
             defaults.DefaultFileNames.Add("index.html");
             app.UseDefaultFiles(defaults);
 
-            app.UseStaticFiles();       // serves backend/wwwroot/**
+            app.UseStaticFiles();
+            app.UseCors();
 
-            app.UseCors();              // (optional) enable the CORS policy
+            // ===================== API ENDPOINTS =====================
 
-            // ----------------- API endpoints -----------------
+            // Health
             app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-            app.MapGet("/health/firestore", async (Google.Cloud.Firestore.FirestoreDb db, ILogger<Program> logger) =>
+            app.MapGet("/health/firestore", async (FirestoreDb db, ILogger<Program> logger) =>
             {
                 try
                 {
@@ -87,7 +87,7 @@ namespace HippoExchange
                 }
             });
 
-            // Create
+            // ---------------- Items CRUD ----------------
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
             {
                 item.Id = Guid.NewGuid().ToString("n");
@@ -96,14 +96,12 @@ namespace HippoExchange
                 return Results.Created($"/items/{item.Id}", item);
             });
 
-            // Read (one)
             app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 var snap = await db.Collection("items").Document(id).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
             });
 
-            // Read (many) with optional filters
             app.MapGet("/items", async (FirestoreDb db, string? ownerId, bool? available) =>
             {
                 Query q = db.Collection("items");
@@ -113,7 +111,6 @@ namespace HippoExchange
                 return snaps.Select(s => s.ConvertTo<Item>());
             });
 
-            // Update
             app.MapPut("/items/{id}", async (FirestoreDb db, string id, Item update) =>
             {
                 var doc = db.Collection("items").Document(id);
@@ -130,14 +127,13 @@ namespace HippoExchange
                 return Results.Ok(current);
             });
 
-            // Delete
             app.MapDelete("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 await db.Collection("items").Document(id).DeleteAsync();
                 return Results.NoContent();
             });
 
-            // Get all items for a specific user
+            // ---------------- Users (read/demo) ----------------
             app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
             {
                 var q = db.Collection("items").WhereEqualTo(nameof(Item.OwnerId), userId);
@@ -145,14 +141,12 @@ namespace HippoExchange
                 return snaps.Select(s => s.ConvertTo<Item>());
             });
 
-            // Get user profile
             app.MapGet("/users/{userId}", async (FirestoreDb db, string userId) =>
             {
                 var snap = await db.Collection("users").Document(userId).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<User>()) : Results.NotFound();
             });
 
-            // Create user endpoint
             app.MapPost("/users", async (FirestoreDb db, User user) =>
             {
                 user.Id = Guid.NewGuid().ToString("n");
@@ -161,7 +155,52 @@ namespace HippoExchange
                 return Results.Created($"/users/{user.Id}", user);
             });
 
+            // ---------------- AUTH (new) ----------------
+            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto) =>
+            {
+                var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(dto.Password))
+                    return Results.BadRequest(new { message = "Email and password are required." });
 
+                var exists = await db.Collection("users")
+                    .WhereEqualTo(nameof(UserAuth.Email), email)
+                    .Limit(1).GetSnapshotAsync();
+
+                if (exists.Any())
+                    return Results.Conflict(new { message = "Email already registered." });
+
+                var user = new UserAuth
+                {
+                    Id = Guid.NewGuid().ToString("n"),
+                    Email = email,
+                    Name = (dto.Name ?? "").Trim(),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                    CreatedUtc = DateTime.UtcNow
+                };
+
+                await db.Collection("users").Document(user.Id).SetAsync(user);
+
+                return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
+            });
+
+            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto) =>
+            {
+                var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+
+                var snaps = await db.Collection("users")
+                    .WhereEqualTo(nameof(UserAuth.Email), email)
+                    .Limit(1).GetSnapshotAsync();
+
+                if (!snaps.Any()) return Results.Unauthorized();
+
+                var user = snaps.First().ConvertTo<UserAuth>();
+                var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
+                if (!ok) return Results.Unauthorized();
+
+                return Results.Ok(new { user.Id, user.Email, user.Name });
+            });
+
+            // =====================================================
 
             app.Run();
         }
@@ -183,23 +222,25 @@ namespace HippoExchange
     [FirestoreData]
     public class User
     {
-        [FirestoreDocumentId]
-        public string? Id { get; set; }
+        [FirestoreDocumentId] public string? Id { get; set; }
 
-        [FirestoreProperty]
-        public string Email { get; set; } = default!;
-
-        [FirestoreProperty]
-        public string Name { get; set; } = default!;
-
-        [FirestoreProperty]
-        public string? ProfilePicture { get; set; }
-
-        [FirestoreProperty]
-        public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty] public string Email { get; set; } = default!;
+        [FirestoreProperty] public string Name { get; set; } = default!;
+        [FirestoreProperty] public string? ProfilePicture { get; set; }
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
     }
 
+    // ---- Auth DTOs + Firestore model (with password hash) ----
+    public record AuthRegisterDto(string Email, string Name, string Password);
+    public record AuthLoginDto(string Email, string Password);
+
+    [FirestoreData]
+    public class UserAuth
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty] public string Email { get; set; } = default!;
+        [FirestoreProperty] public string Name { get; set; } = default!;
+        [FirestoreProperty] public string PasswordHash { get; set; } = default!;
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+    }
 }
-
-
-

@@ -8,6 +8,7 @@
 
 	<ItemGroup>
 		<!-- Firestore client library -->
+		<PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
 		<PackageReference Include="Google.Cloud.Firestore" Version="3.*" />
 
 		<!-- Swagger/Swashbuckle for API docs -->
