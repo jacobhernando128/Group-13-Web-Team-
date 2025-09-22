@@ -258,3 +258,28 @@ body {
 .req-text {
   transition: color 0.2s ease;
 }
+
+/* Create Listing: add borders to inputs and upload tiles */
+#create-form input,
+#create-form select,
+#create-form textarea {
+  border: 1px solid #5d5d5d !important; /* slate-300 */
+  border-radius: .5rem;
+  padding: .6rem .8rem;
+  background: rgba(255,255,255,0.85);
+}
+
+#create-form input:focus,
+#create-form select:focus,
+#create-form textarea:focus {
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
+  border-color: #3b82f6 !important; /* blue-500 */
+  outline: none;
+}
+
+/* Photo/Video upload tiles (outside the form) */
+button[data-upload] {
+  border: 1px solid #5d5d5d !important;
+  border-radius: .5rem;
+  background: rgba(255,255,255,0.85);
+}
