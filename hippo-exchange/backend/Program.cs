@@ -22,7 +22,7 @@ namespace HippoExchange
             var databaseId =
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
-                ?? "group13capstone"; // <- your confirmed DatabaseId
+                ?? "group13capstone"; // default for local dev
 
             // ---- Services ----
             builder.Services.AddSingleton(_ =>
@@ -35,14 +35,17 @@ namespace HippoExchange
                 {
                     Title = "HippoExchange API",
                     Version = "v1",
-                    Description = "Simple CRUD API backed by Firestore"
+                    Description = "Simple CRUD + Auth API backed by Firestore"
                 });
             });
 
-            // Optional CORS (safe since front-end is same-origin, but fine to keep)
+            // CORS: relaxed for local dev (front-end on file:// or any localhost)
             builder.Services.AddCors(o =>
             {
-                o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+                o.AddDefaultPolicy(p => p
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .SetIsOriginAllowed(_ => true));
             });
 
             var app = builder.Build();
@@ -55,7 +58,10 @@ namespace HippoExchange
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
             }
 
-            app.UseHttpsRedirection();
+            // Only redirect if an HTTPS url is actually bound (prevents "Failed to determine https port")
+            var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "";
+            var hasHttps = urls.Contains("https://", StringComparison.OrdinalIgnoreCase);
+            if (hasHttps) app.UseHttpsRedirection();
 
             // ---- Serve frontend (wwwroot) ----
             var defaults = new DefaultFilesOptions();
@@ -78,7 +84,7 @@ namespace HippoExchange
                 try
                 {
                     await db.Collection("users").Limit(1).GetSnapshotAsync();
-                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId });
+                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId, databaseId = db.DatabaseId });
                 }
                 catch (Exception ex)
                 {
@@ -155,53 +161,67 @@ namespace HippoExchange
                 return Results.Created($"/users/{user.Id}", user);
             });
 
-            // ---------------- AUTH (new) ----------------
-            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto) =>
+            // ---------------- AUTH (BCrypt) ----------------
+            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
                 if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(dto.Password))
                     return Results.BadRequest(new { message = "Email and password are required." });
 
-                var exists = await db.Collection("users")
-                    .WhereEqualTo(nameof(UserAuth.Email), email)
-                    .Limit(1).GetSnapshotAsync();
-
-                if (exists.Any())
-                    return Results.Conflict(new { message = "Email already registered." });
-
-                var user = new UserAuth
+                try
                 {
-                    Id = Guid.NewGuid().ToString("n"),
-                    Email = email,
-                    Name = (dto.Name ?? "").Trim(),
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                    CreatedUtc = DateTime.UtcNow
-                };
+                    var exists = await db.Collection("users")
+                        .WhereEqualTo(nameof(UserAuth.Email), email)
+                        .Limit(1).GetSnapshotAsync();
 
-                await db.Collection("users").Document(user.Id).SetAsync(user);
+                    if (exists.Any())
+                        return Results.Conflict(new { message = "Email already registered." });
 
-                return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
+                    var user = new UserAuth
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        Email = email,
+                        Name = (dto.Name ?? "").Trim(),
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                        CreatedUtc = DateTime.UtcNow
+                    };
+
+                    await db.Collection("users").Document(user.Id).SetAsync(user);
+
+                    return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
+                }
+                catch (Exception ex)
+                {
+                    log.LogError(ex, "Register failed");
+                    return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
+                }
             });
 
-            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto) =>
+            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto, ILogger<Program> log) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+                try
+                {
+                    var snaps = await db.Collection("users")
+                        .WhereEqualTo(nameof(UserAuth.Email), email)
+                        .Limit(1).GetSnapshotAsync();
 
-                var snaps = await db.Collection("users")
-                    .WhereEqualTo(nameof(UserAuth.Email), email)
-                    .Limit(1).GetSnapshotAsync();
+                    if (!snaps.Any()) return Results.Unauthorized();
 
-                if (!snaps.Any()) return Results.Unauthorized();
+                    var user = snaps.First().ConvertTo<UserAuth>();
+                    var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
+                    if (!ok) return Results.Unauthorized();
 
-                var user = snaps.First().ConvertTo<UserAuth>();
-                var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
-                if (!ok) return Results.Unauthorized();
-
-                return Results.Ok(new { user.Id, user.Email, user.Name });
+                    return Results.Ok(new { user.Id, user.Email, user.Name });
+                }
+                catch (Exception ex)
+                {
+                    log.LogError(ex, "Login failed");
+                    return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
+                }
             });
 
             // =====================================================
-
             app.Run();
         }
     }
