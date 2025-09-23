@@ -6,33 +6,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hippo Exchange — Sign in / Register</title>
 
-  <!-- Inter + Tailwind -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Fonts + Tailwind -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Shared site styles (your gradient, glass, blobs, buttons, etc.) -->
+  <!-- Optional site styles -->
   <link rel="stylesheet" href="./styles.css" />
 </head>
 
 <body class="min-h-screen">
-  <!-- Decorative blobs (reuse global styles) -->
   <div class="blob blob-1" aria-hidden="true"></div>
   <div class="blob blob-2" aria-hidden="true"></div>
 
   <main class="relative min-h-screen flex items-stretch justify-center">
     <div class="w-full max-w-7xl px-6 md:px-10 py-10 grid lg:grid-cols-2 gap-8 items-center">
-      <!-- Left / Brand -->
+      <!-- Left -->
       <section class="text-white">
         <div class="flex items-center gap-3 mb-6">
           <h1 class="text-3xl sm:text-4xl font-extrabold drop-shadow-sm">Hippo Exchange</h1>
         </div>
-
         <p class="text-white/90 text-lg md:text-xl max-w-xl leading-relaxed">
           Borrow. Lend. Share. A simple marketplace where your stuff finds its second life.
         </p>
-
         <div class="mt-10 glass p-6 md:p-8 inline-flex items-center gap-4">
           <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo"
             class="h-24 w-24 rounded-full object-cover ring-8 ring-white/60 shadow"
@@ -52,9 +49,8 @@
         </div>
       </section>
 
-      <!-- Right / Auth Card -->
+      <!-- Right / Auth -->
       <section class="glass p-6 md:p-10">
-        <!-- Message box -->
         <div id="message-box" class="hidden mb-4 p-3 rounded-lg text-sm transition-all duration-300"></div>
 
         <div class="flex flex-col items-stretch relative min-h-[620px]">
@@ -70,11 +66,12 @@
                 <span class="sr-only">First Name</span>
                 <div class="relative">
                   <span class="absolute left-3 top-2.5 text-slate-400">
+                    <!-- icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5.33 0-8 2.67-8 6v1h16v-1c0-3.33-2.67-6-8-6Z" />
                     </svg>
                   </span>
-                  <input id="register-firstname" name="firstname" required
+                  <input id="register-firstname" required
                     class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="First name" type="text" autocomplete="given-name">
                 </div>
@@ -88,7 +85,7 @@
                       <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5.33 0-8 2.67-8 6v1h16v-1c0-3.33-2.67-6-8-6Z" />
                     </svg>
                   </span>
-                  <input id="register-lastname" name="lastname" required
+                  <input id="register-lastname" required
                     class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Last name" type="text" autocomplete="family-name">
                 </div>
@@ -102,7 +99,7 @@
                       <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-5.33 0-8 2.67-8 6v1h16v-1c0-3.33-2.67-6-8-6Z" />
                     </svg>
                   </span>
-                  <input id="register-username" name="username" type="username" required
+                  <input id="register-username" type="text" required
                     class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Username" autocomplete="username">
                 </div>
@@ -113,11 +110,10 @@
                 <div class="relative">
                   <span class="absolute left-3 top-2.5 text-slate-400">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                      <path
-                        d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v.4l-10 6.25L2 6.4V6Zm0 3.2V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9.2l-9.4 5.87a2 2 0 0 1-2.12 0L2 9.2Z" />
+                      <path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v.4l-10 6.25L2 6.4V6Z" />
                     </svg>
                   </span>
-                  <input id="register-email" name="email" type="email" required
+                  <input id="register-email" type="email" required
                     class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Email address" autocomplete="email">
                 </div>
@@ -132,7 +128,7 @@
                         d="M6.62 10.79a15.534 15.534 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.11.37 2.31.56 3.58.56a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.85 21 3 13.15 3 3a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.27.19 2.47.56 3.58a1 1 0 0 1-.24 1.01l-2.2 2.2Z" />
                     </svg>
                   </span>
-                  <input id="register-phone" name="phone" type="tel" required
+                  <input id="register-phone" type="tel" required
                     class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Phone number" autocomplete="tel">
                 </div>
@@ -150,7 +146,8 @@
                   <input id="register-password" name="password" required
                     class="input w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Password" type="password" autocomplete="new-password">
-                  <span data-toggle="register-password" class="toggle-eye absolute right-3 top-2.5 text-slate-400"
+                  <span data-toggle="register-password"
+                    class="toggle-eye absolute right-3 top-2.5 text-slate-400 cursor-pointer z-10"
                     aria-label="Show password">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                       <path
@@ -158,28 +155,17 @@
                     </svg>
                   </span>
                 </div>
-                <!-- Password Requirements -->
                 <div id="password-requirements" class="mt-2 text-xs text-slate-600 space-y-1">
-                  <div class="password-req" data-requirement="length">
-                    <span class="req-icon text-red-500">✗</span>
-                    <span class="req-text">At least 8 characters</span>
-                  </div>
-                  <div class="password-req" data-requirement="uppercase">
-                    <span class="req-icon text-red-500">✗</span>
-                    <span class="req-text">One uppercase letter</span>
-                  </div>
-                  <div class="password-req" data-requirement="lowercase">
-                    <span class="req-icon text-red-500">✗</span>
-                    <span class="req-text">One lowercase letter</span>
-                  </div>
-                  <div class="password-req" data-requirement="number">
-                    <span class="req-icon text-red-500">✗</span>
-                    <span class="req-text">One number</span>
-                  </div>
-                  <div class="password-req" data-requirement="special">
-                    <span class="req-icon text-red-500">✗</span>
-                    <span class="req-text">One special character</span>
-                  </div>
+                  <div class="password-req" data-requirement="length"><span class="req-icon text-red-500">✗</span> At
+                    least 8 characters</div>
+                  <div class="password-req" data-requirement="uppercase"><span class="req-icon text-red-500">✗</span>
+                    One uppercase letter</div>
+                  <div class="password-req" data-requirement="lowercase"><span class="req-icon text-red-500">✗</span>
+                    One lowercase letter</div>
+                  <div class="password-req" data-requirement="number"><span class="req-icon text-red-500">✗</span> One
+                    number</div>
+                  <div class="password-req" data-requirement="special"><span class="req-icon text-red-500">✗</span> One
+                    special character</div>
                 </div>
               </label>
 
@@ -192,10 +178,11 @@
                         d="M17 8V7a5 5 0 1 0-10 0v1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-2Zm-8 0V7a3 3 0 1 1 6 0v1H9Z" />
                     </svg>
                   </span>
-                  <input id="confirm-password" name="confirmPassword" required
+                  <input id="confirm-password" required
                     class="input w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                     placeholder="Confirm password" type="password" autocomplete="new-password">
-                  <span data-toggle="confirm-password" class="toggle-eye absolute right-3 top-2.5 text-slate-400"
+                  <span data-toggle="confirm-password"
+                    class="toggle-eye absolute right-3 top-2.5 text-slate-400 cursor-pointer z-10"
                     aria-label="Show password">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                       <path
@@ -215,9 +202,8 @@
             </div>
 
             <button type="submit"
-              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
-              Create account
-            </button>
+              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">Create
+              account</button>
 
             <p class="text-center mt-6 text-sm text-slate-600">
               Already have an account?
@@ -238,11 +224,10 @@
               <div class="relative">
                 <span class="absolute left-3 top-2.5 text-slate-400">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                    <path
-                      d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v.4l-10 6.25L2 6.4V6Zm0 3.2V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9.2l-9.4 5.87a2 2 0 0 1-2.12 0L2 9.2Z" />
+                    <path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v.4l-10 6.25L2 6.4V6Z" />
                   </svg>
                 </span>
-                <input id="login-email" name="email" type="email" required
+                <input id="login-email" type="email" required
                   class="input w-full pl-10 pr-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                   placeholder="Email address" autocomplete="email">
               </div>
@@ -257,10 +242,11 @@
                       d="M17 8V7a5 5 0 1 0-10 0v1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-2Zm-8 0V7a3 3 0 1 1 6 0v1H9Z" />
                   </svg>
                 </span>
-                <input id="login-password" name="password" required
+                <input id="login-password" required
                   class="input w-full pl-10 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
                   placeholder="Password" type="password" autocomplete="current-password">
-                <span data-toggle="login-password" class="toggle-eye absolute right-3 top-2.5 text-slate-400"
+                <span data-toggle="login-password"
+                  class="toggle-eye absolute right-3 top-2.5 text-slate-400 cursor-pointer z-10"
                   aria-label="Show password">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                     <path
@@ -278,9 +264,8 @@
             </label>
 
             <button type="submit"
-              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
-              Log in
-            </button>
+              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">Log
+              in</button>
 
             <p class="text-center mt-6 text-sm text-slate-600">
               New here?
@@ -289,24 +274,23 @@
             </p>
           </form>
 
-          <!-- Post-login placeholder -->
+          <!-- Post-login -->
           <div id="app-section"
             class="hidden fade absolute inset-0 flex flex-col items-center justify-center text-center p-6">
             <h2 class="text-2xl font-semibold text-gray-700 mb-2">Welcome to Hippo Exchange!</h2>
             <p class="text-lg text-gray-600 mb-4">You are now logged in.</p>
             <p id="user-id" class="text-sm text-gray-500 mb-6"></p>
             <button id="logout-btn"
-              class="w-full max-w-sm flex justify-center py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-              Log out
-            </button>
+              class="w-full max-w-sm flex justify-center py-2 px-4 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Log
+              out</button>
           </div>
         </div>
       </section>
     </div>
   </main>
 
-  <!-- Page script -->
-  <script defer src="./login.v4.js"></script>
+  <!-- Page script (same-origin). To point at a different API base, add data-api="https://localhost:7173" -->
+  <script defer src="./login.v4.js?v=5"></script>
 </body>
 
 </html>

@@ -1,9 +1,10 @@
+// Program.cs
+using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
-using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Routing;
-using System.Linq;
+using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
 
 namespace HippoExchange
 {
@@ -13,20 +14,39 @@ namespace HippoExchange
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // ---- Config ----
+            // -------- Config --------
             var projectId =
                 Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT")
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
-                ?? throw new InvalidOperationException("ProjectId not configured.");
+                ?? throw new InvalidOperationException("GoogleCloud:ProjectId not configured.");
 
             var databaseId =
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
-                ?? "group13capstone"; // default for local dev
+                ?? "(default)";
 
-            // ---- Services ----
-            builder.Services.AddSingleton(_ =>
-                new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build());
+            // Credentials: env var first, then appsettings (GoogleCloud:CredentialPath)
+            var credPath =
+                Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
+                ?? builder.Configuration["GoogleCloud:CredentialPath"];
+
+            if (string.IsNullOrWhiteSpace(credPath) || !File.Exists(credPath))
+            {
+                throw new InvalidOperationException(
+                    "Firestore credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS " +
+                    "or GoogleCloud:CredentialPath to a valid service-account JSON file. " +
+                    $"Current value: '{credPath ?? "<empty>"}'");
+            }
+
+            var googleCred = GoogleCredential.FromFile(credPath);
+
+            // -------- Services --------
+            builder.Services.AddSingleton(_ => new FirestoreDbBuilder
+            {
+                ProjectId = projectId,
+                DatabaseId = databaseId,
+                Credential = googleCred
+            }.Build());
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
@@ -39,7 +59,7 @@ namespace HippoExchange
                 });
             });
 
-            // CORS: relaxed for local dev (front-end on file:// or any localhost)
+            // CORS (relaxed for local dev / file:// testing)
             builder.Services.AddCors(o =>
             {
                 o.AddDefaultPolicy(p => p
@@ -50,7 +70,7 @@ namespace HippoExchange
 
             var app = builder.Build();
 
-            // ---- Dev tooling ----
+            // -------- Dev tooling --------
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -58,12 +78,12 @@ namespace HippoExchange
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
             }
 
-            // Only redirect if an HTTPS url is actually bound (prevents "Failed to determine https port")
+            // Only redirect if HTTPS is actually bound
             var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "";
             var hasHttps = urls.Contains("https://", StringComparison.OrdinalIgnoreCase);
             if (hasHttps) app.UseHttpsRedirection();
 
-            // ---- Serve frontend (wwwroot) ----
+            // -------- Static frontend (wwwroot) --------
             var defaults = new DefaultFilesOptions();
             defaults.DefaultFileNames.Clear();
             defaults.DefaultFileNames.Add("Login.html");
@@ -74,7 +94,7 @@ namespace HippoExchange
             app.UseStaticFiles();
             app.UseCors();
 
-            // ===================== API ENDPOINTS =====================
+            // ===================== API =====================
 
             // Health
             app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
@@ -93,7 +113,19 @@ namespace HippoExchange
                 }
             });
 
-            // ---------------- Items CRUD ----------------
+            // Helpful debug to confirm ADC path at runtime
+            app.MapGet("/debug/adc", () =>
+            {
+                var p = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
+                        ?? builder.Configuration["GoogleCloud:CredentialPath"];
+                return Results.Ok(new
+                {
+                    credentialPath = p,
+                    exists = !string.IsNullOrWhiteSpace(p) && File.Exists(p)
+                });
+            });
+
+            // -------- Items CRUD --------
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
             {
                 item.Id = Guid.NewGuid().ToString("n");
@@ -139,7 +171,7 @@ namespace HippoExchange
                 return Results.NoContent();
             });
 
-            // ---------------- Users (read/demo) ----------------
+            // -------- Users (demo reads) --------
             app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
             {
                 var q = db.Collection("items").WhereEqualTo(nameof(Item.OwnerId), userId);
@@ -161,7 +193,7 @@ namespace HippoExchange
                 return Results.Created($"/users/{user.Id}", user);
             });
 
-            // ---------------- AUTH (BCrypt) ----------------
+            // -------- Auth (BCrypt) --------
             app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
@@ -187,7 +219,6 @@ namespace HippoExchange
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
-
                     return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
                 }
                 catch (Exception ex)
@@ -221,7 +252,7 @@ namespace HippoExchange
                 }
             });
 
-            // =====================================================
+            // ------------------------------------------------
             app.Run();
         }
     }
@@ -243,7 +274,6 @@ namespace HippoExchange
     public class User
     {
         [FirestoreDocumentId] public string? Id { get; set; }
-
         [FirestoreProperty] public string Email { get; set; } = default!;
         [FirestoreProperty] public string Name { get; set; } = default!;
         [FirestoreProperty] public string? ProfilePicture { get; set; }
