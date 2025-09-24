@@ -13,6 +13,13 @@ namespace HippoExchange
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+             builder.WebHost.ConfigureKestrel(options =>
+             {
+                options.ListenAnyIP(5000); // change 5000 to whatever port you want
+                // If you want HTTPS with a cert:
+                // // options.ListenAnyIP(443, listenOptions => listenOptions.UseHttps("cert.pfx", "password"));
+             });
+
 
             // -------- Config --------
             var projectId =
@@ -253,6 +260,10 @@ namespace HippoExchange
             });
 
             // ------------------------------------------------
+            app.UseDeveloperExceptionPage();
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
+
             app.Run();
         }
     }
