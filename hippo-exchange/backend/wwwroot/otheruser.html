@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hippo Exchange — User Profile</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Shared app styles (glass, inputs, etc.) -->
+  <link rel="stylesheet" href="./styles.css"/>
+  <style>
+    .section-title { color:#0f172a; font-weight:700; font-size:1.25rem }
+    .field-label   { font-size:.85rem; color:#334155; font-weight:600; margin-bottom:.35rem }
+    .field-help    { font-size:.8rem; color:#64748b }
+    .field-input   { width:100%; padding:.6rem .8rem; border-radius:.5rem }
+    .field-textarea{ width:100%; min-height:120px; padding:.75rem .9rem; border-radius:.5rem; resize:vertical }
+    .stars { display:flex; gap:.25rem; align-items:center }
+    .star  { width:20px; height:20px; display:inline-block; background: currentColor;
+             mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.23 3.78a1 1 0 00.95.69h3.977c.969 0 1.371 1.24.588 1.81l-3.218 2.338a1 1 0 00-.364 1.118l1.23 3.78c.3.922-.755 1.688-1.54 1.118l-3.218-2.338a1 1 0 00-1.176 0l-3.218 2.338c-.784.57-1.838-.196-1.539-1.118l1.23-3.78a1 1 0 00-.364-1.118L2.204 9.207c-.783-.57-.38-1.81.588-1.81h3.977a1 1 0 00.95-.69l1.23-3.78z"/></svg>') center/contain no-repeat; }
+    .star.filled { color:#f59e0b }
+    .star.empty  { color:#cbd5e1 }
+    .review { display:grid; grid-template-columns:auto 1fr; gap:.75rem }
+    .review .avatar { width:42px; height:42px; border-radius:9999px; overflow:hidden; }
+    .pill { display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .6rem; border-radius:.5rem; border:1px solid #5d5d5d; color:#334155; background:#f8fafc; font-weight:600; font-size:.8rem }
+  </style>
+</head>
+<body class="relative min-h-screen overflow-hidden">
+  <!-- Decorative blobs -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+
+  <!-- Mobile Backdrop -->
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+  <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
+
+    <!-- Mobile Menu Button (Hamburger only) -->
+    <div class="md:hidden fixed top-4 left-4 z-50">
+      <button id="menu-button"
+              class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 6h16M4 12h16m-7 6h7"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sidebar (unchanged) -->
+    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
+          </div>
+          <h1 class="text-lg font-bold">Hippo Exchange</h1>
+        </div>
+        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="relative mt-4">
+        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+
+      <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
+        <ul class="space-y-2">
+          <li><a href="./Home.html" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
+          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
+          <li>
+            <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
+        </ul>
+      </nav>
+
+      <section class="mt-auto pt-4" aria-label="Account">
+        <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
+        <div class="glass p-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <div class="min-w-0">
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
+              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="text-xs text-slate-600">Balance</span>
+            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
+      <div class="max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Left: Available, Borrowed & Lent Items -->
+        <section class="lg:col-span-2 space-y-8">
+
+          <!-- User's Listings Section -->
+          <div class="glass p-6 rounded-xl">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-xl font-bold text-slate-800">Jane's Items Available</h3>
+                <p class="text-slate-600 text-sm mt-1">Browse items this user has available for exchange</p>
+              </div>
+              <span id="items-count" class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">Loading...</span>
+            </div>
+            
+            <!-- Listings Grid -->
+            <div id="user-listings-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              <!-- Listings will be populated here -->
+            </div>
+            
+            <!-- Empty state -->
+            <div id="no-listings" class="hidden text-center py-12">
+              <div class="w-16 h-16 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+              </div>
+              <h4 class="text-lg font-semibold text-slate-800 mb-2">No items available</h4>
+              <p class="text-slate-600">This user doesn't have any items listed currently.</p>
+            </div>
+          </div>
+
+          <!-- Reviews -->
+          <div class="glass p-6 rounded-xl">
+            <div class="flex items-center justify-between mb-6">
+              <div>
+                <h3 class="text-xl font-bold text-slate-800">Reviews</h3>
+                <p class="text-slate-600 text-sm mt-1">What others say about this user</p>
+              </div>
+              <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">All reviews</span>
+            </div>
+            <div class="space-y-4">
+              <article class="p-4 rounded-lg bg-white/50 hover:bg-white/70 transition-all duration-200">
+                <div class="flex items-start gap-3">
+                  <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex-shrink-0">
+                    <img src="hippo-exchange-logo.png" alt="Reviewer avatar" class="w-full h-full object-cover"/>
+                  </div>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                      <p class="font-semibold text-slate-800 text-sm">Marketplace Buyer</p>
+                      <div class="stars">
+                        <span class="star filled"></span><span class="star filled"></span>
+                        <span class="star filled"></span><span class="star filled"></span>
+                        <span class="star filled"></span>
+                      </div>
+                      <span class="text-xs text-slate-500">2 days ago</span>
+                    </div>
+                    <p class="text-slate-700 text-sm leading-relaxed">Great communication and quick pickup — item as described. Thanks!</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- Right: Profile info -->
+        <aside class="space-y-6">
+          <div class="glass p-6 rounded-xl text-center">
+            <div class="w-20 h-20 mx-auto rounded-xl overflow-hidden border-4 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-2xl mb-4">
+              <img src="hippo-exchange-logo.png" alt="User avatar" class="w-full h-full object-cover"/>
+            </div>
+            <h2 class="text-xl font-bold text-slate-800 mb-1">Jane Doe</h2>
+            <p class="text-slate-600 text-sm mb-3">Cookeville, TN</p>
+            <div class="flex items-center justify-center gap-2 mb-3">
+              <div class="stars">
+                <span class="star filled"></span><span class="star filled"></span>
+                <span class="star filled"></span><span class="star filled"></span>
+                <span class="star empty"></span>
+              </div>
+              <span class="text-slate-700 font-semibold text-sm">4.0</span>
+            </div>
+            <p class="text-slate-600 text-sm mb-4">Member since Jan 2023</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3 rounded-lg bg-blue-50">
+                <div class="text-lg font-bold text-blue-600">15</div>
+                <div class="text-xs text-slate-600">Items lent</div>
+              </div>
+              <div class="p-3 rounded-lg bg-green-50">
+                <div class="text-lg font-bold text-green-600">10</div>
+                <div class="text-xs text-slate-600">Items borrowed</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass p-6 rounded-xl">
+            <h3 class="text-lg font-bold text-slate-800 mb-3">About Jane</h3>
+            <p class="text-slate-700 text-sm leading-relaxed">Hi! I enjoy helping my neighbors by lending useful items. I'm friendly, reliable, and happy to provide advice on using the tools I lend.</p>
+          </div>
+        </aside>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Card template (improved) -->
+  <template id="item-card-template">
+    <article class="card glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1" data-id="">
+      <div class="relative">
+        <img class="card-img w-full h-[170px] object-cover" alt="Listing image" />
+        <span class="badge absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded-full bg-blue-600 text-white">Just listed</span>
+      </div>
+      <div class="card-footer p-4">
+        <h3 class="price text-lg font-semibold text-slate-900"></h3>
+        <p class="title text-slate-700 text-sm"></p>
+        <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
+      </div>
+    </article>
+  </template>
+
+  <script defer src="./home.js"></script>
+  <script defer src="./otheruser.js"></script>
+</body>
+</html>

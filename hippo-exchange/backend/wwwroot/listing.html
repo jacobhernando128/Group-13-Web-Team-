@@ -41,7 +41,7 @@
     <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover"/>
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
@@ -59,9 +59,8 @@
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-bolt"></span><span>Exchange access</span></a></li>
+          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
             <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
@@ -73,7 +72,7 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
               <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
@@ -162,13 +161,13 @@
           <!-- Seller -->
           <div class="glass p-4 rounded-lg">
             <div class="flex items-center gap-3">
-              <img id="seller-avatar" class="w-10 h-10 rounded-full ring-2 ring-white/40" alt="Seller avatar"/>
+              <img id="seller-avatar" class="w-10 h-10 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg" alt="Seller avatar"/>
               <div>
                 <div id="seller-name" class="font-semibold">Seller</div>
                 <div id="seller-meta" class="text-xs text-slate-600">—</div>
               </div>
             </div>
-            <button class="btn-ghost w-full mt-3" id="view-profile">View profile</button>
+            <a href="./otheruser.html" class="btn-primary w-full mt-3 block text-center" id="view-profile">View profile</a>
           </div>
         </aside>
       </section>

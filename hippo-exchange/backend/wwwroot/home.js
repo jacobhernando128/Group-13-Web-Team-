@@ -3,8 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const API_URL = 'listings.json'; // same folder as home.html
   const grid = document.getElementById('listings-grid');
   const tpl  = document.getElementById('item-card-template');
+  const filterCount = document.getElementById('filter-count');
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
+  
+  // Category filtering state
+  let currentCategory = 'all';
+  let allListings = [];
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
@@ -76,6 +81,42 @@ document.addEventListener('DOMContentLoaded', () => {
   function render(items) {
     grid.replaceChildren();
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
+    updateFilterCount(items.length);
+  }
+  
+  function updateFilterCount(count) {
+    if (currentCategory === 'all') {
+      filterCount.textContent = `${count} items`;
+    } else {
+      const categoryName = currentCategory.charAt(0).toUpperCase() + currentCategory.slice(1);
+      filterCount.textContent = `${count} ${categoryName} items`;
+    }
+  }
+  
+  function filterByCategory(category) {
+    currentCategory = category;
+    
+    let filteredItems = allListings;
+    if (category !== 'all') {
+      filteredItems = allListings.filter(item => item.category === category);
+    }
+    
+    render(filteredItems);
+    updateCategoryButtons(category);
+  }
+  
+  function updateCategoryButtons(activeCategory) {
+    const buttons = document.querySelectorAll('.category-filter');
+    buttons.forEach(button => {
+      const category = button.dataset.category;
+      if (category === activeCategory) {
+        button.classList.add('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.remove('bg-white/40', 'text-slate-700');
+      } else {
+        button.classList.remove('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.add('bg-white/40', 'text-slate-700');
+      }
+    });
   }
 
   async function load() {
@@ -83,14 +124,24 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      render(Array.isArray(data) ? data : (data.items || []));
+      allListings = Array.isArray(data) ? data : (data.items || []);
+      render(allListings);
     } catch (err) {
       console.error('Failed to load listings:', err);
-      render([
-        { id:'abc123', slug:'gaming-desktop-abc123', title:'Gaming Desktop (for sale & trade)', price:300, locationLabel:'Cookeville, TN', imageUrl:PLACEHOLDER_IMG, isNew:true, ships:false },
-      ]);
+      allListings = [
+        { id:'abc123', slug:'gaming-desktop-abc123', title:'Gaming Desktop (for sale & trade)', price:300, locationLabel:'Cookeville, TN', imageUrl:PLACEHOLDER_IMG, isNew:true, ships:false, category:'computers' },
+      ];
+      render(allListings);
     }
   }
+
+  // Category filter event listeners
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('category-filter')) {
+      const category = e.target.dataset.category;
+      filterByCategory(category);
+    }
+  });
 
   load();
 });
@@ -252,3 +303,4 @@ applyBtn?.addEventListener('click', async () => {
   updateHeader(shortCity, milesText);
   modal.classList.remove('active');
 });
+
