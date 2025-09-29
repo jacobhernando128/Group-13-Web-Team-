@@ -5,6 +5,125 @@ document.addEventListener('DOMContentLoaded', () => {
   const tpl  = document.getElementById('item-card-template');
   const filterCount = document.getElementById('filter-count');
 
+  // Mobile menu functionality
+  const menuButton = document.getElementById('menu-button');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const iconHam = document.getElementById('icon-ham');
+
+  function toggleMobileMenu() {
+    const isOpen = sidebar.classList.contains('translate-x-0');
+    
+    if (isOpen) {
+      // Close menu
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop.classList.add('hidden');
+      menuButton.setAttribute('aria-expanded', 'false');
+    } else {
+      // Open menu
+      sidebar.classList.remove('-translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      sidebarBackdrop.classList.remove('hidden');
+      menuButton.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  function closeMobileMenu() {
+    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.add('-translate-x-full');
+    sidebarBackdrop.classList.add('hidden');
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+
+  // Event listeners for mobile menu
+  if (menuButton) {
+    menuButton.addEventListener('click', toggleMobileMenu);
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileMenu);
+  }
+
+  // Close menu when clicking on nav links (mobile)
+  const navLinks = sidebar.querySelectorAll('a');
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth < 768) {
+        closeMobileMenu();
+      }
+    });
+  });
+
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+      closeMobileMenu();
+    }
+  });
+
+  // Search functionality
+  const searchInput = document.getElementById('search-input');
+  let searchTimeout = null;
+  let currentSearchQuery = '';
+
+  function performSearch(query) {
+    currentSearchQuery = query.trim();
+    
+    // Apply both category filter and search filter
+    let filteredItems = allListings;
+    
+    // Apply category filter first
+    if (currentCategory !== 'all') {
+      filteredItems = filteredItems.filter(item => item.category === currentCategory);
+    }
+    
+    // Apply search filter
+    if (currentSearchQuery) {
+      const searchTerm = currentSearchQuery.toLowerCase();
+      filteredItems = filteredItems.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const category = (item.category || '').toLowerCase();
+        const location = (item.location || '').toLowerCase();
+        
+        return title.includes(searchTerm) || 
+               description.includes(searchTerm) || 
+               category.includes(searchTerm) || 
+               location.includes(searchTerm);
+      });
+    }
+    
+    render(filteredItems);
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value;
+      
+      // Clear previous timeout
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      
+      // Set new timeout for debounced search
+      searchTimeout = setTimeout(() => {
+        performSearch(query);
+      }, 300); // 300ms delay
+    });
+
+    // Handle Enter key for immediate search
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (searchTimeout) {
+          clearTimeout(searchTimeout);
+        }
+        performSearch(e.target.value);
+      }
+    });
+  }
+
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
   
   // Category filtering state
@@ -96,9 +215,28 @@ document.addEventListener('DOMContentLoaded', () => {
   function filterByCategory(category) {
     currentCategory = category;
     
+    // Apply both category filter and search filter
     let filteredItems = allListings;
+    
+    // Apply category filter
     if (category !== 'all') {
-      filteredItems = allListings.filter(item => item.category === category);
+      filteredItems = filteredItems.filter(item => item.category === category);
+    }
+    
+    // Apply search filter if there's an active search
+    if (currentSearchQuery) {
+      const searchTerm = currentSearchQuery.toLowerCase();
+      filteredItems = filteredItems.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const category = (item.category || '').toLowerCase();
+        const location = (item.location || '').toLowerCase();
+        
+        return title.includes(searchTerm) || 
+               description.includes(searchTerm) || 
+               category.includes(searchTerm) || 
+               location.includes(searchTerm);
+      });
     }
     
     render(filteredItems);

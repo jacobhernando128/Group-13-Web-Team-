@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const notifsList = document.getElementById('notifs-list');
   const emptyState = document.getElementById('empty-state');
   const markAllBtn = document.getElementById('mark-all');
-  const clearReadBtn = document.getElementById('clear-read');
   const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
   
   // Filter and state
@@ -327,19 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
     saveReadIds(allIds);
     renderNotificationsList();
   });
-  
-  // Clear read notifications
-  clearReadBtn.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all read notifications?')) {
-      const notifications = loadNotifications();
-      const readIds = loadReadIds();
-      const unreadNotifications = notifications.filter(n => !readIds.includes(n.id));
-      saveNotifications(unreadNotifications);
-      saveReadIds([]);
-      renderNotificationsList();
-    }
-  });
-  
   
   // Handle notification from URL parameter (if coming from another page)
   const urlParams = new URLSearchParams(window.location.search);

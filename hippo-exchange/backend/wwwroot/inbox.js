@@ -10,6 +10,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const replySection = document.getElementById('reply-section');
   const composeModal = document.getElementById('compose-modal');
   const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
+
+  // Mobile menu functionality
+  const menuButton = document.getElementById('menu-button');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+  function toggleMobileMenu() {
+    const isOpen = sidebar.classList.contains('translate-x-0');
+    
+    if (isOpen) {
+      // Close menu
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop.classList.add('hidden');
+      menuButton.setAttribute('aria-expanded', 'false');
+    } else {
+      // Open menu
+      sidebar.classList.remove('-translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      sidebarBackdrop.classList.remove('hidden');
+      menuButton.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  function closeMobileMenu() {
+    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.add('-translate-x-full');
+    sidebarBackdrop.classList.add('hidden');
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+
+  // Event listeners for mobile menu
+  if (menuButton) {
+    menuButton.addEventListener('click', toggleMobileMenu);
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileMenu);
+  }
+
+  // Close menu when clicking on nav links (mobile)
+  const navLinks = sidebar.querySelectorAll('a');
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth < 768) {
+        closeMobileMenu();
+      }
+    });
+  });
+
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+      closeMobileMenu();
+    }
+  });
   
   // Filter and state
   let activeFilter = 'all';

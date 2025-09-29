@@ -158,6 +158,64 @@ namespace HippoExchange
                 return Results.Created($"/users/{user.Id}", user);
             });
 
+            // Get borrowed items for a user
+            app.MapGet("/users/{userId}/borrowed", async (FirestoreDb db, string userId) =>
+            {
+                var q = db.Collection("borrowings").WhereEqualTo(nameof(Borrowing.BorrowerId), userId);
+                var snaps = await q.GetSnapshotAsync();
+                return snaps.Select(s => s.ConvertTo<Borrowing>());
+            });
+
+            // Create borrowing transaction
+            app.MapPost("/borrowings", async (FirestoreDb db, Borrowing borrowing) =>
+            {
+                borrowing.Id = Guid.NewGuid().ToString("n");
+                borrowing.CreatedUtc = DateTime.UtcNow;
+                borrowing.Status = "pending";
+                await db.Collection("borrowings").Document(borrowing.Id).SetAsync(borrowing);
+                return Results.Created($"/borrowings/{borrowing.Id}", borrowing);
+            });
+
+            // Update borrowing status
+            app.MapPut("/borrowings/{id}", async (FirestoreDb db, string id, Borrowing update) =>
+            {
+                var doc = db.Collection("borrowings").Document(id);
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                var current = snap.ConvertTo<Borrowing>();
+                current.Status = update.Status ?? current.Status;
+                current.StartDate = update.StartDate ?? current.StartDate;
+                current.EndDate = update.EndDate ?? current.EndDate;
+
+                await doc.SetAsync(current, SetOptions.Overwrite);
+                return Results.Ok(current);
+            });
+
+            // Get maintenance history for an item
+            app.MapGet("/items/{itemId}/maintenance", async (FirestoreDb db, string itemId) =>
+            {
+                var q = db.Collection("maintenance").WhereEqualTo(nameof(MaintenanceEntry.ItemId), itemId);
+                var snaps = await q.OrderByDescending(nameof(MaintenanceEntry.Date)).GetSnapshotAsync();
+                return snaps.Select(s => s.ConvertTo<MaintenanceEntry>());
+            });
+
+            // Add maintenance entry
+            app.MapPost("/maintenance", async (FirestoreDb db, MaintenanceEntry maintenance) =>
+            {
+                maintenance.Id = Guid.NewGuid().ToString("n");
+                maintenance.CreatedUtc = DateTime.UtcNow;
+                await db.Collection("maintenance").Document(maintenance.Id).SetAsync(maintenance);
+                return Results.Created($"/maintenance/{maintenance.Id}", maintenance);
+            });
+
+            // Delete maintenance entry
+            app.MapDelete("/maintenance/{id}", async (FirestoreDb db, string id) =>
+            {
+                await db.Collection("maintenance").Document(id).DeleteAsync();
+                return Results.NoContent();
+            });
+
 
 
             app.Run();
@@ -194,6 +252,35 @@ namespace HippoExchange
 
         [FirestoreProperty]
         public DateTime CreatedUtc { get; set; }
+    }
+
+    [FirestoreData]
+    public class Borrowing
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+
+        [FirestoreProperty] public string ItemId { get; set; } = default!;
+        [FirestoreProperty] public string BorrowerId { get; set; } = default!;
+        [FirestoreProperty] public string OwnerId { get; set; } = default!;
+        [FirestoreProperty] public string Status { get; set; } = default!; // pending, approved, active, returned, cancelled
+        [FirestoreProperty] public DateTime? StartDate { get; set; }
+        [FirestoreProperty] public DateTime? EndDate { get; set; }
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty] public string? Notes { get; set; }
+    }
+
+    [FirestoreData]
+    public class MaintenanceEntry
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+
+        [FirestoreProperty] public string ItemId { get; set; } = default!;
+        [FirestoreProperty] public DateTime Date { get; set; }
+        [FirestoreProperty] public string Type { get; set; } = default!; // cleaning, repair, inspection, upgrade, maintenance
+        [FirestoreProperty] public string Description { get; set; } = default!;
+        [FirestoreProperty] public decimal Cost { get; set; } = 0;
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty] public string? Notes { get; set; }
     }
 
 }
