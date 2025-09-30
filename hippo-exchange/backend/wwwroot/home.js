@@ -2,142 +2,18 @@
 document.addEventListener('DOMContentLoaded', () => {
   const API_URL = 'listings.json'; // same folder as home.html
   const grid = document.getElementById('listings-grid');
-  const tpl  = document.getElementById('item-card-template');
-  const filterCount = document.getElementById('filter-count');
-
-  // Mobile menu functionality
-  const menuButton = document.getElementById('menu-button');
-  const sidebar = document.getElementById('sidebar');
-  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
-  const iconHam = document.getElementById('icon-ham');
-
-  function toggleMobileMenu() {
-    const isOpen = sidebar.classList.contains('translate-x-0');
-    
-    if (isOpen) {
-      // Close menu
-      sidebar.classList.remove('translate-x-0');
-      sidebar.classList.add('-translate-x-full');
-      sidebarBackdrop.classList.add('hidden');
-      menuButton.setAttribute('aria-expanded', 'false');
-    } else {
-      // Open menu
-      sidebar.classList.remove('-translate-x-full');
-      sidebar.classList.add('translate-x-0');
-      sidebarBackdrop.classList.remove('hidden');
-      menuButton.setAttribute('aria-expanded', 'true');
-    }
-  }
-
-  function closeMobileMenu() {
-    sidebar.classList.remove('translate-x-0');
-    sidebar.classList.add('-translate-x-full');
-    sidebarBackdrop.classList.add('hidden');
-    menuButton.setAttribute('aria-expanded', 'false');
-  }
-
-  // Event listeners for mobile menu
-  if (menuButton) {
-    menuButton.addEventListener('click', toggleMobileMenu);
-  }
-
-  if (sidebarBackdrop) {
-    sidebarBackdrop.addEventListener('click', closeMobileMenu);
-  }
-
-  // Close menu when clicking on nav links (mobile)
-  const navLinks = sidebar.querySelectorAll('a');
-  navLinks.forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth < 768) {
-        closeMobileMenu();
-      }
-    });
-  });
-
-  // Handle window resize
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 768) {
-      closeMobileMenu();
-    }
-  });
-
-  // Search functionality
-  const searchInput = document.getElementById('search-input');
-  let searchTimeout = null;
-  let currentSearchQuery = '';
-
-  function performSearch(query) {
-    currentSearchQuery = query.trim();
-    
-    // Apply both category filter and search filter
-    let filteredItems = allListings;
-    
-    // Apply category filter first
-    if (currentCategory !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === currentCategory);
-    }
-    
-    // Apply search filter
-    if (currentSearchQuery) {
-      const searchTerm = currentSearchQuery.toLowerCase();
-      filteredItems = filteredItems.filter(item => {
-        const title = (item.title || '').toLowerCase();
-        const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
-        
-        return title.includes(searchTerm) || 
-               description.includes(searchTerm) || 
-               category.includes(searchTerm) || 
-               location.includes(searchTerm);
-      });
-    }
-    
-    render(filteredItems);
-  }
-
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value;
-      
-      // Clear previous timeout
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-      
-      // Set new timeout for debounced search
-      searchTimeout = setTimeout(() => {
-        performSearch(query);
-      }, 300); // 300ms delay
-    });
-
-    // Handle Enter key for immediate search
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (searchTimeout) {
-          clearTimeout(searchTimeout);
-        }
-        performSearch(e.target.value);
-      }
-    });
-  }
+  const tpl = document.getElementById('item-card-template');
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
-  
-  // Category filtering state
-  let currentCategory = 'all';
-  let allListings = [];
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
       ? '$—'
       : new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-          maximumFractionDigits: 0
-        }).format(Number(val));
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0
+      }).format(Number(val));
 
   const pickHomeFields = (item) => {
     const hero = item.imageUrl || (Array.isArray(item.images) && item.images[0]) || PLACEHOLDER_IMG;
@@ -174,10 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     el.dataset.id = min.id;
-    const img   = el.querySelector('.card-img');
+    const img = el.querySelector('.card-img');
     const price = el.querySelector('.price');
     const title = el.querySelector('.title');
-    const loc   = el.querySelector('[data-field="location"]');
+    const loc = el.querySelector('[data-field="location"]');
     const badge = el.querySelector('.badge');
 
     img.src = min.imageUrl || PLACEHOLDER_IMG;
@@ -185,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     price.textContent = formatPrice(min.price);
     title.textContent = min.title;
-    loc.textContent   = min.locationLabel || (min.ships ? 'Ships to you' : '');
+    loc.textContent = min.locationLabel || (min.ships ? 'Ships to you' : '');
 
     if (!min.isNew) badge?.remove();
 
@@ -200,61 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function render(items) {
     grid.replaceChildren();
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
-    updateFilterCount(items.length);
-  }
-  
-  function updateFilterCount(count) {
-    if (currentCategory === 'all') {
-      filterCount.textContent = `${count} items`;
-    } else {
-      const categoryName = currentCategory.charAt(0).toUpperCase() + currentCategory.slice(1);
-      filterCount.textContent = `${count} ${categoryName} items`;
-    }
-  }
-  
-  function filterByCategory(category) {
-    currentCategory = category;
-    
-    // Apply both category filter and search filter
-    let filteredItems = allListings;
-    
-    // Apply category filter
-    if (category !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === category);
-    }
-    
-    // Apply search filter if there's an active search
-    if (currentSearchQuery) {
-      const searchTerm = currentSearchQuery.toLowerCase();
-      filteredItems = filteredItems.filter(item => {
-        const title = (item.title || '').toLowerCase();
-        const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
-        
-        return title.includes(searchTerm) || 
-               description.includes(searchTerm) || 
-               category.includes(searchTerm) || 
-               location.includes(searchTerm);
-      });
-    }
-    
-    render(filteredItems);
-    updateCategoryButtons(category);
-  }
-  
-  function updateCategoryButtons(activeCategory) {
-    const buttons = document.querySelectorAll('.category-filter');
-    buttons.forEach(button => {
-      const category = button.dataset.category;
-      if (category === activeCategory) {
-        button.classList.add('active', 'bg-blue-500', 'text-white', 'shadow-md');
-        button.classList.remove('bg-white/40', 'text-slate-700');
-      } else {
-        button.classList.remove('active', 'bg-blue-500', 'text-white', 'shadow-md');
-        button.classList.add('bg-white/40', 'text-slate-700');
-      }
-    });
   }
 
   async function load() {
@@ -262,24 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      allListings = Array.isArray(data) ? data : (data.items || []);
-      render(allListings);
+      render(Array.isArray(data) ? data : (data.items || []));
     } catch (err) {
       console.error('Failed to load listings:', err);
-      allListings = [
-        { id:'abc123', slug:'gaming-desktop-abc123', title:'Gaming Desktop (for sale & trade)', price:300, locationLabel:'Cookeville, TN', imageUrl:PLACEHOLDER_IMG, isNew:true, ships:false, category:'computers' },
-      ];
-      render(allListings);
+      render([
+        { id: 'abc123', slug: 'gaming-desktop-abc123', title: 'Gaming Desktop (for sale & trade)', price: 300, locationLabel: 'Cookeville, TN', imageUrl: PLACEHOLDER_IMG, isNew: true, ships: false },
+      ]);
     }
   }
-
-  // Category filter event listeners
-  document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('category-filter')) {
-      const category = e.target.dataset.category;
-      filterByCategory(category);
-    }
-  });
 
   load();
 });
@@ -302,11 +113,11 @@ function signOut() {
   localStorage.removeItem('userData');
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
-  
+
   // Clear any cookies (if using them for auth)
   document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  
+
   // Redirect to login page
   window.location.href = './Login.html';
 }
@@ -328,10 +139,10 @@ const defaultPos = { lat: 36.1628, lng: -85.5016 }; // Cookeville area
 
 const milesToMeters = (mi) => parseFloat(mi) * 1609.344;
 
-function ensureMap(){
+function ensureMap() {
   if (map) return;
   map = L.map('location-map', { zoomControl: true, scrollWheelZoom: true })
-          .setView([defaultPos.lat, defaultPos.lng], 10);
+    .setView([defaultPos.lat, defaultPos.lng], 10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
@@ -343,7 +154,7 @@ function ensureMap(){
   marker.on('drag', e => circle.setLatLng(e.latlng));
 }
 
-function setMapTo(lat, lon){
+function setMapTo(lat, lon) {
   const ll = [lat, lon];
   marker.setLatLng(ll);
   circle.setLatLng(ll);
@@ -363,11 +174,11 @@ radiusEl?.addEventListener('change', () => {
   circle?.setRadius(milesToMeters(miles));
 });
 
-async function geocode(query){
-  if(!query) return null;
+async function geocode(query) {
+  if (!query) return null;
   const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`;
   try {
-    const res = await fetch(url, { headers:{'Accept-Language':'en'} });
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     const data = await res.json();
     if (data && data[0]) {
       const { lat, lon, display_name } = data[0];
@@ -382,9 +193,9 @@ inputEl?.addEventListener('input', () => {
   clearTimeout(t);
   const q = inputEl.value.trim();
   t = setTimeout(async () => {
-    if(!q || q === lastGeocodedQuery) return;
+    if (!q || q === lastGeocodedQuery) return;
     const result = await geocode(q);
-    if(result){ ensureMap(); setMapTo(result.lat, result.lon); lastGeocodedQuery = q; }
+    if (result) { ensureMap(); setMapTo(result.lat, result.lon); lastGeocodedQuery = q; }
   }, 500);
 });
 
@@ -392,9 +203,9 @@ inputEl?.addEventListener('keydown', async (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     const q = inputEl.value.trim();
-    if(q){
+    if (q) {
       const result = await geocode(q);
-      if(result){
+      if (result) {
         ensureMap();
         setMapTo(result.lat, result.lon);
         lastGeocodedQuery = q;
@@ -405,7 +216,7 @@ inputEl?.addEventListener('keydown', async (e) => {
 });
 
 geoBtn?.addEventListener('click', () => {
-  if(!navigator.geolocation) return;
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition((pos) => {
     const { latitude, longitude } = pos.coords;
     ensureMap();
@@ -414,7 +225,7 @@ geoBtn?.addEventListener('click', () => {
   });
 });
 
-function updateHeader(cityText, milesText){
+function updateHeader(cityText, milesText) {
   headerEl.textContent = `${cityText} — ${milesText}`;
   // also reflect on visible cards (optional)
   document.querySelectorAll('#listings-grid [data-field="location"]').forEach(n => n.textContent = cityText);
@@ -424,12 +235,12 @@ applyBtn?.addEventListener('click', async () => {
   const milesText = radiusEl.value || '40 mi';
   let cityText = inputEl.value && inputEl.value.trim() ? inputEl.value.trim() : 'Custom location';
 
-  if(cityText && cityText !== lastGeocodedQuery){
+  if (cityText && cityText !== lastGeocodedQuery) {
     const result = await geocode(cityText);
-    if(result){
+    if (result) {
       ensureMap();
       setMapTo(result.lat, result.lon);
-      cityText = result.display_name.split(',').slice(0,2).join(',');
+      cityText = result.display_name.split(',').slice(0, 2).join(',');
       lastGeocodedQuery = inputEl.value.trim();
     }
   } else {
@@ -437,8 +248,7 @@ applyBtn?.addEventListener('click', async () => {
     circle?.setRadius(milesToMeters(miles));
   }
 
-  const shortCity = cityText.split(',').slice(0,2).join(',');
+  const shortCity = cityText.split(',').slice(0, 2).join(',');
   updateHeader(shortCity, milesText);
   modal.classList.remove('active');
 });
-
