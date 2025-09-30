@@ -18,13 +18,23 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
                 ?? throw new InvalidOperationException("ProjectId not configured.");
 
-
             var databaseId = Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID") ?? "group13capstone";
-
 
             // Services
             builder.Services.AddSingleton(_ =>
-                new FirestoreDbBuilder { ProjectId = projectId, DatabaseId = databaseId }.Build());
+            {
+                var credentialPath = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
+                    ?? builder.Configuration["GoogleCloud:CredentialPath"]
+                    ?? Path.Combine(Directory.GetCurrentDirectory(), "firebase-key.json");
+                
+                return new FirestoreDbBuilder 
+                { 
+                    ProjectId = projectId, 
+                    DatabaseId = databaseId,
+                    CredentialsPath = credentialPath
+                }.Build();
+            });
+            
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -84,6 +94,91 @@ namespace HippoExchange
                 }
             });
 
+            // Read (one) - Fetch item by ID
+            app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    // Check if this is an item ID
+                    var itemSnap = await db.Collection("itemID").Document(id).GetSnapshotAsync();
+                    
+                    if (itemSnap.Exists)
+                    {
+                        var item = itemSnap.ConvertTo<Item>();
+                        item.Id = itemSnap.Id;
+                        
+                        // Try to find the listing to get the owner ID
+                        var listingsQuery = db.Collection("listings").WhereEqualTo("itemID", id);
+                        var listingsSnap = await listingsQuery.Limit(1).GetSnapshotAsync();
+                        
+                        if (listingsSnap.Documents.Count > 0)
+                        {
+                            var listing = listingsSnap.Documents[0].ConvertTo<Listing>();
+                            item.OwnerId = listing.UserId;
+                        }
+                        
+                        return Results.Ok(item);
+                    }
+                    
+                    return Results.NotFound(new { message = $"Item {id} not found" });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem(
+                        title: "Failed to fetch item",
+                        detail: ex.Message,
+                        statusCode: 500
+                    );
+                }
+            });
+
+            // Read (many) - Query listings and fetch corresponding items
+            app.MapGet("/items", async (FirestoreDb db, string? ownerId, bool? available) =>
+            {
+                try
+                {
+                    // Query the listings collection
+                    Query listingsQuery = db.Collection("listings");
+                    var listingsSnapshot = await listingsQuery.Limit(50).GetSnapshotAsync();
+                    
+                    var items = new List<Item>();
+                    
+                    foreach (var listingDoc in listingsSnapshot.Documents)
+                    {
+                        var listing = listingDoc.ConvertTo<Listing>();
+                        
+                        // Fetch the actual item from itemID collection
+                        var itemDoc = await db.Collection("itemID").Document(listing.ItemId).GetSnapshotAsync();
+                        
+                        if (itemDoc.Exists)
+                        {
+                            var item = itemDoc.ConvertTo<Item>();
+                            item.Id = itemDoc.Id;
+                            item.OwnerId = listing.UserId;
+                            item.Available = true; // Default, add logic as needed
+                            
+                            // Apply filters if provided
+                            if (!string.IsNullOrWhiteSpace(ownerId) && item.OwnerId != ownerId)
+                                continue;
+                            if (available is not null && item.Available != available)
+                                continue;
+                            
+                            items.Add(item);
+                        }
+                    }
+                    
+                    return Results.Ok(items);
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem(
+                        title: "Failed to fetch items",
+                        detail: ex.Message,
+                        statusCode: 500
+                    );
+                }
+            });
+
             // Create
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
             {
@@ -91,23 +186,6 @@ namespace HippoExchange
                 item.CreatedUtc = DateTime.UtcNow;
                 await db.Collection("items").Document(item.Id).SetAsync(item);
                 return Results.Created($"/items/{item.Id}", item);
-            });
-
-            // Read (one)
-            app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
-            {
-                var snap = await db.Collection("items").Document(id).GetSnapshotAsync();
-                return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
-            });
-
-            // Read (many) with optional filters
-            app.MapGet("/items", async (FirestoreDb db, string? ownerId, bool? available) =>
-            {
-                Query q = db.Collection("items");
-                if (!string.IsNullOrWhiteSpace(ownerId)) q = q.WhereEqualTo(nameof(Item.OwnerId), ownerId);
-                if (available is not null) q = q.WhereEqualTo(nameof(Item.Available), available);
-                var snaps = await q.Limit(50).GetSnapshotAsync();
-                return snaps.Select(s => s.ConvertTo<Item>());
             });
 
             // Update
@@ -216,23 +294,78 @@ namespace HippoExchange
                 return Results.NoContent();
             });
 
-
-
             app.Run();
         }
     }
 
     // ---------------- Models ----------------
+    
+    [FirestoreData]
+    public class Listing
+    {
+        [FirestoreDocumentId] 
+        public string? Id { get; set; }
+        
+        [FirestoreProperty("itemID")] 
+        public string ItemId { get; set; } = default!;
+        
+        [FirestoreProperty("userID")] 
+        public string UserId { get; set; } = default!;
+        
+        [FirestoreProperty] 
+        public DateTime CreatedUtc { get; set; }
+    }
+    
     [FirestoreData]
     public class Item
     {
-        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreDocumentId] 
+        public string? Id { get; set; }
 
-        [FirestoreProperty] public string OwnerId { get; set; } = default!;
-        [FirestoreProperty] public string Title { get; set; } = default!;
-        [FirestoreProperty] public string? Description { get; set; }
-        [FirestoreProperty] public bool Available { get; set; } = true;
-        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty] 
+        public string OwnerId { get; set; } = default!;
+        
+        [FirestoreProperty] 
+        public string Title { get; set; } = default!;
+        
+        [FirestoreProperty] 
+        public string? Description { get; set; }
+        
+        [FirestoreProperty] 
+        public bool Available { get; set; } = true;
+        
+        [FirestoreProperty] 
+        public DateTime CreatedUtc { get; set; }
+
+        // Properties matching your Firestore structure
+        [FirestoreProperty("DollarCost")] 
+        public double? Price { get; set; }
+        
+        [FirestoreProperty("Categories")] 
+        public List<string>? CategoryList { get; set; }
+        
+        [FirestoreProperty] 
+        public string? Condition { get; set; }
+        
+        [FirestoreProperty] 
+        public string? Location { get; set; }
+        
+        [FirestoreProperty("Pictures")] 
+        public List<string>? Images { get; set; }
+        
+        [FirestoreProperty] 
+        public List<string>? Videos { get; set; }
+        
+        [FirestoreProperty] 
+        public double? RepCost { get; set; }
+        
+        // Computed properties for frontend
+        public string? Category => CategoryList?.FirstOrDefault();
+        public string? LocationLabel => Location;
+        public string? ImageUrl => Images?.FirstOrDefault();
+        public bool IsNew => CreatedUtc > DateTime.UtcNow.AddDays(-7);
+        public bool Ships => true;
+        public string? Slug => Title?.ToLower().Replace(" ", "-") + "-" + Id?.Substring(0, 8);
     }
 
     [FirestoreData]
@@ -262,7 +395,7 @@ namespace HippoExchange
         [FirestoreProperty] public string ItemId { get; set; } = default!;
         [FirestoreProperty] public string BorrowerId { get; set; } = default!;
         [FirestoreProperty] public string OwnerId { get; set; } = default!;
-        [FirestoreProperty] public string Status { get; set; } = default!; // pending, approved, active, returned, cancelled
+        [FirestoreProperty] public string Status { get; set; } = default!;
         [FirestoreProperty] public DateTime? StartDate { get; set; }
         [FirestoreProperty] public DateTime? EndDate { get; set; }
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
@@ -276,14 +409,10 @@ namespace HippoExchange
 
         [FirestoreProperty] public string ItemId { get; set; } = default!;
         [FirestoreProperty] public DateTime Date { get; set; }
-        [FirestoreProperty] public string Type { get; set; } = default!; // cleaning, repair, inspection, upgrade, maintenance
+        [FirestoreProperty] public string Type { get; set; } = default!;
         [FirestoreProperty] public string Description { get; set; } = default!;
         [FirestoreProperty] public decimal Cost { get; set; } = 0;
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
         [FirestoreProperty] public string? Notes { get; set; }
     }
-
 }
-
-
-
