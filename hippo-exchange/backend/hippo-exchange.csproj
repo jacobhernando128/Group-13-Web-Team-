@@ -8,6 +8,8 @@
 
 	<ItemGroup>
 		<!-- Firestore client library -->
+		<PackageReference Include="FirebaseAdmin" Version="3.4.0" />
+		<PackageReference Include="Google.Apis.Auth" Version="1.71.0" />
 		<PackageReference Include="Google.Cloud.Firestore" Version="3.*" />
 
 		<!-- Swagger/Swashbuckle for API docs -->
