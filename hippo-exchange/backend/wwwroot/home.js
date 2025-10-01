@@ -1,10 +1,121 @@
-// home.js — JSON grid fed by listings.json
+// home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
-  const API_URL = 'listings.json'; // same folder as home.html
   const grid = document.getElementById('listings-grid');
   const tpl = document.getElementById('item-card-template');
+  const filterCount = document.getElementById('filter-count');
+
+  // Mobile menu functionality
+  const menuButton = document.getElementById('menu-button');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const iconHam = document.getElementById('icon-ham');
+
+  function toggleMobileMenu() {
+    const isOpen = sidebar.classList.contains('translate-x-0');
+
+    if (isOpen) {
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop.classList.add('hidden');
+      menuButton.setAttribute('aria-expanded', 'false');
+    } else {
+      sidebar.classList.remove('-translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      sidebarBackdrop.classList.remove('hidden');
+      menuButton.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  function closeMobileMenu() {
+    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.add('-translate-x-full');
+    sidebarBackdrop.classList.add('hidden');
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+
+  if (menuButton) {
+    menuButton.addEventListener('click', toggleMobileMenu);
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileMenu);
+  }
+
+  const navLinks = sidebar.querySelectorAll('a');
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth < 768) {
+        closeMobileMenu();
+      }
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+      closeMobileMenu();
+    }
+  });
+
+  // Search functionality
+  const searchInput = document.getElementById('search-input');
+  let searchTimeout = null;
+  let currentSearchQuery = '';
+
+  function performSearch(query) {
+    currentSearchQuery = query.trim();
+
+    let filteredItems = allListings;
+
+    if (currentCategory !== 'all') {
+      filteredItems = filteredItems.filter(item => item.category === currentCategory);
+    }
+
+    if (currentSearchQuery) {
+      const searchTerm = currentSearchQuery.toLowerCase();
+      filteredItems = filteredItems.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const category = (item.category || '').toLowerCase();
+        const location = (item.location || '').toLowerCase();
+
+        return title.includes(searchTerm) ||
+          description.includes(searchTerm) ||
+          category.includes(searchTerm) ||
+          location.includes(searchTerm);
+      });
+    }
+
+    render(filteredItems);
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value;
+
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+
+      searchTimeout = setTimeout(() => {
+        performSearch(query);
+      }, 300);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (searchTimeout) {
+          clearTimeout(searchTimeout);
+        }
+        performSearch(e.target.value);
+      }
+    });
+  }
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
+
+  let currentCategory = 'all';
+  let allListings = [];
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
@@ -34,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ? tpl.content.firstElementChild.cloneNode(true)
       : document.createElement('article');
 
-    // Fallback markup if template tag is missing
     if (!tpl) {
       el.className = 'glass rounded-lg overflow-hidden shadow-lg';
       el.innerHTML = `
@@ -76,54 +186,145 @@ document.addEventListener('DOMContentLoaded', () => {
   function render(items) {
     grid.replaceChildren();
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
+    updateFilterCount(items.length);
+  }
+
+  function updateFilterCount(count) {
+    if (currentCategory === 'all') {
+      filterCount.textContent = `${count} items`;
+    } else {
+      const categoryName = currentCategory.charAt(0).toUpperCase() + currentCategory.slice(1);
+      filterCount.textContent = `${count} ${categoryName} items`;
+    }
+  }
+
+  function filterByCategory(category) {
+    currentCategory = category;
+
+    let filteredItems = allListings;
+
+    if (category !== 'all') {
+      filteredItems = filteredItems.filter(item => item.category === category);
+    }
+
+    if (currentSearchQuery) {
+      const searchTerm = currentSearchQuery.toLowerCase();
+      filteredItems = filteredItems.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const category = (item.category || '').toLowerCase();
+        const location = (item.location || '').toLowerCase();
+
+        return title.includes(searchTerm) ||
+          description.includes(searchTerm) ||
+          category.includes(searchTerm) ||
+          location.includes(searchTerm);
+      });
+    }
+
+    render(filteredItems);
+    updateCategoryButtons(category);
+  }
+
+  function updateCategoryButtons(activeCategory) {
+    const buttons = document.querySelectorAll('.category-filter');
+    buttons.forEach(button => {
+      const category = button.dataset.category;
+      if (category === activeCategory) {
+        button.classList.add('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.remove('bg-white/40', 'text-slate-700');
+      } else {
+        button.classList.remove('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.add('bg-white/40', 'text-slate-700');
+      }
+    });
   }
 
   async function load() {
     try {
-      const res = await fetch(API_URL, { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+
+      const res = await fetch('/items', {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
       const data = await res.json();
-      render(Array.isArray(data) ? data : (data.items || []));
+      allListings = Array.isArray(data) ? data : [];
+
+      console.log(`Loaded ${allListings.length} listings from backend`);
+      render(allListings);
+
     } catch (err) {
-      console.error('Failed to load listings:', err);
-      render([
-        { id: 'abc123', slug: 'gaming-desktop-abc123', title: 'Gaming Desktop (for sale & trade)', price: 300, locationLabel: 'Cookeville, TN', imageUrl: PLACEHOLDER_IMG, isNew: true, ships: false },
-      ]);
+      console.error('Failed to load listings from API:', err);
+
+      try {
+        const res = await fetch('listings.json');
+        if (res.ok) {
+          const data = await res.json();
+          allListings = Array.isArray(data) ? data : (data.items || []);
+          console.log('Using fallback listings.json');
+          render(allListings);
+          return;
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback failed:', fallbackErr);
+      }
+
+      allListings = [{
+        id: 'sample1',
+        title: 'Sample Item',
+        description: 'This is sample data. Check console for errors.',
+        price: 100,
+        locationLabel: 'Cookeville, TN',
+        imageUrl: PLACEHOLDER_IMG,
+        isNew: true,
+        category: 'electronics',
+        available: true
+      }];
+      render(allListings);
+
+      grid.innerHTML += '<div class="col-span-full text-center text-red-600 text-sm mt-4 glass p-4 rounded-lg">Could not load listings from server. Showing sample data. Check browser console for details.</div>';
     }
   }
+
+  document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('category-filter')) {
+      const category = e.target.dataset.category;
+      filterByCategory(category);
+    }
+  });
 
   load();
 });
 
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
-  // Find the signout button and add event listener
   const signoutButton = document.querySelector('a[href="./Login.html"]');
   if (signoutButton) {
     signoutButton.addEventListener('click', (e) => {
-      e.preventDefault(); // Prevent default link behavior
+      e.preventDefault();
       signOut();
     });
   }
 });
 
 function signOut() {
-  // Clear any stored authentication data
   localStorage.removeItem('userToken');
   localStorage.removeItem('userData');
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
 
-  // Clear any cookies (if using them for auth)
   document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 
-  // Redirect to login page
   window.location.href = './Login.html';
 }
 
-
-/* ===== Location modal + map (restore) ===== */
+/* ===== Location modal + map ===== */
 const openBtn = document.getElementById('open-location');
 const modal = document.getElementById('location-modal');
 const closeModalBtn = document.getElementById('close-location');
@@ -135,7 +336,7 @@ const geoBtn = document.getElementById('geo-btn');
 
 let map, marker, circle;
 let lastGeocodedQuery = '';
-const defaultPos = { lat: 36.1628, lng: -85.5016 }; // Cookeville area
+const defaultPos = { lat: 36.1628, lng: -85.5016 };
 
 const milesToMeters = (mi) => parseFloat(mi) * 1609.344;
 
@@ -227,7 +428,6 @@ geoBtn?.addEventListener('click', () => {
 
 function updateHeader(cityText, milesText) {
   headerEl.textContent = `${cityText} — ${milesText}`;
-  // also reflect on visible cards (optional)
   document.querySelectorAll('#listings-grid [data-field="location"]').forEach(n => n.textContent = cityText);
 }
 

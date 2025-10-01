@@ -445,7 +445,7 @@ namespace HippoExchange
         [FirestoreProperty] public string ItemId { get; set; } = default!;
         [FirestoreProperty] public string BorrowerId { get; set; } = default!;
         [FirestoreProperty] public string OwnerId { get; set; } = default!;
-        [FirestoreProperty] public string Status { get; set; } = default!; // pending, approved, active, returned, cancelled
+        [FirestoreProperty] public string Status { get; set; } = default!;
         [FirestoreProperty] public DateTime? StartDate { get; set; }
         [FirestoreProperty] public DateTime? EndDate { get; set; }
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
@@ -458,7 +458,7 @@ namespace HippoExchange
         [FirestoreDocumentId] public string? Id { get; set; }
         [FirestoreProperty] public string ItemId { get; set; } = default!;
         [FirestoreProperty] public DateTime Date { get; set; }
-        [FirestoreProperty] public string Type { get; set; } = default!; // cleaning, repair, inspection, upgrade, maintenance
+        [FirestoreProperty] public string Type { get; set; } = default!;
         [FirestoreProperty] public string Description { get; set; } = default!;
         [FirestoreProperty] public double Cost { get; set; } = 0;
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
