@@ -1,9 +1,9 @@
 class AssetHub {
   constructor() {
     this.currentUserId = "user123"; // TODO: replace with real session/user id
+    this.API_BASE = "http://localhost:5000";
     this.editingItem = null;
     this.deletingItem = null;
-    this.maintenanceItem = null;
   }
 
   async init() {
@@ -12,28 +12,20 @@ class AssetHub {
     this.bindMobileMenu();
     this.bindModalButtons();
     this.bindAddItemButton();
-
-    await this.loadUserAssets();
+    await this.loadOwnedAssets();
   }
 
   // --------------------- Load Data ---------------------
-  async loadUserAssets() {
+  async loadOwnedAssets() {
     try {
-      // Fetch owned items
-      const ownedRes = await fetch(`/api/assets/owned/${this.currentUserId}`);
-      const ownedItems = await ownedRes.json();
-
-      // Fetch borrowed items
-      const borrowedRes = await fetch(`/api/assets/borrowed/${this.currentUserId}`);
-      const borrowedItems = await borrowedRes.json();
+      const res = await fetch(`${this.API_BASE}/users/${this.currentUserId}/items`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const ownedItems = await res.json();
 
       this.renderItems("owned", ownedItems);
-      this.renderItems("borrowed", borrowedItems);
-
       document.getElementById("owned-count").textContent = ownedItems.length;
-      document.getElementById("borrowed-count").textContent = borrowedItems.length;
     } catch (err) {
-      console.error("Error loading user assets:", err);
+      console.error("Error loading owned assets:", err);
     }
   }
 
@@ -56,22 +48,16 @@ class AssetHub {
       const card = clone.querySelector("article");
       card.dataset.id = item.id;
 
-      clone.querySelector(".card-img").src = item.image_url || "placeholder.png";
-      clone.querySelector(".title").textContent = item.title;
+      clone.querySelector(".card-img").src = item.imageUrl || "placeholder.png";
+      clone.querySelector(".title").textContent = item.title || "(Untitled)";
       clone.querySelector(".description").textContent = item.description || "";
-      clone.querySelector(".created-date").textContent = new Date(item.created_at).toLocaleDateString();
+      clone.querySelector(".created-date").textContent =
+        new Date(item.createdAt).toLocaleDateString();
       clone.querySelector(".status-badge").textContent = item.available ? "Available" : "Not Available";
 
-      // Buttons
       clone.querySelector(".view-btn").addEventListener("click", () => this.viewItem(item));
       clone.querySelector(".edit-btn").addEventListener("click", () => this.openEdit(item));
       clone.querySelector(".delete-btn").addEventListener("click", () => this.openDelete(item));
-
-      const maintenanceBtn = clone.querySelector(".maintenance-btn");
-      if (type === "owned") {
-        maintenanceBtn.classList.remove("hidden");
-        maintenanceBtn.addEventListener("click", () => this.openMaintenance(item));
-      }
 
       grid.appendChild(clone);
     });
@@ -79,26 +65,41 @@ class AssetHub {
 
   // --------------------- CRUD ---------------------
   async addItem(newItem) {
-    await fetch(`/api/assets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...newItem, owner_id: this.currentUserId })
-    });
-    await this.loadUserAssets();
+    try {
+      const res = await fetch(`${this.API_BASE}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newItem, ownerId: this.currentUserId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await this.loadOwnedAssets();
+    } catch (err) {
+      console.error("Error adding item:", err);
+    }
   }
 
   async updateItem(id, updates) {
-    await fetch(`/api/assets/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates)
-    });
-    await this.loadUserAssets();
+    try {
+      const res = await fetch(`${this.API_BASE}/items/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await this.loadOwnedAssets();
+    } catch (err) {
+      console.error("Error updating item:", err);
+    }
   }
 
   async deleteItem(id) {
-    await fetch(`/api/assets/${id}`, { method: "DELETE" });
-    await this.loadUserAssets();
+    try {
+      const res = await fetch(`${this.API_BASE}/items/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await this.loadOwnedAssets();
+    } catch (err) {
+      console.error("Error deleting item:", err);
+    }
   }
 
   // --------------------- UI Actions ---------------------
@@ -112,11 +113,6 @@ class AssetHub {
   openDelete(item) {
     this.deletingItem = item;
     document.getElementById("delete-modal").classList.remove("hidden");
-  }
-
-  openMaintenance(item) {
-    this.maintenanceItem = item;
-    document.getElementById("maintenance-modal").classList.remove("hidden");
   }
 
   viewItem(item) {
@@ -156,7 +152,6 @@ class AssetHub {
   }
 
   bindModalButtons() {
-    // Edit modal
     document.getElementById("edit-cancel").onclick = () => {
       document.getElementById("edit-modal").classList.add("hidden");
     };
@@ -164,14 +159,13 @@ class AssetHub {
       if (this.editingItem) {
         const updates = {
           title: document.getElementById("edit-title").value,
-          description: document.getElementById("edit-description").value
+          description: document.getElementById("edit-description").value,
         };
         await this.updateItem(this.editingItem.id, updates);
         document.getElementById("edit-modal").classList.add("hidden");
       }
     };
 
-    // Delete modal
     document.getElementById("delete-cancel").onclick = () => {
       document.getElementById("delete-modal").classList.add("hidden");
     };
@@ -179,22 +173,6 @@ class AssetHub {
       if (this.deletingItem) {
         await this.deleteItem(this.deletingItem.id);
         document.getElementById("delete-modal").classList.add("hidden");
-      }
-    };
-
-    // Maintenance modal
-    document.getElementById("maintenance-cancel").onclick = () => {
-      document.getElementById("maintenance-modal").classList.add("hidden");
-    };
-    document.getElementById("maintenance-submit").onclick = async () => {
-      if (this.maintenanceItem) {
-        const notes = document.getElementById("maintenance-notes").value;
-        await fetch(`/api/maintenance`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ asset_id: this.maintenanceItem.id, notes })
-        });
-        document.getElementById("maintenance-modal").classList.add("hidden");
       }
     };
   }
