@@ -43,7 +43,7 @@
     <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border border-white/30 bg-white/10">
+          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
@@ -54,28 +54,28 @@
       </div>
 
       <div class="relative mt-4">
-        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
+        <input id="search-input" type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
         <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       </div>
 
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
-          <li><a href="#" class="nav-link"><span class="icon-bolt"></span><span>Exchange access</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a></li>
+          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
+          <li>
+            <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
         </ul>
       </nav>
-
-      <button class="btn-primary w-full">+ Create new listing</button>
-      <button class="btn-ghost w-full mt-2">Create multiple listings</button>
 
       <section class="mt-auto pt-4" aria-label="Account">
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
               <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
@@ -95,22 +95,59 @@
 
     <!-- Main Content -->
     <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
-      <header class="glass flex flex-col md:flex-row justify-between items-center mb-6 p-4">
+      <header class="glass flex flex-col md:flex-row justify-between items-center mb-6 p-4 rounded-xl">
         <div class="flex items-center gap-4 mb-4 md:mb-0">
           <h2 class="text-2xl font-bold text-slate-800">Today's picks</h2>
           <!-- Location pill -->
           <button id="open-location" class="location-pill">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6l.94-1.88a1 1 0 011.79 0L16 6l2.1.3a1 1 0 01.83.98v1.44a1 1 0 01-.35.76L17.7 11l.88 2.04a1 1 0 01-.5 1.3l-1.32.66-.66 1.32a1 1 0 01-1.3.5L12 16.3l-2.1.52a1 1 0 01-1.3-.5l-.66-1.32-1.32-.66a1 1 0 01-.5-1.3L6 11 5.42 9.48a1 1 0 01-.35-.76V7.28a1 1 0 01.83-.98L8 6l1.27-1.88a1 1 0 011.79 0L12 6z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
             <span id="header-location">Cookeville, TN — 40 mi</span>
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
           </button>
         </div>
       </header>
+
+      <!-- Category Filters -->
+      <div class="glass p-4 mb-6 rounded-xl">
+        <div class="flex items-center gap-3 mb-4">
+          <h3 class="text-lg font-semibold text-slate-800">Filter by category</h3>
+          <span id="filter-count" class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">All items</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="category-filter active px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md" data-category="all">
+            All Items
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="electronics">
+            Electronics
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="furniture">
+            Furniture
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="clothing">
+            Clothing
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="vehicles">
+            Vehicles
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="sports">
+            Sports & Recreation
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="books">
+            Books & Media
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="home">
+            Home & Garden
+          </button>
+          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="other">
+            Other
+          </button>
+        </div>
+      </div>
 
     <!-- Listings Grid (single instance) -->
     <div id="listings-grid"
@@ -177,3 +214,4 @@
   <script defer src="./home.js"></script>
 </body>
 </html>
+

@@ -75,6 +75,15 @@ namespace HippoExchange
                     .SetIsOriginAllowed(_ => true));
             });
 
+            // Firebase Admin (optional, present for future token work)
+            if (FirebaseApp.DefaultInstance is null)
+            {
+                FirebaseApp.Create(new FirebaseAdmin.AppOptions
+                {
+                    Credential = googleCred
+                });
+            }
+
             var app = builder.Build();
 
             // -------- Dev tooling --------
@@ -97,6 +106,7 @@ namespace HippoExchange
             defaults.DefaultFileNames.Add("Home.html");
             defaults.DefaultFileNames.Add("index.html");
             app.UseDefaultFiles(defaults);
+            app.UseStaticFiles();
 
             app.UseStaticFiles();
             app.UseCors();
@@ -118,7 +128,16 @@ namespace HippoExchange
                     logger.LogError(ex, "Firestore health check failed");
                     return Results.Problem(title: "Firestore check failed", detail: ex.Message, statusCode: 503);
                 }
-            });
+            }).WithName("Health_Firestore");
+
+            // Show credential path/existence
+            app.MapGet("/debug/adc", () =>
+            {
+                var exists = !string.IsNullOrWhiteSpace(credPath) && File.Exists(credPath);
+                return Results.Ok(new { credentialPath = credPath, exists });
+            }).WithName("Debug_ADC");
+
+            // -------- Items --------
 
             // Helpful debug to confirm ADC path at runtime
             app.MapGet("/debug/adc", () =>
@@ -137,60 +156,138 @@ namespace HippoExchange
             {
                 item.Id = Guid.NewGuid().ToString("n");
                 item.CreatedUtc = DateTime.UtcNow;
-                await db.Collection("items").Document(item.Id).SetAsync(item);
+                await db.Collection("itemID").Document(item.Id).SetAsync(item);
                 return Results.Created($"/items/{item.Id}", item);
-            });
+            }).WithName("CreateItem");
 
             app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
             {
-                var snap = await db.Collection("items").Document(id).GetSnapshotAsync();
+                var snap = await db.Collection("itemID").Document(id).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
-            });
+            }).WithName("GetItemById");
 
             app.MapGet("/items", async (FirestoreDb db, string? ownerId, bool? available) =>
             {
-                Query q = db.Collection("items");
-                if (!string.IsNullOrWhiteSpace(ownerId)) q = q.WhereEqualTo(nameof(Item.OwnerId), ownerId);
-                if (available is not null) q = q.WhereEqualTo(nameof(Item.Available), available);
+                Query q = db.Collection("itemID");
+                if (!string.IsNullOrWhiteSpace(ownerId))
+                    q = q.WhereEqualTo("userID", ownerId);
+
                 var snaps = await q.Limit(50).GetSnapshotAsync();
-                return snaps.Select(s => s.ConvertTo<Item>());
-            });
+                return Results.Ok(snaps.Select(s => s.ConvertTo<Item>()));
+            }).WithName("ListItems");
 
             app.MapPut("/items/{id}", async (FirestoreDb db, string id, Item update) =>
             {
-                var doc = db.Collection("items").Document(id);
+                var doc = db.Collection("itemID").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
 
                 var current = snap.ConvertTo<Item>();
                 current.Title = update.Title ?? current.Title;
                 current.Description = update.Description ?? current.Description;
-                current.Available = update.Available;
-                current.OwnerId = update.OwnerId ?? current.OwnerId;
+                current.UserId = update.UserId ?? current.UserId;
+                current.Condition = update.Condition ?? current.Condition;
+                current.Location = update.Location ?? current.Location;
+                current.DollarCost = update.DollarCost ?? current.DollarCost;
+                current.RepCost = update.RepCost ?? current.RepCost;
+
+                if (update.Categories?.Count > 0) current.Categories = update.Categories;
+                if (update.Pictures?.Count > 0) current.Pictures = update.Pictures;
+                if (update.Videos?.Count > 0) current.Videos = update.Videos;
 
                 await doc.SetAsync(current, SetOptions.Overwrite);
                 return Results.Ok(current);
-            });
+            }).WithName("UpdateItem");
 
             app.MapDelete("/items/{id}", async (FirestoreDb db, string id) =>
             {
-                await db.Collection("items").Document(id).DeleteAsync();
+                var doc = db.Collection("itemID").Document(id);
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                await doc.DeleteAsync();
                 return Results.NoContent();
-            });
+            }).WithName("DeleteItem");
+
+            // Upload pictures
+            app.MapPost("/items/{id}/pictures", async (HttpRequest req, FirestoreDb db, StorageClient storage, string id) =>
+            {
+                var itemDoc = db.Collection("itemID").Document(id);
+                var snap = await itemDoc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                if (!req.HasFormContentType) return Results.BadRequest("multipart/form-data required");
+                var form = await req.ReadFormAsync();
+                if (form.Files.Count == 0) return Results.BadRequest("No files provided");
+
+                var bucket = "hippo-exchange-media";
+                var urls = new List<string>();
+
+                foreach (var file in form.Files)
+                {
+                    await using var stream = file.OpenReadStream();
+                    var objectName = $"items/{id}/pictures/{Guid.NewGuid():n}-{file.FileName}";
+                    await storage.UploadObjectAsync(
+                        bucket,
+                        objectName,
+                        file.ContentType ?? "application/octet-stream",
+                        stream
+                    );
+
+                    urls.Add(PublicUrl(bucket, objectName));
+                }
+
+                await itemDoc.UpdateAsync("Pictures", FieldValue.ArrayUnion(urls.Cast<object>().ToArray()));
+                return Results.Ok(new { added = urls.Count, urls });
+            }).WithName("AddItemPictures");
+
+            // Upload videos
+            app.MapPost("/items/{id}/videos", async (HttpRequest req, FirestoreDb db, StorageClient storage, string id) =>
+            {
+                var itemDoc = db.Collection("itemID").Document(id);
+                var snap = await itemDoc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                if (!req.HasFormContentType) return Results.BadRequest("multipart/form-data required");
+                var form = await req.ReadFormAsync();
+                if (form.Files.Count == 0) return Results.BadRequest("No files provided");
+
+                var bucket = "hippo-exchange-media";
+                var urls = new List<string>();
+
+                foreach (var file in form.Files)
+                {
+                    await using var stream = file.OpenReadStream();
+                    var objectName = $"items/{id}/videos/{Guid.NewGuid():n}-{file.FileName}";
+                    await storage.UploadObjectAsync(
+                        bucket,
+                        objectName,
+                        file.ContentType ?? "application/octet-stream",
+                        stream
+                    );
+
+                    urls.Add(PublicUrl(bucket, objectName));
+                }
+
+                await itemDoc.UpdateAsync("Videos", FieldValue.ArrayUnion(urls.Cast<object>().ToArray()));
+                return Results.Ok(new { added = urls.Count, urls });
+            }).WithName("AddItemVideos");
+
+            // -------- Users --------
 
             // -------- Users (demo reads) --------
             app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
             {
-                var q = db.Collection("items").WhereEqualTo(nameof(Item.OwnerId), userId);
+                var q = db.Collection("itemID").WhereEqualTo("userID", userId);
                 var snaps = await q.GetSnapshotAsync();
                 return snaps.Select(s => s.ConvertTo<Item>());
-            });
+            }).WithName("GetUserItems");
 
             app.MapGet("/users/{userId}", async (FirestoreDb db, string userId) =>
             {
                 var snap = await db.Collection("users").Document(userId).GetSnapshotAsync();
-                return snap.Exists ? Results.Ok(snap.ConvertTo<User>()) : Results.NotFound();
-            });
+                return snap.Exists ? Results.Ok(snap.ConvertTo<UserAuth>()) : Results.NotFound();
+            }).WithName("GetUserById");
 
             app.MapPost("/users", async (FirestoreDb db, User user) =>
             {
@@ -198,7 +295,43 @@ namespace HippoExchange
                 user.CreatedUtc = DateTime.UtcNow;
                 await db.Collection("users").Document(user.Id).SetAsync(user);
                 return Results.Created($"/users/{user.Id}", user);
-            });
+            }).WithName("CreateUser");
+
+            // -------- Exchanges --------
+
+            app.MapGet("/exchanges/owner/{ownerId}", async (FirestoreDb db, string ownerId) =>
+            {
+                var snaps = await db.Collection("exchanges").WhereEqualTo("ownerID", ownerId).GetSnapshotAsync();
+                return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
+            }).WithName("GetExchangesByOwner");
+
+            app.MapGet("/exchanges/borrower/{borrowerId}", async (FirestoreDb db, string borrowerId) =>
+            {
+                var snaps = await db.Collection("exchanges").WhereEqualTo("borrowerID", borrowerId).GetSnapshotAsync();
+                return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
+            }).WithName("GetExchangesByBorrower");
+
+            app.MapPost("/exchanges", async (FirestoreDb db, CreateExchangeDto dto) =>
+            {
+                var ex = new Exchange
+                {
+                    Id = Guid.NewGuid().ToString("n"),
+                    OwnerId = dto.OwnerId.Trim(),
+                    BorrowerId = dto.BorrowerId.Trim(),
+                    ItemId = dto.ItemId.Trim(),
+                    Approved = false,
+                    RequestCreated = DateTime.UtcNow
+                };
+
+                await db.Collection("exchanges").Document(ex.Id).SetAsync(ex);
+                return Results.Created($"/exchanges/{ex.Id}", ex);
+            }).WithName("CreateExchange");
+
+            app.MapPut("/exchanges/{id}/approval", async (FirestoreDb db, string id, UpdateExchangeApprovalDto dto) =>
+            {
+                var doc = db.Collection("exchanges").Document(id);
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
 
             // -------- Auth (BCrypt) --------
             app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
@@ -268,21 +401,57 @@ namespace HippoExchange
         }
     }
 
-    // ---------------- Models ----------------
+    // ---------------- Firestore models ----------------
     [FirestoreData]
     public class Item
     {
         [FirestoreDocumentId] public string? Id { get; set; }
 
-        [FirestoreProperty] public string OwnerId { get; set; } = default!;
-        [FirestoreProperty] public string Title { get; set; } = default!;
-        [FirestoreProperty] public string? Description { get; set; }
-        [FirestoreProperty] public bool Available { get; set; } = true;
-        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+        [FirestoreProperty("Title")] public string Title { get; set; } = default!;
+        [FirestoreProperty("Description")] public string? Description { get; set; }
+        [FirestoreProperty("Condition")] public string? Condition { get; set; }
+        [FirestoreProperty("Location")] public string? Location { get; set; }
+        [FirestoreProperty("DollarCost")] public double? DollarCost { get; set; }
+        [FirestoreProperty("RepCost")] public double? RepCost { get; set; }
+        [FirestoreProperty] public List<string> Categories { get; set; } = new();
+        [FirestoreProperty] public List<string> Pictures { get; set; } = new();
+        [FirestoreProperty] public List<string> Videos { get; set; } = new();
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
     }
 
     [FirestoreData]
-    public class User
+    public class UserAuth
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("Email")] public string Email { get; set; } = default!;
+        [FirestoreProperty("Phone")] public string Phone { get; set; } = default!;
+        [FirestoreProperty("FirstName")] public string FirstName { get; set; } = default!;
+        [FirestoreProperty("LastName")] public string LastName { get; set; } = default!;
+        [FirestoreProperty("PasswordHash")] public string PasswordHash { get; set; } = default!;
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("ProfilePicture")] public string? ProfilePicture { get; set; }
+        [FirestoreProperty("TotalLended")] public double TotalLended { get; set; } = 0;
+        [FirestoreProperty("TotalBorrowed")] public double TotalBorrowed { get; set; } = 0;
+        [FirestoreProperty("Description")] public string? Description { get; set; }
+    }
+
+    [FirestoreData]
+    public class Exchange
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
+        [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
+        [FirestoreProperty("ownerID")] public string OwnerId { get; set; } = default!;
+        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("startDate")] public DateTime? StartDate { get; set; }
+        [FirestoreProperty("endDate")] public DateTime? EndDate { get; set; }
+        [FirestoreProperty("requestCreated")] public DateTime RequestCreated { get; set; }
+        [FirestoreProperty("requestHandled")] public DateTime? RequestHandled { get; set; }
+    }
+
+    [FirestoreData]
+    public class Notification
     {
         [FirestoreDocumentId] public string? Id { get; set; }
         [FirestoreProperty] public string Email { get; set; } = default!;
