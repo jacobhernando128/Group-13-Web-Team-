@@ -467,7 +467,7 @@ namespace HippoExchange
 
             app.MapGet("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
             {
-                var snaps = await db.Collection("maintenance").WhereEqualTo("itemID", itemId).GetSnapshotAsync();
+                var snaps = await db.Collection("maintenance").WhereEqualTo("itemId", itemId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Maintenance>()));
             }).WithName("GetMaintenanceByItemId");
 
@@ -819,7 +819,7 @@ namespace HippoExchange
         [FirestoreDocumentId] public string? Id { get; set; }
         [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
         [FirestoreProperty("description")] public string Description { get; set; } = default!;
-        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("itemId")] public string ItemId { get; set; } = default!;
         [FirestoreProperty("frequency")] public string Frequency { get; set; } = default!;
     }
 
