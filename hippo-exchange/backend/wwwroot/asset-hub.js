@@ -1,7 +1,7 @@
 // Asset Hub JavaScript functionality
 class AssetHub {
     constructor() {
-        this.currentUserId = this.getCurrentUserId();
+        this.currentUserId = "f8177ed15fe24b5ca1818feb03bb5f32";
         this.ownedItems = [];
         this.borrowedItems = [];
         this.currentEditingItem = null;
