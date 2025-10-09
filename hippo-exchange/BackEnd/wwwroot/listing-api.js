@@ -77,28 +77,29 @@ document.addEventListener('DOMContentLoaded', () => {
         price: item.dollarCost || 0, // Updated to use dollarCost
         condition: item.condition || (item.available ? 'Available' : 'Not Available'),
         description: item.description || '',
-        images: item.images || [],
-        imageUrl: item.imageUrl || item.images?.[0] || PLACEHOLDER_IMG,
+        images: images,
+        imageUrl: imageUrl,
         createdUtc: item.createdUtc,
         isNew: item.createdUtc ? (new Date() - new Date(item.createdUtc)) < (7 * 24 * 60 * 60 * 1000) : false,
         featured: false,
         seller: {
-          id: item.userId, // Updated to use userId
-          name: seller?.name || 'Unknown Seller',
+          id: item.userId || item.ownerId,
+          name: seller?.firstName && seller?.lastName ? `${seller.firstName} ${seller.lastName}` : 
+                seller?.name || 'Unknown Seller',
           email: seller?.email || '',
           avatar: seller?.profilePicture || 'hippo-exchange-logo.png',
           since: seller?.createdUtc ? `Joined ${new Date(seller.createdUtc).getFullYear()}` : 'Member',
         },
-        locationLabel: item.locationLabel || item.location || '',
+        locationLabel: locationLabel,
         ships: item.ships || true,
         pickup: '',
         lat: item.lat || null,
         lng: item.lng || null,
         maintenance: maintenanceData, // Add maintenance data
         bullets: [
-          `Status: ${item.available ? 'Available' : 'Not Available'}`,
-          item.categories && item.categories.length > 0 ? `Category: ${item.categories.join(', ')}` : null,
           item.condition ? `Condition: ${item.condition}` : null,
+          item.categories && item.categories.length > 0 ? `Categories: ${item.categories.join(', ')}` : 
+            (item.category ? `Category: ${item.category}` : null),
           `Created: ${item.createdUtc ? new Date(item.createdUtc).toLocaleDateString() : 'Unknown'}`,
           item.userId ? `Seller ID: ${item.userId}` : null
         ].filter(Boolean)

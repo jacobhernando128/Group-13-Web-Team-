@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.Storage.V1;
@@ -8,6 +9,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using BCrypt.Net;
 
 namespace HippoExchange
 {
@@ -52,6 +58,32 @@ namespace HippoExchange
             static string PublicUrl(string bucket, string objectName)
                 => $"https://storage.googleapis.com/{bucket}/{Uri.EscapeDataString(objectName)}";
 
+            // JWT Token Generation
+            static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
+            {
+                if (user == null) throw new ArgumentNullException(nameof(user));
+                
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.UTF8.GetBytes(jwtKey);
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Subject = new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
+                        new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+                        new Claim(ClaimTypes.GivenName, user.FirstName ?? string.Empty),
+                        new Claim(ClaimTypes.Surname, user.LastName ?? string.Empty),
+                        new Claim("phone", user.Phone ?? string.Empty)
+                    }),
+                    Expires = DateTime.UtcNow.AddMinutes(expiryMinutes),
+                    Issuer = jwtIssuer,
+                    Audience = jwtAudience,
+                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                };
+                var token = tokenHandler.CreateToken(tokenDescriptor);
+                return tokenHandler.WriteToken(token);
+            }
+
             // ---- Services ----
             builder.Services.AddSingleton(_ => new FirestoreDbBuilder
             {
@@ -62,6 +94,28 @@ namespace HippoExchange
 
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
+
+            // JWT Authentication
+            var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
+            var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
+            var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = jwtIssuer,
+                        ValidAudience = jwtAudience,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+                    };
+                });
+
+            builder.Services.AddAuthorization();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
@@ -101,6 +155,8 @@ namespace HippoExchange
 
             app.UseHttpsRedirection();
             app.UseCors();
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             // ---- Serve frontend ----
             var defaults = new DefaultFilesOptions();
@@ -572,7 +628,7 @@ namespace HippoExchange
                 return Results.Ok(new { deleted = snaps.Count });
             }).WithName("DeleteDocumentsByMaintenanceId");
 
-            // -------- Auth (BCrypt) --------
+            // -------- Auth (BCrypt + Firestore) --------
 
             app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
             {
@@ -601,12 +657,22 @@ namespace HippoExchange
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
+                    
+                    // Generate JWT token for new user
+                    var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
+                    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
+                    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
+                    var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
+                    
+                    var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
+                    
                     return Results.Created($"/users/{user.Id}", new
                     {
                         user.Id,
                         user.Email,
-                        user.FirstName,
-                        user.LastName
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
+                        Token = token
                     });
                 }
                 catch (Exception ex)
@@ -631,12 +697,21 @@ namespace HippoExchange
                     var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
                     if (!ok) return Results.Unauthorized();
 
+                    // Generate JWT token
+                    var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
+                    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
+                    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
+                    var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
+                    
+                    var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
+
                     return Results.Ok(new
                     {
                         user.Id,
                         user.Email,
                         FirstName = user.FirstName,
-                        LastName = user.LastName
+                        LastName = user.LastName,
+                        Token = token
                     });
                 }
                 catch (Exception ex)
@@ -645,6 +720,22 @@ namespace HippoExchange
                     return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
                 }
             }).WithName("Login");
+
+            // Get current user info from token
+            app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+            {
+                if (user?.Identity?.IsAuthenticated != true)
+                    return Results.Unauthorized();
+
+                return Results.Ok(new
+                {
+                    Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    Email = user.FindFirst(ClaimTypes.Email)?.Value,
+                    FirstName = user.FindFirst(ClaimTypes.GivenName)?.Value,
+                    LastName = user.FindFirst(ClaimTypes.Surname)?.Value,
+                    Phone = user.FindFirst("phone")?.Value
+                });
+            }).RequireAuthorization().WithName("GetCurrentUser");
 
             app.Run();
         }
@@ -677,7 +768,7 @@ namespace HippoExchange
         [FirestoreProperty("Phone")] public string Phone { get; set; } = default!;
         [FirestoreProperty("FirstName")] public string FirstName { get; set; } = default!;
         [FirestoreProperty("LastName")] public string LastName { get; set; } = default!;
-        [FirestoreProperty("PasswordHash")] public string PasswordHash { get; set; } = default!;
+        [FirestoreProperty("PasswordHash")] public string? PasswordHash { get; set; } // Optional for Firebase Auth users
         [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
         [FirestoreProperty("ProfilePicture")] public string? ProfilePicture { get; set; }
         [FirestoreProperty("TotalLended")] public double TotalLended { get; set; } = 0;
@@ -755,6 +846,7 @@ namespace HippoExchange
     // ---------------- DTOs ----------------
     public record AuthRegisterDto(string Email, string Phone, string FirstName, string LastName, string Password);
     public record AuthLoginDto(string Email, string Password);
+    
 
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
     public record UpdateExchangeApprovalDto(bool Approved);
