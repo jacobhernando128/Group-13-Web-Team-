@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? '$—'
       : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n));
 
-  const API_BASE_URL = '';
+  const API_BASE_URL = 'http://localhost:5000';
 
   const qs = new URLSearchParams(location.search);
   const itemId = qs.get('id') || qs.get('item');
@@ -43,10 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let seller = null;
-      const userId = item.userId || item.ownerId;
-      if (userId) {
+      if (item.userId) {
         try {
-          const userResponse = await fetch(`${API_BASE_URL}/users/${userId}`);
+          const userResponse = await fetch(`${API_BASE_URL}/users/${item.userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -55,17 +54,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Handle both backend API format and fallback JSON format
-      const images = item.pictures || item.images || [];
-      const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
-      const price = item.dollarCost ?? item.price ?? 0;
-      const locationLabel = item.location ?? item.locationLabel ?? '';
-      
+      // Fetch maintenance data separately
+      let maintenanceData = [];
+      try {
+        console.log('🔍 Fetching maintenance for item:', item.id);
+        const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
+        console.log('📡 Maintenance response status:', maintenanceResponse.status);
+        
+        if (maintenanceResponse.ok) {
+          maintenanceData = await maintenanceResponse.json();
+          console.log('✅ Maintenance data received:', maintenanceData);
+        } else {
+          console.error('❌ Maintenance fetch failed:', maintenanceResponse.status, maintenanceResponse.statusText);
+        }
+      } catch (err) {
+        console.error('❌ Could not fetch maintenance data:', err);
+      }
+
       return {
         id: item.id,
         title: item.title || 'Untitled Item',
-        price: price,
-        condition: item.condition || 'Unknown',
+        price: item.dollarCost || 0, // Updated to use dollarCost
+        condition: item.condition || (item.available ? 'Available' : 'Not Available'),
         description: item.description || '',
         images: images,
         imageUrl: imageUrl,
@@ -85,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pickup: '',
         lat: item.lat || null,
         lng: item.lng || null,
+        maintenance: maintenanceData, // Add maintenance data
         bullets: [
           item.condition ? `Condition: ${item.condition}` : null,
           item.categories && item.categories.length > 0 ? `Categories: ${item.categories.join(', ')}` : 
@@ -170,7 +181,64 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Render maintenance data
+    console.log('📋 Listing data for maintenance rendering:', listing);
+    renderMaintenance(listing.maintenance || []);
+
     addInteractivity(listing);
+  }
+
+  function renderMaintenance(maintenanceData) {
+    console.log('🎨 Rendering maintenance data:', maintenanceData);
+    
+    const maintenanceList = document.getElementById('maintenance-list');
+    const maintenanceEmpty = document.getElementById('maintenance-empty');
+
+    if (!maintenanceList || !maintenanceEmpty) {
+      console.warn('⚠️ Maintenance DOM elements not found');
+      return;
+    }
+
+    // Clear existing content
+    maintenanceList.innerHTML = '';
+
+    if (maintenanceData.length === 0) {
+      maintenanceEmpty.style.display = 'block';
+      return;
+    }
+
+    maintenanceEmpty.style.display = 'none';
+
+    // Render maintenance history (sorted by createdUtc)
+    const sortedMaintenance = [...maintenanceData].sort((a, b) => 
+      new Date(b.createdUtc) - new Date(a.createdUtc)
+    );
+
+    sortedMaintenance.forEach(maintenance => {
+      const entry = document.createElement('div');
+      
+      const frequencyColors = {
+        cleaning: 'border-green-500',
+        repair: 'border-red-500',
+        inspection: 'border-yellow-500',
+        upgrade: 'border-purple-500',
+        maintenance: 'border-blue-500'
+      };
+      
+      entry.className = `glass p-3 rounded-lg border-l-4 ${frequencyColors[maintenance.frequency] || 'border-blue-500'}`;
+      
+      entry.innerHTML = `
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+            ${maintenance.frequency.charAt(0).toUpperCase() + maintenance.frequency.slice(1)}
+          </span>
+          <span class="text-sm text-slate-600">${new Date(maintenance.createdUtc).toLocaleDateString()}</span>
+        </div>
+        <p class="text-slate-700 text-sm">${maintenance.description}</p>
+      `;
+      
+      maintenanceList.appendChild(entry);
+    });
   }
 
   function addInteractivity(listing) {
