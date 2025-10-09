@@ -2,115 +2,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const grid = document.getElementById('listings-grid');
   const tpl = document.getElementById('item-card-template');
-  const filterCount = document.getElementById('filter-count');
-
-  // Mobile menu functionality
-  const menuButton = document.getElementById('menu-button');
-  const sidebar = document.getElementById('sidebar');
-  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
-  const iconHam = document.getElementById('icon-ham');
-
-  function toggleMobileMenu() {
-    const isOpen = sidebar.classList.contains('translate-x-0');
-
-    if (isOpen) {
-      sidebar.classList.remove('translate-x-0');
-      sidebar.classList.add('-translate-x-full');
-      sidebarBackdrop.classList.add('hidden');
-      menuButton.setAttribute('aria-expanded', 'false');
-    } else {
-      sidebar.classList.remove('-translate-x-full');
-      sidebar.classList.add('translate-x-0');
-      sidebarBackdrop.classList.remove('hidden');
-      menuButton.setAttribute('aria-expanded', 'true');
-    }
-  }
-
-  function closeMobileMenu() {
-    sidebar.classList.remove('translate-x-0');
-    sidebar.classList.add('-translate-x-full');
-    sidebarBackdrop.classList.add('hidden');
-    menuButton.setAttribute('aria-expanded', 'false');
-  }
-
-  if (menuButton) {
-    menuButton.addEventListener('click', toggleMobileMenu);
-  }
-
-  if (sidebarBackdrop) {
-    sidebarBackdrop.addEventListener('click', closeMobileMenu);
-  }
-
-  const navLinks = sidebar.querySelectorAll('a');
-  navLinks.forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth < 768) {
-        closeMobileMenu();
-      }
-    });
-  });
-
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 768) {
-      closeMobileMenu();
-    }
-  });
-
-  // Search functionality
-  const searchInput = document.getElementById('search-input');
-  let searchTimeout = null;
-  let currentSearchQuery = '';
-
-  function performSearch(query) {
-    currentSearchQuery = query.trim();
-
-    let filteredItems = allListings;
-
-    if (currentCategory !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === currentCategory);
-    }
-
-    if (currentSearchQuery) {
-      const searchTerm = currentSearchQuery.toLowerCase();
-      filteredItems = filteredItems.filter(item => {
-        const title = (item.title || '').toLowerCase();
-        const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
-
-        return title.includes(searchTerm) ||
-          description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
-          location.includes(searchTerm);
-      });
-    }
-
-    render(filteredItems);
-  }
-
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value;
-
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
-      }
-
-      searchTimeout = setTimeout(() => {
-        performSearch(query);
-      }, 300);
-    });
-
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (searchTimeout) {
-          clearTimeout(searchTimeout);
-        }
-        performSearch(e.target.value);
-      }
-    });
-  }
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
 
@@ -259,35 +150,10 @@ document.addEventListener('DOMContentLoaded', () => {
       render(allListings);
 
     } catch (err) {
-      console.error('Failed to load listings from API:', err);
-
-      try {
-        const res = await fetch('listings.json');
-        if (res.ok) {
-          const data = await res.json();
-          allListings = Array.isArray(data) ? data : (data.items || []);
-          console.log('Using fallback listings.json');
-          render(allListings);
-          return;
-        }
-      } catch (fallbackErr) {
-        console.error('Fallback failed:', fallbackErr);
-      }
-
-      allListings = [{
-        id: 'sample1',
-        title: 'Sample Item',
-        description: 'This is sample data. Check console for errors.',
-        price: 100,
-        locationLabel: 'Cookeville, TN',
-        imageUrl: PLACEHOLDER_IMG,
-        isNew: true,
-        category: 'electronics',
-        available: true
-      }];
-      render(allListings);
-
-      grid.innerHTML += '<div class="col-span-full text-center text-red-600 text-sm mt-4 glass p-4 rounded-lg">Could not load listings from server. Showing sample data. Check browser console for details.</div>';
+      console.error('Failed to load listings:', err);
+      render([
+        { id: 'abc123', slug: 'gaming-desktop-abc123', title: 'Gaming Desktop (for sale & trade)', price: 300, locationLabel: 'Cookeville, TN', imageUrl: PLACEHOLDER_IMG, isNew: true, ships: false },
+      ]);
     }
   }
 
@@ -318,9 +184,11 @@ function signOut() {
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
 
+  // Clear any cookies (if using them for auth)
   document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 
+  // Redirect to login page
   window.location.href = './Login.html';
 }
 

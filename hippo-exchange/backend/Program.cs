@@ -1,10 +1,7 @@
-using System.Security.Cryptography;
+// Program.cs
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
-using Google.Cloud.Storage.V1;
-using FirebaseAdmin;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
@@ -16,26 +13,26 @@ namespace HippoExchange
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+             builder.WebHost.ConfigureKestrel(options =>
+             {
+                options.ListenAnyIP(5000); // change 5000 to whatever port you want
+                // If you want HTTPS with a cert:
+                // // options.ListenAnyIP(443, listenOptions => listenOptions.UseHttps("cert.pfx", "password"));
+             });
 
-            // Optional: expose HTTP on a fixed port for local/dev
-            builder.WebHost.ConfigureKestrel(options =>
-            {
-                options.ListenAnyIP(5000);
-                // For HTTPS with a cert:
-                // options.ListenAnyIP(443, lo => lo.UseHttps("cert.pfx", "password"));
-            });
 
-            // ---- Config ----
+            // -------- Config --------
             var projectId =
                 Environment.GetEnvironmentVariable("GOOGLE_CLOUD_PROJECT")
                 ?? builder.Configuration["GoogleCloud:ProjectId"]
-                ?? throw new InvalidOperationException("ProjectId not configured.");
+                ?? throw new InvalidOperationException("GoogleCloud:ProjectId not configured.");
 
             var databaseId =
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
+            // Credentials: env var first, then appsettings (GoogleCloud:CredentialPath)
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
@@ -43,25 +40,20 @@ namespace HippoExchange
             if (string.IsNullOrWhiteSpace(credPath) || !File.Exists(credPath))
             {
                 throw new InvalidOperationException(
-                    "Credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS or GoogleCloud:CredentialPath " +
-                    $"to a valid service-account JSON file. Current: '{credPath ?? "<empty>"}'");
+                    "Firestore credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS " +
+                    "or GoogleCloud:CredentialPath to a valid service-account JSON file. " +
+                    $"Current value: '{credPath ?? "<empty>"}'");
             }
 
             var googleCred = GoogleCredential.FromFile(credPath);
 
-            static string PublicUrl(string bucket, string objectName)
-                => $"https://storage.googleapis.com/{bucket}/{Uri.EscapeDataString(objectName)}";
-
-            // ---- Services ----
+            // -------- Services --------
             builder.Services.AddSingleton(_ => new FirestoreDbBuilder
             {
                 ProjectId = projectId,
                 DatabaseId = databaseId,
                 Credential = googleCred
             }.Build());
-
-            // You can pass credentials to StorageClient:
-            builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
@@ -70,14 +62,17 @@ namespace HippoExchange
                 {
                     Title = "HippoExchange API",
                     Version = "v1",
-                    Description = "CRUD API backed by Firestore; BCrypt auth; GCS media upload"
+                    Description = "Simple CRUD + Auth API backed by Firestore"
                 });
             });
 
+            // CORS (relaxed for local dev / file:// testing)
             builder.Services.AddCors(o =>
             {
-                // TODO: tighten for prod
-                o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+                o.AddDefaultPolicy(p => p
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .SetIsOriginAllowed(_ => true));
             });
 
             // Firebase Admin (optional, present for future token work)
@@ -91,7 +86,7 @@ namespace HippoExchange
 
             var app = builder.Build();
 
-            // ---- Dev tooling ----
+            // -------- Dev tooling --------
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -99,10 +94,12 @@ namespace HippoExchange
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
             }
 
-            app.UseHttpsRedirection();
-            app.UseCors();
+            // Only redirect if HTTPS is actually bound
+            var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "";
+            var hasHttps = urls.Contains("https://", StringComparison.OrdinalIgnoreCase);
+            if (hasHttps) app.UseHttpsRedirection();
 
-            // ---- Serve frontend ----
+            // -------- Static frontend (wwwroot) --------
             var defaults = new DefaultFilesOptions();
             defaults.DefaultFileNames.Clear();
             defaults.DefaultFileNames.Add("Login.html");
@@ -111,24 +108,20 @@ namespace HippoExchange
             app.UseDefaultFiles(defaults);
             app.UseStaticFiles();
 
+            app.UseStaticFiles();
+            app.UseCors();
+
             // ===================== API =====================
 
-            // ---- Health ----
-            app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-               .WithName("Health");
+            // Health
+            app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
             app.MapGet("/health/firestore", async (FirestoreDb db, ILogger<Program> logger) =>
             {
                 try
                 {
                     await db.Collection("users").Limit(1).GetSnapshotAsync();
-                    return Results.Json(new
-                    {
-                        status = "ok",
-                        firestore = "ok",
-                        projectId = db.ProjectId,
-                        databaseId = db.DatabaseId
-                    });
+                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId, databaseId = db.DatabaseId });
                 }
                 catch (Exception ex)
                 {
@@ -146,7 +139,19 @@ namespace HippoExchange
 
             // -------- Items --------
 
-            // Create item
+            // Helpful debug to confirm ADC path at runtime
+            app.MapGet("/debug/adc", () =>
+            {
+                var p = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
+                        ?? builder.Configuration["GoogleCloud:CredentialPath"];
+                return Results.Ok(new
+                {
+                    credentialPath = p,
+                    exists = !string.IsNullOrWhiteSpace(p) && File.Exists(p)
+                });
+            });
+
+            // -------- Items CRUD --------
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
             {
                 item.Id = Guid.NewGuid().ToString("n");
@@ -155,15 +160,13 @@ namespace HippoExchange
                 return Results.Created($"/items/{item.Id}", item);
             }).WithName("CreateItem");
 
-            // Get item by id
             app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 var snap = await db.Collection("itemID").Document(id).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
             }).WithName("GetItemById");
 
-            // List items (optional filter ownerId aka userID)
-            app.MapGet("/items", async (FirestoreDb db, string? ownerId) =>
+            app.MapGet("/items", async (FirestoreDb db, string? ownerId, bool? available) =>
             {
                 Query q = db.Collection("itemID");
                 if (!string.IsNullOrWhiteSpace(ownerId))
@@ -173,7 +176,6 @@ namespace HippoExchange
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Item>()));
             }).WithName("ListItems");
 
-            // Update item
             app.MapPut("/items/{id}", async (FirestoreDb db, string id, Item update) =>
             {
                 var doc = db.Collection("itemID").Document(id);
@@ -197,7 +199,6 @@ namespace HippoExchange
                 return Results.Ok(current);
             }).WithName("UpdateItem");
 
-            // Delete item
             app.MapDelete("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 var doc = db.Collection("itemID").Document(id);
@@ -274,6 +275,7 @@ namespace HippoExchange
 
             // -------- Users --------
 
+            // -------- Users (demo reads) --------
             app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
             {
                 var q = db.Collection("itemID").WhereEqualTo("userID", userId);
@@ -287,7 +289,7 @@ namespace HippoExchange
                 return snap.Exists ? Results.Ok(snap.ConvertTo<UserAuth>()) : Results.NotFound();
             }).WithName("GetUserById");
 
-            app.MapPost("/users", async (FirestoreDb db, UserAuth user) =>
+            app.MapPost("/users", async (FirestoreDb db, User user) =>
             {
                 user.Id = Guid.NewGuid().ToString("n");
                 user.CreatedUtc = DateTime.UtcNow;
@@ -331,249 +333,7 @@ namespace HippoExchange
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
 
-                await doc.UpdateAsync(new Dictionary<string, object> { ["approved"] = dto.Approved });
-                var updated = await doc.GetSnapshotAsync();
-                return Results.Ok(updated.ConvertTo<Exchange>());
-            }).WithName("UpdateExchangeApproval");
-
-            app.MapDelete("/exchanges/{id}", async (FirestoreDb db, string id) =>
-            {
-                var doc = db.Collection("exchanges").Document(id);
-                var snap = await doc.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound();
-
-                await doc.DeleteAsync();
-                return Results.NoContent();
-            }).WithName("DeleteExchange");
-
-            // -------- Notifications --------
-
-            app.MapGet("/notifications/receiver/{receiverId}", async (FirestoreDb db, string receiverId) =>
-            {
-                var snaps = await db.Collection("notifications").WhereEqualTo("receiverID", receiverId).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Notification>()));
-            }).WithName("GetNotificationsByReceiver");
-
-            app.MapPost("/notifications", async (FirestoreDb db, CreateNotificationDto dto) =>
-            {
-                var notif = new Notification
-                {
-                    Id = Guid.NewGuid().ToString("n"),
-                    CreatedUtc = DateTime.UtcNow,
-                    SenderId = dto.SenderId.Trim(),
-                    ReceiverId = dto.ReceiverId.Trim(),
-                    Message = dto.Message.Trim(),
-                    Title = dto.Title.Trim(),
-                    Type = dto.Type.Trim(),
-                    ListingId = (dto.ListingId ?? "").Trim(),
-                    SenderAvatar = dto.SenderAvatar?.Trim()
-                };
-
-                await db.Collection("notifications").Document(notif.Id).SetAsync(notif);
-                return Results.Created($"/notifications/{notif.Id}", notif);
-            }).WithName("CreateNotification");
-
-            // -------- Listings --------
-
-            app.MapGet("/listings/user/{userId}", async (FirestoreDb db, string userId) =>
-            {
-                var snaps = await db.Collection("listings").WhereEqualTo("userID", userId).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Listing>()));
-            }).WithName("GetListingsByUser");
-
-            app.MapPost("/listings", async (FirestoreDb db, CreateListingDto dto) =>
-            {
-                var listing = new Listing
-                {
-                    Id = Guid.NewGuid().ToString("n"),
-                    ItemId = dto.ItemId.Trim(),
-                    UserId = dto.UserId.Trim(),
-                    CreatedUtc = DateTime.UtcNow
-                };
-
-                await db.Collection("listings").Document(listing.Id).SetAsync(listing);
-                return Results.Created($"/listings/{listing.Id}", listing);
-            }).WithName("CreateListing");
-
-            app.MapDelete("/listings/item/{itemId}", async (FirestoreDb db, string itemId) =>
-            {
-                var snaps = await db.Collection("listings").WhereEqualTo("itemID", itemId).GetSnapshotAsync();
-                if (!snaps.Any()) return Results.NotFound();
-
-                var batch = db.StartBatch();
-                foreach (var s in snaps) batch.Delete(s.Reference);
-                await batch.CommitAsync();
-
-                return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteListingsByItemId");
-
-            // -------- Maintenance --------
-
-            app.MapGet("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
-            {
-                var snaps = await db.Collection("maintenance").WhereEqualTo("itemID", itemId).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Maintenance>()));
-            }).WithName("GetMaintenanceByItemId");
-
-            app.MapPut("/maintenance/{maintenanceId}/description", async (FirestoreDb db, string maintenanceId, UpdateMaintenanceDescriptionDto dto) =>
-            {
-                var snaps = await db.Collection("maintenance")
-                                    .WhereEqualTo("maintenanceID", maintenanceId)
-                                    .Limit(1).GetSnapshotAsync();
-
-                if (!snaps.Any()) return Results.NotFound();
-
-                var docRef = snaps.First().Reference;
-                await docRef.UpdateAsync(new Dictionary<string, object> { ["description"] = dto.Description.Trim() });
-
-                var updated = await docRef.GetSnapshotAsync();
-                return Results.Ok(updated.ConvertTo<Maintenance>());
-            }).WithName("UpdateMaintenanceDescription");
-
-            app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto) =>
-            {
-                var m = new Maintenance
-                {
-                    Id = Guid.NewGuid().ToString("n"),
-                    ItemId = dto.ItemId.Trim(),
-                    MaintenanceId = dto.MaintenanceId.Trim(),
-                    Description = dto.Description.Trim(),
-                    CreatedUtc = DateTime.UtcNow
-                };
-
-                await db.Collection("maintenance").Document(m.Id).SetAsync(m);
-                return Results.Created($"/maintenance/{m.Id}", m);
-            }).WithName("CreateMaintenance");
-
-            app.MapDelete("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
-            {
-                var snaps = await db.Collection("maintenance").WhereEqualTo("itemID", itemId).GetSnapshotAsync();
-                if (!snaps.Any()) return Results.NotFound();
-
-                var batch = db.StartBatch();
-                foreach (var s in snaps) batch.Delete(s.Reference);
-                await batch.CommitAsync();
-
-                return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteMaintenanceByItemId");
-
-            // -------- Reviews --------
-
-            app.MapGet("/reviews/user/{userId}", async (FirestoreDb db, string userId) =>
-            {
-                var snaps = await db.Collection("reviews").WhereEqualTo("userID", userId).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Review>()));
-            }).WithName("GetReviewsByUserId");
-
-            app.MapPost("/reviews", async (FirestoreDb db, CreateReviewDto dto) =>
-            {
-                var rating = dto.Rating;
-                var rater = (dto.RaterId ?? "").Trim();
-                var user = (dto.UserId ?? "").Trim();
-                var desc = (dto.Description ?? "").Trim();
-
-                if (rating == 0 || string.IsNullOrWhiteSpace(rater) || string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(desc))
-                    return Results.BadRequest(new { message = "Rating, raterId, userId, and description are required." });
-
-                var review = new Review
-                {
-                    Id = Guid.NewGuid().ToString("n"),
-                    Rating = rating,
-                    RaterId = rater,
-                    UserId = user,
-                    Description = desc
-                };
-
-                await db.Collection("reviews").Document(review.Id).SetAsync(review);
-                return Results.Created($"/reviews/{review.Id}", review);
-            }).WithName("CreateReview");
-
-            app.MapPut("/reviews/{id}", async (FirestoreDb db, string id, UpdateReviewDto dto) =>
-            {
-                var docRef = db.Collection("reviews").Document(id);
-                var snap = await docRef.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound();
-
-                var rating = dto.Rating;
-                var desc = (dto.Description ?? "").Trim();
-
-                if (rating == 0 || string.IsNullOrWhiteSpace(desc))
-                    return Results.BadRequest(new { message = "Both rating and description are required." });
-
-                await docRef.UpdateAsync(new Dictionary<string, object>
-                {
-                    ["Rating"] = rating,
-                    ["description"] = desc
-                });
-
-                var updated = await docRef.GetSnapshotAsync();
-                return Results.Ok(updated.ConvertTo<Review>());
-            }).WithName("UpdateReview");
-
-            app.MapDelete("/reviews/{id}", async (FirestoreDb db, string id) =>
-            {
-                var docRef = db.Collection("reviews").Document(id);
-                var snap = await docRef.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound();
-
-                await docRef.DeleteAsync();
-                return Results.NoContent();
-            }).WithName("DeleteReview");
-
-            // -------- Documents --------
-
-            app.MapGet("/documents/maintenance/{maintenanceId}", async (FirestoreDb db, string maintenanceId) =>
-            {
-                var snaps = await db.Collection("Document").WhereEqualTo("maintenanceID", maintenanceId).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<DocumentEntry>()));
-            }).WithName("GetDocumentsByMaintenanceId");
-
-            app.MapPost("/documents", async (FirestoreDb db, CreateDocumentDto dto) =>
-            {
-                var docEnt = new DocumentEntry
-                {
-                    Id = Guid.NewGuid().ToString("n"),
-                    MaintenanceId = dto.MaintenanceId.Trim(),
-                    Description = dto.Description.Trim(),
-                    DocumentContent = dto.Document.Trim(),
-                    CreatedUtc = DateTime.UtcNow
-                };
-
-                await db.Collection("Document").Document(docEnt.Id).SetAsync(docEnt);
-                return Results.Created($"/documents/{docEnt.Id}", docEnt);
-            }).WithName("CreateDocument");
-
-            app.MapPut("/documents/{id}", async (FirestoreDb db, string id, UpdateDocumentDto dto) =>
-            {
-                var docRef = db.Collection("Document").Document(id);
-                var snap = await docRef.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound();
-
-                var updates = new Dictionary<string, object>();
-                if (!string.IsNullOrWhiteSpace(dto.Description)) updates["description"] = dto.Description.Trim();
-                if (!string.IsNullOrWhiteSpace(dto.Document)) updates["Document"] = dto.Document.Trim();
-
-                if (updates.Count == 0) return Results.BadRequest(new { message = "No fields to update." });
-
-                await docRef.UpdateAsync(updates);
-                var updated = await docRef.GetSnapshotAsync();
-                return Results.Ok(updated.ConvertTo<DocumentEntry>());
-            }).WithName("UpdateDocument");
-
-            app.MapDelete("/documents/maintenance/{maintenanceId}", async (FirestoreDb db, string maintenanceId) =>
-            {
-                var snaps = await db.Collection("Document").WhereEqualTo("maintenanceID", maintenanceId).GetSnapshotAsync();
-                if (!snaps.Any()) return Results.NotFound();
-
-                var batch = db.StartBatch();
-                foreach (var s in snaps) batch.Delete(s.Reference);
-                await batch.CommitAsync();
-
-                return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteDocumentsByMaintenanceId");
-
             // -------- Auth (BCrypt) --------
-
             app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
@@ -593,28 +353,20 @@ namespace HippoExchange
                     {
                         Id = Guid.NewGuid().ToString("n"),
                         Email = email,
-                        FirstName = (dto.FirstName ?? "").Trim(),
-                        LastName = (dto.LastName ?? "").Trim(),
-                        Phone = (dto.Phone ?? "").Trim(),
+                        Name = (dto.Name ?? "").Trim(),
                         PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                         CreatedUtc = DateTime.UtcNow
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
-                    return Results.Created($"/users/{user.Id}", new
-                    {
-                        user.Id,
-                        user.Email,
-                        user.FirstName,
-                        user.LastName
-                    });
+                    return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
                 }
                 catch (Exception ex)
                 {
                     log.LogError(ex, "Register failed");
                     return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
                 }
-            }).WithName("Register");
+            });
 
             app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto, ILogger<Program> log) =>
             {
@@ -631,20 +383,19 @@ namespace HippoExchange
                     var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
                     if (!ok) return Results.Unauthorized();
 
-                    return Results.Ok(new
-                    {
-                        user.Id,
-                        user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName
-                    });
+                    return Results.Ok(new { user.Id, user.Email, user.Name });
                 }
                 catch (Exception ex)
                 {
                     log.LogError(ex, "Login failed");
                     return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
                 }
-            }).WithName("Login");
+            });
+
+            // ------------------------------------------------
+            app.UseDeveloperExceptionPage();
+            app.UseSwagger();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
 
             app.Run();
         }
@@ -703,82 +454,23 @@ namespace HippoExchange
     public class Notification
     {
         [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-        [FirestoreProperty("listingID")] public string ListingId { get; set; } = default!;
-        [FirestoreProperty("message")] public string Message { get; set; } = default!;
-        [FirestoreProperty("receiverID")] public string ReceiverId { get; set; } = default!;
-        [FirestoreProperty("senderAvatar")] public string? SenderAvatar { get; set; }
-        [FirestoreProperty("senderID")] public string SenderId { get; set; } = default!;
-        [FirestoreProperty("title")] public string Title { get; set; } = default!;
-        [FirestoreProperty("type")] public string Type { get; set; } = default!;
+        [FirestoreProperty] public string Email { get; set; } = default!;
+        [FirestoreProperty] public string Name { get; set; } = default!;
+        [FirestoreProperty] public string? ProfilePicture { get; set; }
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
     }
 
-    [FirestoreData]
-    public class Listing
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
-        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
-    }
-
-    [FirestoreData]
-    public class Maintenance
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-        [FirestoreProperty("description")] public string Description { get; set; } = default!;
-        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
-        [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
-    }
-
-    [FirestoreData]
-    public class DocumentEntry
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-        [FirestoreProperty("description")] public string Description { get; set; } = default!;
-        [FirestoreProperty("Document")] public string DocumentContent { get; set; } = default!;
-        [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
-    }
-
-    [FirestoreData]
-    public class Review
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("Rating")] public int Rating { get; set; }
-        [FirestoreProperty("raterID")] public string RaterId { get; set; } = default!;
-        [FirestoreProperty("description")] public string Description { get; set; } = default!;
-        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
-    }
-
-    // ---------------- DTOs ----------------
-    public record AuthRegisterDto(string Email, string Phone, string FirstName, string LastName, string Password);
+    // ---- Auth DTOs + Firestore model (with password hash) ----
+    public record AuthRegisterDto(string Email, string Name, string Password);
     public record AuthLoginDto(string Email, string Password);
 
-    public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
-    public record UpdateExchangeApprovalDto(bool Approved);
-
-    public record CreateNotificationDto(string SenderId, string ReceiverId, string Message, string Title, string Type, string? ListingId = null, string? SenderAvatar = null);
-
-    public record CreateListingDto(string ItemId, string UserId);
-
-    public record CreateMaintenanceDto(string ItemId, string MaintenanceId, string Description);
-    public record UpdateMaintenanceDescriptionDto(string Description);
-
-    public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
-    public record UpdateDocumentDto(string? Description, string? Document);
-
-    // ---- Review DTOs ----
-    public record CreateReviewDto(
-        int Rating,
-        string RaterId,
-        string UserId,
-        string Description
-    );
-
-    public record UpdateReviewDto(
-        int Rating,
-        string Description
-    );
+    [FirestoreData]
+    public class UserAuth
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty] public string Email { get; set; } = default!;
+        [FirestoreProperty] public string Name { get; set; } = default!;
+        [FirestoreProperty] public string PasswordHash { get; set; } = default!;
+        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+    }
 }
