@@ -1,6 +1,8 @@
 // Program.cs
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
+using FirebaseAdmin;
+using Google.Cloud.Storage.V1;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
@@ -13,12 +15,12 @@ namespace HippoExchange
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-             builder.WebHost.ConfigureKestrel(options =>
-             {
+            builder.WebHost.ConfigureKestrel(options =>
+            {
                 options.ListenAnyIP(5000); // change 5000 to whatever port you want
-                // If you want HTTPS with a cert:
-                // // options.ListenAnyIP(443, listenOptions => listenOptions.UseHttps("cert.pfx", "password"));
-             });
+                                           // If you want HTTPS with a cert:
+                                           // // options.ListenAnyIP(443, listenOptions => listenOptions.UseHttps("cert.pfx", "password"));
+            });
 
 
             // -------- Config --------
@@ -130,12 +132,6 @@ namespace HippoExchange
                 }
             }).WithName("Health_Firestore");
 
-            // Show credential path/existence
-            app.MapGet("/debug/adc", () =>
-            {
-                var exists = !string.IsNullOrWhiteSpace(credPath) && File.Exists(credPath);
-                return Results.Ok(new { credentialPath = credPath, exists });
-            }).WithName("Debug_ADC");
 
             // -------- Items --------
 
@@ -208,6 +204,9 @@ namespace HippoExchange
                 await doc.DeleteAsync();
                 return Results.NoContent();
             }).WithName("DeleteItem");
+
+            static string PublicUrl(string bucket, string objectName)
+    => $"https://storage.googleapis.com/{bucket}/{Uri.EscapeDataString(objectName)}";
 
             // Upload pictures
             app.MapPost("/items/{id}/pictures", async (HttpRequest req, FirestoreDb db, StorageClient storage, string id) =>
@@ -289,7 +288,7 @@ namespace HippoExchange
                 return snap.Exists ? Results.Ok(snap.ConvertTo<UserAuth>()) : Results.NotFound();
             }).WithName("GetUserById");
 
-            app.MapPost("/users", async (FirestoreDb db, User user) =>
+            app.MapPost("/users", async (FirestoreDb db, UserAuth user) =>
             {
                 user.Id = Guid.NewGuid().ToString("n");
                 user.CreatedUtc = DateTime.UtcNow;
@@ -333,136 +332,141 @@ namespace HippoExchange
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
 
-            // -------- Auth (BCrypt) --------
-            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
-            {
-                var email = (dto.Email ?? "").Trim().ToLowerInvariant();
-                if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(dto.Password))
-                    return Results.BadRequest(new { message = "Email and password are required." });
-
-                try
+                // -------- Auth (BCrypt) --------
+                app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
                 {
-                    var exists = await db.Collection("users")
-                        .WhereEqualTo(nameof(UserAuth.Email), email)
-                        .Limit(1).GetSnapshotAsync();
+                    var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+                    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(dto.Password))
+                        return Results.BadRequest(new { message = "Email and password are required." });
 
-                    if (exists.Any())
-                        return Results.Conflict(new { message = "Email already registered." });
-
-                    var user = new UserAuth
+                    try
                     {
-                        Id = Guid.NewGuid().ToString("n"),
-                        Email = email,
-                        Name = (dto.Name ?? "").Trim(),
-                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                        CreatedUtc = DateTime.UtcNow
-                    };
+                        var exists = await db.Collection("users")
+                            .WhereEqualTo(nameof(UserAuth.Email), email)
+                            .Limit(1).GetSnapshotAsync();
 
-                    await db.Collection("users").Document(user.Id).SetAsync(user);
-                    return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
-                }
-                catch (Exception ex)
+                        if (exists.Any())
+                            return Results.Conflict(new { message = "Email already registered." });
+
+                        var user = new UserAuth
+                        {
+                            Id = Guid.NewGuid().ToString("n"),
+                            Email = email,
+                            Name = (dto.Name ?? "").Trim(),
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                            CreatedUtc = DateTime.UtcNow
+                        };
+
+                        await db.Collection("users").Document(user.Id).SetAsync(user);
+                        return Results.Created($"/users/{user.Id}", new { user.Id, user.Email, user.Name });
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogError(ex, "Register failed");
+                        return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
+                    }
+                });
+
+                app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto, ILogger<Program> log) =>
                 {
-                    log.LogError(ex, "Register failed");
-                    return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
-                }
+                    var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+                    try
+                    {
+                        var snaps = await db.Collection("users")
+                            .WhereEqualTo(nameof(UserAuth.Email), email)
+                            .Limit(1).GetSnapshotAsync();
+
+                        if (!snaps.Any()) return Results.Unauthorized();
+
+                        var user = snaps.First().ConvertTo<UserAuth>();
+                        var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
+                        if (!ok) return Results.Unauthorized();
+
+                        return Results.Ok(new { user.Id, user.Email, user.Name });
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogError(ex, "Login failed");
+                        return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
+                    }
+                });
+
+                // ------------------------------------------------
+                app.UseDeveloperExceptionPage();
+                app.UseSwagger();
+                app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
+
+                app.Run();
             });
-
-            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto, ILogger<Program> log) =>
-            {
-                var email = (dto.Email ?? "").Trim().ToLowerInvariant();
-                try
-                {
-                    var snaps = await db.Collection("users")
-                        .WhereEqualTo(nameof(UserAuth.Email), email)
-                        .Limit(1).GetSnapshotAsync();
-
-                    if (!snaps.Any()) return Results.Unauthorized();
-
-                    var user = snaps.First().ConvertTo<UserAuth>();
-                    var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
-                    if (!ok) return Results.Unauthorized();
-
-                    return Results.Ok(new { user.Id, user.Email, user.Name });
-                }
-                catch (Exception ex)
-                {
-                    log.LogError(ex, "Login failed");
-                    return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
-                }
-            });
-
-            // ------------------------------------------------
-            app.UseDeveloperExceptionPage();
-            app.UseSwagger();
-            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "HippoExchange API v1"));
-
-            app.Run();
         }
+
+        // ---------------- Firestore models ----------------
+        [FirestoreData]
+        public class Item
+        {
+            [FirestoreDocumentId] public string? Id { get; set; }
+
+            [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+            [FirestoreProperty("Title")] public string Title { get; set; } = default!;
+            [FirestoreProperty("Description")] public string? Description { get; set; }
+            [FirestoreProperty("Condition")] public string? Condition { get; set; }
+            [FirestoreProperty("Location")] public string? Location { get; set; }
+            [FirestoreProperty("DollarCost")] public double? DollarCost { get; set; }
+            [FirestoreProperty("RepCost")] public double? RepCost { get; set; }
+            [FirestoreProperty] public List<string> Categories { get; set; } = new();
+            [FirestoreProperty] public List<string> Pictures { get; set; } = new();
+            [FirestoreProperty] public List<string> Videos { get; set; } = new();
+            [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        }
+
+        [FirestoreData]
+        public class UserAuth
+        {
+            [FirestoreDocumentId] public string? Id { get; set; }
+            [FirestoreProperty("Email")] public string Email { get; set; } = default!;
+            [FirestoreProperty("Phone")] public string Phone { get; set; } = default!;
+            [FirestoreProperty("FirstName")] public string FirstName { get; set; } = default!;
+            [FirestoreProperty("LastName")] public string LastName { get; set; } = default!;
+            [FirestoreProperty("PasswordHash")] public string PasswordHash { get; set; } = default!;
+            [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+            [FirestoreProperty("ProfilePicture")] public string? ProfilePicture { get; set; }
+            [FirestoreProperty("TotalLended")] public double TotalLended { get; set; } = 0;
+            [FirestoreProperty("TotalBorrowed")] public double TotalBorrowed { get; set; } = 0;
+            [FirestoreProperty("Description")] public string? Description { get; set; }
+        }
+
+        [FirestoreData]
+        public class Exchange
+        {
+            [FirestoreDocumentId] public string? Id { get; set; }
+            [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
+            [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
+            [FirestoreProperty("ownerID")] public string OwnerId { get; set; } = default!;
+            [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+            [FirestoreProperty("startDate")] public DateTime? StartDate { get; set; }
+            [FirestoreProperty("endDate")] public DateTime? EndDate { get; set; }
+            [FirestoreProperty("requestCreated")] public DateTime RequestCreated { get; set; }
+            [FirestoreProperty("requestHandled")] public DateTime? RequestHandled { get; set; }
+        }
+
+        [FirestoreData]
+        public class Notification
+        {
+            [FirestoreDocumentId] public string? Id { get; set; }
+            [FirestoreProperty] public string Email { get; set; } = default!;
+            [FirestoreProperty] public string Name { get; set; } = default!;
+            [FirestoreProperty] public string? ProfilePicture { get; set; }
+            [FirestoreProperty] public DateTime CreatedUtc { get; set; }
+        }
+
+        // ---- Auth DTOs + Firestore model (with password hash) ----
+        public record AuthRegisterDto(string Email, string Name, string Password);
+        public record AuthLoginDto(string Email, string Password);
+
+        // ---- Exchange DTOs ----
+        public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
+        public record UpdateExchangeApprovalDto(bool Approved);
     }
-
-    // ---------------- Firestore models ----------------
-    [FirestoreData]
-    public class Item
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-
-        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
-        [FirestoreProperty("Title")] public string Title { get; set; } = default!;
-        [FirestoreProperty("Description")] public string? Description { get; set; }
-        [FirestoreProperty("Condition")] public string? Condition { get; set; }
-        [FirestoreProperty("Location")] public string? Location { get; set; }
-        [FirestoreProperty("DollarCost")] public double? DollarCost { get; set; }
-        [FirestoreProperty("RepCost")] public double? RepCost { get; set; }
-        [FirestoreProperty] public List<string> Categories { get; set; } = new();
-        [FirestoreProperty] public List<string> Pictures { get; set; } = new();
-        [FirestoreProperty] public List<string> Videos { get; set; } = new();
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-    }
-
-    [FirestoreData]
-    public class UserAuth
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("Email")] public string Email { get; set; } = default!;
-        [FirestoreProperty("Phone")] public string Phone { get; set; } = default!;
-        [FirestoreProperty("FirstName")] public string FirstName { get; set; } = default!;
-        [FirestoreProperty("LastName")] public string LastName { get; set; } = default!;
-        [FirestoreProperty("PasswordHash")] public string PasswordHash { get; set; } = default!;
-        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
-        [FirestoreProperty("ProfilePicture")] public string? ProfilePicture { get; set; }
-        [FirestoreProperty("TotalLended")] public double TotalLended { get; set; } = 0;
-        [FirestoreProperty("TotalBorrowed")] public double TotalBorrowed { get; set; } = 0;
-        [FirestoreProperty("Description")] public string? Description { get; set; }
-    }
-
-    [FirestoreData]
-    public class Exchange
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
-        [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
-        [FirestoreProperty("ownerID")] public string OwnerId { get; set; } = default!;
-        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
-        [FirestoreProperty("startDate")] public DateTime? StartDate { get; set; }
-        [FirestoreProperty("endDate")] public DateTime? EndDate { get; set; }
-        [FirestoreProperty("requestCreated")] public DateTime RequestCreated { get; set; }
-        [FirestoreProperty("requestHandled")] public DateTime? RequestHandled { get; set; }
-    }
-
-    [FirestoreData]
-    public class Notification
-    {
-        [FirestoreDocumentId] public string? Id { get; set; }
-        [FirestoreProperty] public string Email { get; set; } = default!;
-        [FirestoreProperty] public string Name { get; set; } = default!;
-        [FirestoreProperty] public string? ProfilePicture { get; set; }
-        [FirestoreProperty] public DateTime CreatedUtc { get; set; }
-    }
-
-    // ---- Auth DTOs + Firestore model (with password hash) ----
-    public record AuthRegisterDto(string Email, string Name, string Password);
-    public record AuthLoginDto(string Email, string Password);
 
     [FirestoreData]
     public class UserAuth
@@ -473,4 +477,4 @@ namespace HippoExchange
         [FirestoreProperty] public string PasswordHash { get; set; } = default!;
         [FirestoreProperty] public DateTime CreatedUtc { get; set; }
     }
-}
+};
