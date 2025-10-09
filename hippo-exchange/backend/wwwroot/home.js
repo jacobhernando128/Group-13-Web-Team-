@@ -1,12 +1,160 @@
 // home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Home page loaded, starting authentication check...');
+  // Check authentication and load user data
+  checkAuthAndLoadUser();
   const grid = document.getElementById('listings-grid');
   const tpl = document.getElementById('item-card-template');
+  const filterCount = document.getElementById('filter-count');
+
+  // Mobile menu functionality
+  const menuButton = document.getElementById('menu-button');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  const iconHam = document.getElementById('icon-ham');
+
+  function toggleMobileMenu() {
+    const isOpen = sidebar.classList.contains('translate-x-0');
+
+    if (isOpen) {
+      sidebar.classList.remove('translate-x-0');
+      sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop.classList.add('hidden');
+      menuButton.setAttribute('aria-expanded', 'false');
+    } else {
+      sidebar.classList.remove('-translate-x-full');
+      sidebar.classList.add('translate-x-0');
+      sidebarBackdrop.classList.remove('hidden');
+      menuButton.setAttribute('aria-expanded', 'true');
+    }
+  }
+
+  function closeMobileMenu() {
+    sidebar.classList.remove('translate-x-0');
+    sidebar.classList.add('-translate-x-full');
+    sidebarBackdrop.classList.add('hidden');
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+
+  if (menuButton) {
+    menuButton.addEventListener('click', toggleMobileMenu);
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileMenu);
+  }
+
+  const navLinks = sidebar.querySelectorAll('a');
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.innerWidth < 768) {
+        closeMobileMenu();
+      }
+    });
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 768) {
+      closeMobileMenu();
+    }
+  });
+
+  // Search functionality
+  const searchInput = document.getElementById('search-input');
+  let searchTimeout = null;
+  let currentSearchQuery = '';
+
+  function performSearch(query) {
+    currentSearchQuery = query.trim();
+
+    let filteredItems = allListings;
+
+    if (currentCategory !== 'all') {
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          return item.categories.some(cat => 
+            cat.toLowerCase() === currentCategory.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === currentCategory.toLowerCase()
+          );
+        }
+        // Fallback to old category field if it exists
+        return item.category === currentCategory;
+      });
+    }
+
+    if (currentSearchQuery) {
+      const searchTerm = currentSearchQuery.toLowerCase();
+      filteredItems = filteredItems.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const description = (item.description || '').toLowerCase();
+        const location = (item.location || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
+
+        return title.includes(searchTerm) ||
+          description.includes(searchTerm) ||
+          categoryMatch ||
+          location.includes(searchTerm);
+      });
+    }
+
+    render(filteredItems);
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value;
+
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+
+      searchTimeout = setTimeout(() => {
+        performSearch(query);
+      }, 300);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (searchTimeout) {
+          clearTimeout(searchTimeout);
+        }
+        performSearch(e.target.value);
+      }
+    });
+  }
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
 
   let currentCategory = 'all';
   let allListings = [];
+
+  // Map backend category names to frontend category buttons
+  function mapCategoryName(backendCategory) {
+    const categoryMap = {
+      'Electronics': 'electronics',
+      'Furniture': 'furniture', 
+      'Clothing': 'clothing',
+      'Vehicles': 'vehicles',
+      'Sports & Recreation': 'sports',
+      'Books & Media': 'books',
+      'Home & Garden': 'home',
+      'Other': 'other',
+      'Entertainment': 'electronics', // Map to electronics
+      'Food': 'other' // Map to other
+    };
+    return categoryMap[backendCategory] || 'other';
+  }
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
@@ -91,11 +239,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function filterByCategory(category) {
     currentCategory = category;
+    console.log(`Filtering by category: ${category}`);
 
     let filteredItems = allListings;
 
     if (category !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === category);
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          const matches = item.categories.some(cat => 
+            cat.toLowerCase() === category.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === category.toLowerCase()
+          );
+          if (matches) {
+            console.log(`Item "${item.title}" matches category ${category}`, item.categories);
+          }
+          return matches;
+        }
+        // Fallback to old category field if it exists
+        return item.category === category;
+      });
     }
 
     if (currentSearchQuery) {
@@ -103,12 +266,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
         const location = (item.location || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
 
         return title.includes(searchTerm) ||
           description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
+          categoryMatch ||
           location.includes(searchTerm);
       });
     }
@@ -150,10 +322,35 @@ document.addEventListener('DOMContentLoaded', () => {
       render(allListings);
 
     } catch (err) {
-      console.error('Failed to load listings:', err);
-      render([
-        { id: 'abc123', slug: 'gaming-desktop-abc123', title: 'Gaming Desktop (for sale & trade)', price: 300, locationLabel: 'Cookeville, TN', imageUrl: PLACEHOLDER_IMG, isNew: true, ships: false },
-      ]);
+      console.error('Failed to load listings from API:', err);
+
+      try {
+        const res = await fetch('listings.json');
+        if (res.ok) {
+          const data = await res.json();
+          allListings = Array.isArray(data) ? data : (data.items || []);
+          console.log('Using fallback listings.json');
+          render(allListings);
+          return;
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback failed:', fallbackErr);
+      }
+
+      allListings = [{
+        id: 'sample1',
+        title: 'Sample Item',
+        description: 'This is sample data. Check console for errors.',
+        price: 100,
+        locationLabel: 'Cookeville, TN',
+        imageUrl: PLACEHOLDER_IMG,
+        isNew: true,
+        category: 'electronics',
+        available: true
+      }];
+      render(allListings);
+
+      grid.innerHTML += '<div class="col-span-full text-center text-red-600 text-sm mt-4 glass p-4 rounded-lg">Could not load listings from server. Showing sample data. Check browser console for details.</div>';
     }
   }
 
@@ -167,6 +364,98 @@ document.addEventListener('DOMContentLoaded', () => {
   load();
 });
 
+// Authentication and user data functions
+async function checkAuthAndLoadUser() {
+  console.log('Checking authentication...');
+  const token = localStorage.getItem('hippo_token');
+  const userData = localStorage.getItem('hippo_user');
+  
+  console.log('Token exists:', !!token);
+  console.log('User data exists:', !!userData);
+  
+  if (!token || !userData) {
+    console.log('No token or user data, redirecting to login');
+    // No token or user data, redirect to login
+    window.location.href = './Login.html';
+    return;
+  }
+  
+  // First, try to display user info from localStorage as a fallback
+  try {
+    const storedUser = JSON.parse(userData);
+    console.log('Stored user data:', storedUser);
+    displayUserInfo(storedUser);
+  } catch (error) {
+    console.error('Error parsing stored user data:', error);
+  }
+  
+  try {
+    console.log('Verifying token with /auth/me...');
+    // Verify token is still valid by calling /auth/me
+    const response = await fetch('/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Auth response status:', response.status);
+    
+    if (!response.ok) {
+      console.log('Token invalid, but keeping stored user data for now');
+      // Don't redirect immediately, keep the stored user data
+      return;
+    }
+    
+    const currentUser = await response.json();
+    console.log('Current user from /auth/me:', currentUser);
+    displayUserInfo(currentUser);
+    
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    // Don't redirect on network errors, keep the stored user data
+    console.log('Network error, keeping stored user data');
+  }
+}
+
+function displayUserInfo(user) {
+  console.log('Displaying user info:', user); // Debug log
+  
+  // Update the account name display
+  const accountNameElement = document.getElementById('acct-name');
+  if (accountNameElement) {
+    // Check for both uppercase and lowercase property names
+    const firstName = user.FirstName || user.firstName;
+    const lastName = user.LastName || user.lastName;
+    const email = user.Email || user.email;
+    
+    if (firstName && lastName) {
+      accountNameElement.textContent = `${firstName} ${lastName}`;
+      console.log('Set name to:', `${firstName} ${lastName}`);
+    } else if (email) {
+      accountNameElement.textContent = email;
+      console.log('Set name to email:', email);
+    } else {
+      accountNameElement.textContent = 'User';
+      console.log('Set name to default: User');
+    }
+  } else {
+    console.error('Account name element not found!');
+  }
+}
+
+function clearAuthData() {
+  localStorage.removeItem('hippo_user');
+  localStorage.removeItem('hippo_token');
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('userData');
+  sessionStorage.removeItem('userToken');
+  sessionStorage.removeItem('userData');
+  
+  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+}
+
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
   const signoutButton = document.querySelector('a[href="./Login.html"]');
@@ -179,16 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function signOut() {
-  localStorage.removeItem('userToken');
-  localStorage.removeItem('userData');
-  sessionStorage.removeItem('userToken');
-  sessionStorage.removeItem('userData');
-
-  // Clear any cookies (if using them for auth)
-  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-
-  // Redirect to login page
+  clearAuthData();
   window.location.href = './Login.html';
 }
 
