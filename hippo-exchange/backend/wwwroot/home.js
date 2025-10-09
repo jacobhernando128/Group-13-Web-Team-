@@ -1,5 +1,8 @@
 // home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Home page loaded, starting authentication check...');
+  // Check authentication and load user data
+  checkAuthAndLoadUser();
   const grid = document.getElementById('listings-grid');
   const tpl = document.getElementById('item-card-template');
   const filterCount = document.getElementById('filter-count');
@@ -67,7 +70,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let filteredItems = allListings;
 
     if (currentCategory !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === currentCategory);
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          return item.categories.some(cat => 
+            cat.toLowerCase() === currentCategory.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === currentCategory.toLowerCase()
+          );
+        }
+        // Fallback to old category field if it exists
+        return item.category === currentCategory;
+      });
     }
 
     if (currentSearchQuery) {
@@ -75,12 +88,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
         const location = (item.location || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
 
         return title.includes(searchTerm) ||
           description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
+          categoryMatch ||
           location.includes(searchTerm);
       });
     }
@@ -116,6 +138,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentCategory = 'all';
   let allListings = [];
+
+  // Map backend category names to frontend category buttons
+  function mapCategoryName(backendCategory) {
+    const categoryMap = {
+      'Electronics': 'electronics',
+      'Furniture': 'furniture', 
+      'Clothing': 'clothing',
+      'Vehicles': 'vehicles',
+      'Sports & Recreation': 'sports',
+      'Books & Media': 'books',
+      'Home & Garden': 'home',
+      'Other': 'other',
+      'Entertainment': 'electronics', // Map to electronics
+      'Food': 'other' // Map to other
+    };
+    return categoryMap[backendCategory] || 'other';
+  }
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
@@ -200,11 +239,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function filterByCategory(category) {
     currentCategory = category;
+    console.log(`Filtering by category: ${category}`);
 
     let filteredItems = allListings;
 
     if (category !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === category);
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          const matches = item.categories.some(cat => 
+            cat.toLowerCase() === category.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === category.toLowerCase()
+          );
+          if (matches) {
+            console.log(`Item "${item.title}" matches category ${category}`, item.categories);
+          }
+          return matches;
+        }
+        // Fallback to old category field if it exists
+        return item.category === category;
+      });
     }
 
     if (currentSearchQuery) {
@@ -212,12 +266,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
         const location = (item.location || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
 
         return title.includes(searchTerm) ||
           description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
+          categoryMatch ||
           location.includes(searchTerm);
       });
     }
@@ -301,6 +364,98 @@ document.addEventListener('DOMContentLoaded', () => {
   load();
 });
 
+// Authentication and user data functions
+async function checkAuthAndLoadUser() {
+  console.log('Checking authentication...');
+  const token = localStorage.getItem('hippo_token');
+  const userData = localStorage.getItem('hippo_user');
+  
+  console.log('Token exists:', !!token);
+  console.log('User data exists:', !!userData);
+  
+  if (!token || !userData) {
+    console.log('No token or user data, redirecting to login');
+    // No token or user data, redirect to login
+    window.location.href = './Login.html';
+    return;
+  }
+  
+  // First, try to display user info from localStorage as a fallback
+  try {
+    const storedUser = JSON.parse(userData);
+    console.log('Stored user data:', storedUser);
+    displayUserInfo(storedUser);
+  } catch (error) {
+    console.error('Error parsing stored user data:', error);
+  }
+  
+  try {
+    console.log('Verifying token with /auth/me...');
+    // Verify token is still valid by calling /auth/me
+    const response = await fetch('/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Auth response status:', response.status);
+    
+    if (!response.ok) {
+      console.log('Token invalid, but keeping stored user data for now');
+      // Don't redirect immediately, keep the stored user data
+      return;
+    }
+    
+    const currentUser = await response.json();
+    console.log('Current user from /auth/me:', currentUser);
+    displayUserInfo(currentUser);
+    
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    // Don't redirect on network errors, keep the stored user data
+    console.log('Network error, keeping stored user data');
+  }
+}
+
+function displayUserInfo(user) {
+  console.log('Displaying user info:', user); // Debug log
+  
+  // Update the account name display
+  const accountNameElement = document.getElementById('acct-name');
+  if (accountNameElement) {
+    // Check for both uppercase and lowercase property names
+    const firstName = user.FirstName || user.firstName;
+    const lastName = user.LastName || user.lastName;
+    const email = user.Email || user.email;
+    
+    if (firstName && lastName) {
+      accountNameElement.textContent = `${firstName} ${lastName}`;
+      console.log('Set name to:', `${firstName} ${lastName}`);
+    } else if (email) {
+      accountNameElement.textContent = email;
+      console.log('Set name to email:', email);
+    } else {
+      accountNameElement.textContent = 'User';
+      console.log('Set name to default: User');
+    }
+  } else {
+    console.error('Account name element not found!');
+  }
+}
+
+function clearAuthData() {
+  localStorage.removeItem('hippo_user');
+  localStorage.removeItem('hippo_token');
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('userData');
+  sessionStorage.removeItem('userToken');
+  sessionStorage.removeItem('userData');
+  
+  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+}
+
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
   const signoutButton = document.querySelector('a[href="./Login.html"]');
@@ -313,14 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function signOut() {
-  localStorage.removeItem('userToken');
-  localStorage.removeItem('userData');
-  sessionStorage.removeItem('userToken');
-  sessionStorage.removeItem('userData');
-
-  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-
+  clearAuthData();
   window.location.href = './Login.html';
 }
 
