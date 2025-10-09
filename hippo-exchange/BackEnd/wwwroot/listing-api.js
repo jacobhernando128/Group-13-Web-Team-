@@ -43,9 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let seller = null;
-      if (item.ownerId) {
+      const userId = item.userId || item.ownerId;
+      if (userId) {
         try {
-          const userResponse = await fetch(`${API_BASE_URL}/users/${item.ownerId}`);
+          const userResponse = await fetch(`${API_BASE_URL}/users/${userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -54,35 +55,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Handle both backend API format and fallback JSON format
+      const images = item.pictures || item.images || [];
+      const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
+      const price = item.dollarCost ?? item.price ?? 0;
+      const locationLabel = item.location ?? item.locationLabel ?? '';
+      
       return {
         id: item.id,
         title: item.title || 'Untitled Item',
-        price: item.price || 0,
-        condition: item.available ? 'Available' : 'Not Available',
+        price: price,
+        condition: item.condition || 'Unknown',
         description: item.description || '',
-        images: item.images || [],
-        imageUrl: item.imageUrl || item.images?.[0] || PLACEHOLDER_IMG,
+        images: images,
+        imageUrl: imageUrl,
         createdUtc: item.createdUtc,
         isNew: item.createdUtc ? (new Date() - new Date(item.createdUtc)) < (7 * 24 * 60 * 60 * 1000) : false,
         featured: false,
         seller: {
-          id: item.ownerId,
-          name: seller?.name || 'Unknown Seller',
+          id: item.userId || item.ownerId,
+          name: seller?.firstName && seller?.lastName ? `${seller.firstName} ${seller.lastName}` : 
+                seller?.name || 'Unknown Seller',
           email: seller?.email || '',
           avatar: seller?.profilePicture || 'hippo-exchange-logo.png',
           since: seller?.createdUtc ? `Joined ${new Date(seller.createdUtc).getFullYear()}` : 'Member',
         },
-        locationLabel: item.locationLabel || item.location || '',
+        locationLabel: locationLabel,
         ships: item.ships || true,
         pickup: '',
         lat: item.lat || null,
         lng: item.lng || null,
         bullets: [
-          `Status: ${item.available ? 'Available' : 'Not Available'}`,
-          item.category ? `Category: ${item.category}` : null,
           item.condition ? `Condition: ${item.condition}` : null,
+          item.categories && item.categories.length > 0 ? `Categories: ${item.categories.join(', ')}` : 
+            (item.category ? `Category: ${item.category}` : null),
           `Created: ${item.createdUtc ? new Date(item.createdUtc).toLocaleDateString() : 'Unknown'}`,
-          item.ownerId ? `Seller ID: ${item.ownerId}` : null
+          item.userId ? `Seller ID: ${item.userId}` : null
         ].filter(Boolean)
       };
 
