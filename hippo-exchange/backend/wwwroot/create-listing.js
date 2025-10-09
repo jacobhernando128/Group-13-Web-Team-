@@ -167,12 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const sortedMaintenance = [...maintenanceList].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const sortedMaintenance = [...maintenanceList]; // No need to sort without dates
 
         sortedMaintenance.forEach((maintenance, index) => {
             const entry = document.createElement('div');
 
-            const typeColors = {
+            const frequencyColors = {
                 cleaning: 'border-green-500',
                 repair: 'border-red-500',
                 inspection: 'border-yellow-500',
@@ -180,17 +180,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 maintenance: 'border-blue-500'
             };
 
-            entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenance.type] || 'border-blue-500'}`;
+            entry.className = `glass p-3 rounded-lg border-l-4 ${frequencyColors[maintenance.frequency] || 'border-blue-500'}`;
 
             entry.innerHTML = `
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                ${maintenance.type.charAt(0).toUpperCase() + maintenance.type.slice(1)}
+                                ${maintenance.frequency.charAt(0).toUpperCase() + maintenance.frequency.slice(1)}
                             </span>
-                            <span class="text-sm text-slate-600">${new Date(maintenance.date).toLocaleDateString()}</span>
-                            ${maintenance.cost > 0 ? `<span class="text-sm font-semibold text-green-600">$${maintenance.cost.toFixed(2)}</span>` : ''}
+                            <span class="text-sm text-slate-600">Frequency</span>
                         </div>
                         <p class="text-slate-700 text-sm">${maintenance.description}</p>
                     </div>
@@ -216,7 +215,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openMaintenanceModal() {
-        document.getElementById('maintenance-date-input').value = new Date().toISOString().split('T')[0];
         maintenanceModal.classList.add('active');
     }
 
@@ -229,11 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
 
         const formData = {
-            id: 'maint_' + Date.now(),
-            date: document.getElementById('maintenance-date-input').value,
-            type: document.getElementById('maintenance-type-input').value,
+            itemId: 'temp_' + Date.now(), // Will be updated with actual item ID after creation
             description: document.getElementById('maintenance-description-input').value,
-            cost: parseFloat(document.getElementById('maintenance-cost-input').value) || 0
+            frequency: document.getElementById('maintenance-type-input').value // Using type as frequency
         };
 
         maintenanceList.push(formData);
@@ -253,41 +249,32 @@ document.addEventListener('DOMContentLoaded', () => {
         showMessage('Creating listing...', 'info');
 
         try {
-            // Build comprehensive description
+            // Build comprehensive description (keep original description clean)
             let fullDescription = descriptionInput.value.trim() || '';
 
-            // Append form details to description
-            const additionalInfo = [];
-            if (priceInput.value) additionalInfo.push(`Price: $${priceInput.value}`);
-            if (categoryInput.value) additionalInfo.push(`Category: ${categoryInput.value}`);
-            if (conditionInput.value) additionalInfo.push(`Condition: ${conditionInput.value}`);
-            if (locationInput.value.trim()) additionalInfo.push(`Location: ${locationInput.value.trim()}`);
-
-            if (additionalInfo.length > 0) {
-                fullDescription += '\n\n' + additionalInfo.join(' | ');
-            }
-
-            // Add photo information
+            // Add photo information to description
             if (uploadedPhotoFiles.length > 0) {
                 fullDescription += `\n\n📸 ${uploadedPhotoFiles.length} photo${uploadedPhotoFiles.length > 1 ? 's' : ''} uploaded`;
             }
 
-            // Add maintenance history
-            if (maintenanceList.length > 0) {
-                fullDescription += '\n\n🔧 Maintenance History:\n';
-                maintenanceList.forEach(m => {
-                    fullDescription += `• ${new Date(m.date).toLocaleDateString()}: ${m.type} - ${m.description}`;
-                    if (m.cost > 0) fullDescription += ` ($${m.cost.toFixed(2)})`;
-                    fullDescription += '\n';
-                });
-            }
+            // Note: Maintenance entries will be sent separately to /maintenance endpoint
 
-            // Data matching backend Item model
+            // Data matching backend Item model with proper field structure
             const data = {
-                ownerId: 'user123',
+                id: null, // Will be generated by backend
+                userId: 'user123', // Changed from ownerId to userId
                 title: titleInput.value.trim(),
                 description: fullDescription || null,
-                available: true
+                condition: conditionInput.value || null,
+                location: locationInput.value.trim() || null,
+                dollarCost: priceInput.value ? parseFloat(priceInput.value) : 0, // Changed from price to dollarCost
+                repCost: 0, // Default reputation cost
+                categories: categoryInput.value ? [categoryInput.value] : [], // Changed from category to categories array
+                // Additional fields for our app
+                available: true,
+                ships: true,
+                images: uploadedPhotos
+                // Note: maintenance entries will be sent separately
             };
 
             if (!data.title) {
@@ -323,6 +310,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const created = await res.json();
             console.log('✅ Created item:', created);
+
+            // Send maintenance entries separately if any exist
+            if (maintenanceList.length > 0) {
+                try {
+                    const itemId = created.id || created.Id;
+                    console.log('📤 Sending maintenance entries for item:', itemId);
+
+                    for (const maintenance of maintenanceList) {
+                        const maintenanceData = {
+                            itemId: itemId,
+                            description: maintenance.description,
+                            frequency: maintenance.frequency
+                        };
+
+                        const maintenanceRes = await fetch(`${API_BASE_URL}/maintenance`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(maintenanceData)
+                        });
+
+                        if (!maintenanceRes.ok) {
+                            console.warn('⚠️ Failed to create maintenance entry:', maintenanceRes.status);
+                        } else {
+                            console.log('✅ Created maintenance entry:', await maintenanceRes.json());
+                        }
+                    }
+                } catch (maintenanceErr) {
+                    console.warn('⚠️ Error creating maintenance entries:', maintenanceErr);
+                    // Don't fail the whole process if maintenance fails
+                }
+            }
 
             showMessage('✅ Listing created successfully!', 'success');
 

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? '$—'
       : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n));
 
-  const API_BASE_URL = '';
+  const API_BASE_URL = 'http://localhost:5000';
 
   const qs = new URLSearchParams(location.search);
   const itemId = qs.get('id') || qs.get('item');
@@ -43,9 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       let seller = null;
-      if (item.ownerId) {
+      if (item.userId) {
         try {
-          const userResponse = await fetch(`${API_BASE_URL}/users/${item.ownerId}`);
+          const userResponse = await fetch(`${API_BASE_URL}/users/${item.userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -54,11 +54,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      // Fetch maintenance data separately
+      let maintenanceData = [];
+      try {
+        console.log('🔍 Fetching maintenance for item:', item.id);
+        const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
+        console.log('📡 Maintenance response status:', maintenanceResponse.status);
+        
+        if (maintenanceResponse.ok) {
+          maintenanceData = await maintenanceResponse.json();
+          console.log('✅ Maintenance data received:', maintenanceData);
+        } else {
+          console.error('❌ Maintenance fetch failed:', maintenanceResponse.status, maintenanceResponse.statusText);
+        }
+      } catch (err) {
+        console.error('❌ Could not fetch maintenance data:', err);
+      }
+
       return {
         id: item.id,
         title: item.title || 'Untitled Item',
-        price: item.price || 0,
-        condition: item.available ? 'Available' : 'Not Available',
+        price: item.dollarCost || 0, // Updated to use dollarCost
+        condition: item.condition || (item.available ? 'Available' : 'Not Available'),
         description: item.description || '',
         images: item.images || [],
         imageUrl: item.imageUrl || item.images?.[0] || PLACEHOLDER_IMG,
@@ -66,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isNew: item.createdUtc ? (new Date() - new Date(item.createdUtc)) < (7 * 24 * 60 * 60 * 1000) : false,
         featured: false,
         seller: {
-          id: item.ownerId,
+          id: item.userId, // Updated to use userId
           name: seller?.name || 'Unknown Seller',
           email: seller?.email || '',
           avatar: seller?.profilePicture || 'hippo-exchange-logo.png',
@@ -77,12 +94,13 @@ document.addEventListener('DOMContentLoaded', () => {
         pickup: '',
         lat: item.lat || null,
         lng: item.lng || null,
+        maintenance: maintenanceData, // Add maintenance data
         bullets: [
           `Status: ${item.available ? 'Available' : 'Not Available'}`,
-          item.category ? `Category: ${item.category}` : null,
+          item.categories && item.categories.length > 0 ? `Category: ${item.categories.join(', ')}` : null,
           item.condition ? `Condition: ${item.condition}` : null,
           `Created: ${item.createdUtc ? new Date(item.createdUtc).toLocaleDateString() : 'Unknown'}`,
-          item.ownerId ? `Seller ID: ${item.ownerId}` : null
+          item.userId ? `Seller ID: ${item.userId}` : null
         ].filter(Boolean)
       };
 
@@ -162,7 +180,64 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Render maintenance data
+    console.log('📋 Listing data for maintenance rendering:', listing);
+    renderMaintenance(listing.maintenance || []);
+
     addInteractivity(listing);
+  }
+
+  function renderMaintenance(maintenanceData) {
+    console.log('🎨 Rendering maintenance data:', maintenanceData);
+    
+    const maintenanceList = document.getElementById('maintenance-list');
+    const maintenanceEmpty = document.getElementById('maintenance-empty');
+
+    if (!maintenanceList || !maintenanceEmpty) {
+      console.warn('⚠️ Maintenance DOM elements not found');
+      return;
+    }
+
+    // Clear existing content
+    maintenanceList.innerHTML = '';
+
+    if (maintenanceData.length === 0) {
+      maintenanceEmpty.style.display = 'block';
+      return;
+    }
+
+    maintenanceEmpty.style.display = 'none';
+
+    // Render maintenance history (sorted by createdUtc)
+    const sortedMaintenance = [...maintenanceData].sort((a, b) => 
+      new Date(b.createdUtc) - new Date(a.createdUtc)
+    );
+
+    sortedMaintenance.forEach(maintenance => {
+      const entry = document.createElement('div');
+      
+      const frequencyColors = {
+        cleaning: 'border-green-500',
+        repair: 'border-red-500',
+        inspection: 'border-yellow-500',
+        upgrade: 'border-purple-500',
+        maintenance: 'border-blue-500'
+      };
+      
+      entry.className = `glass p-3 rounded-lg border-l-4 ${frequencyColors[maintenance.frequency] || 'border-blue-500'}`;
+      
+      entry.innerHTML = `
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+            ${maintenance.frequency.charAt(0).toUpperCase() + maintenance.frequency.slice(1)}
+          </span>
+          <span class="text-sm text-slate-600">${new Date(maintenance.createdUtc).toLocaleDateString()}</span>
+        </div>
+        <p class="text-slate-700 text-sm">${maintenance.description}</p>
+      `;
+      
+      maintenanceList.appendChild(entry);
+    });
   }
 
   function addInteractivity(listing) {

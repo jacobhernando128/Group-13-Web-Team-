@@ -436,8 +436,8 @@ namespace HippoExchange
                 {
                     Id = Guid.NewGuid().ToString("n"),
                     ItemId = dto.ItemId.Trim(),
-                    MaintenanceId = dto.MaintenanceId.Trim(),
                     Description = dto.Description.Trim(),
+                    Frequency = dto.Frequency.Trim(),
                     CreatedUtc = DateTime.UtcNow
                 };
 
@@ -729,7 +729,7 @@ namespace HippoExchange
         [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
         [FirestoreProperty("description")] public string Description { get; set; } = default!;
         [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
-        [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
+        [FirestoreProperty("frequency")] public string Frequency { get; set; } = default!;
     }
 
     [FirestoreData]
@@ -763,7 +763,7 @@ namespace HippoExchange
 
     public record CreateListingDto(string ItemId, string UserId);
 
-    public record CreateMaintenanceDto(string ItemId, string MaintenanceId, string Description);
+    public record CreateMaintenanceDto(string ItemId, string Description, string Frequency);
     public record UpdateMaintenanceDescriptionDto(string Description);
 
     public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
