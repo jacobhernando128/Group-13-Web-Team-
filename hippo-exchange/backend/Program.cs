@@ -1091,19 +1091,6 @@ namespace HippoExchange
 
             app.Run();
         }
-
-        // helpers inside main above the endpoints 
-        static string CanonicalKeyFor(params string[] ids)
-            => string.Join("|", ids.Where(s => !string.IsNullOrWhiteSpace(s))
-                                   .Select(s => s.Trim())
-                                   .OrderBy(s => s, StringComparer.Ordinal));
-
-        static string Preview(string body, int max = 120)
-        {
-            if (string.IsNullOrWhiteSpace(body)) return "";
-            body = body.Trim();
-            return body.Length <= max ? body : body.Substring(0, max) + "…";
-        }
     }
 
     // ---------------- Firestore models ----------------

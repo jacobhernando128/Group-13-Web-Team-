@@ -4,13 +4,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const API = location.origin;
   let currentUser = null;
 
-  // Simple wrapper for backend API calls reads in user from localStorage
+  // Simple wrapper for backend API calls. Automatically attaches Authorization if token present.
   async function api(path, { method = 'GET', body } = {}) {
+    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
+    const headers = {};
+    if (body) headers['Content-Type'] = 'application/json';
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     const res = await fetch(`${API}${path}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
       body: body ? JSON.stringify(body) : undefined
     });
+
     if (!res.ok) {
       let msg = await res.text().catch(() => '');
       try { const j = JSON.parse(msg); msg = j.error || j.message || msg; } catch { }
@@ -219,7 +225,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (t.subject) return t.subject;
 
     // Get the other participant's name (not the current user)
-    const otherParticipantId = t.Participants?.find(p => p !== me.id);
+    const participants = t.participants || t.Participants || [];
+    const otherParticipantId = participants.find(p => p !== me.id);
     if (otherParticipantId) {
       return await getUserName(otherParticipantId);
     }
@@ -237,7 +244,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadMessages(threadId) {
     if (messagesCache.has(threadId)) return messagesCache.get(threadId);
-    const msgs = await api(`/inbox/threads/${encodeURIComponent(threadId)}/messages`);
+    // Server returns { thread, messages } for GET /inbox/threads/{threadId}
+    const resp = await api(`/inbox/threads/${encodeURIComponent(threadId)}`);
+    let msgs = [];
+    if (!resp) msgs = [];
+    else if (Array.isArray(resp)) msgs = resp;
+    else msgs = resp.messages || resp.Messages || [];
     messagesCache.set(threadId, msgs);
     return msgs;
   }
@@ -457,7 +469,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   markAllBtn.addEventListener('click', async () => {
     await Promise.all(threads.map(t =>
-      api(`/messages/threads/${encodeURIComponent(t.id)}/read`, {
+      api(`/inbox/threads/${encodeURIComponent(t.id)}/read`, {
         method: 'POST',
         body: { userId: me.id }
       }).catch(() => null)
