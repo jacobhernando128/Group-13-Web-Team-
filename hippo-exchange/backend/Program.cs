@@ -174,6 +174,19 @@ namespace HippoExchange
 
             var app = builder.Build();
 
+            // Diagnostic lifecycle logs to help understand unexpected shutdowns
+            try
+            {
+                var startupLogger = app.Services.GetService(typeof(ILogger<Program>)) as ILogger<Program>;
+                startupLogger?.LogInformation("App built. Environment: {env}. Beginning to wire middleware and endpoints.", app.Environment.EnvironmentName);
+
+                var lifetime = app.Lifetime;
+                lifetime.ApplicationStarted.Register(() => startupLogger?.LogInformation("Application lifetime event: Started"));
+                lifetime.ApplicationStopping.Register(() => startupLogger?.LogInformation("Application lifetime event: Stopping"));
+                lifetime.ApplicationStopped.Register(() => startupLogger?.LogInformation("Application lifetime event: Stopped"));
+            }
+            catch { }
+
             // ---- Dev tooling ----
             if (app.Environment.IsDevelopment())
             {
@@ -186,6 +199,38 @@ namespace HippoExchange
             app.UseCors();
             app.UseAuthentication();
             app.UseAuthorization();
+
+            // Diagnostics: log every incoming request and final response status.
+            app.Use(async (context, next) =>
+            {
+                var logger = context.RequestServices.GetService(typeof(ILogger<Program>)) as ILogger<Program>;
+                try
+                {
+                    logger?.LogInformation("Incoming request: {method} {path}{query}", context.Request.Method, context.Request.Path, context.Request.QueryString);
+                }
+                catch { }
+                await next();
+                try
+                {
+                    logger?.LogInformation("Response {status} for {path}{query}", context.Response.StatusCode, context.Request.Path, context.Request.QueryString);
+                }
+                catch { }
+            });
+
+            // Compatibility: rewrite legacy "/messages/*" requests to "/inbox/*"
+            // Some older frontend files still call /messages/... — rewrite so they continue to work.
+            app.Use(async (context, next) =>
+            {
+                var path = context.Request.Path;
+                if (path.HasValue && path.Value.StartsWith("/messages", StringComparison.OrdinalIgnoreCase))
+                {
+                    var newPath = "/inbox" + path.Value.Substring("/messages".Length);
+                    context.Request.Path = newPath;
+                    var logger = context.RequestServices.GetService(typeof(ILogger<Program>)) as ILogger<Program>;
+                    logger?.LogInformation("Rewrote path {old} -> {new}", path.Value, newPath);
+                }
+                await next();
+            });
 
             // ---- Serve static frontend ----
             var defaults = new DefaultFilesOptions();
@@ -880,7 +925,16 @@ namespace HippoExchange
                 });
             }).RequireAuthorization();
 
-            app.Run();
+            try
+            {
+                app.Run();
+            }
+            catch (Exception ex)
+            {
+                var logger = app.Services.GetService(typeof(ILogger<Program>)) as ILogger<Program>;
+                logger?.LogError(ex, "Host terminated unexpectedly");
+                throw;
+            }
         }
         // ---------- Program.cs (Part 3: MODELS & DTOs) ----------
 

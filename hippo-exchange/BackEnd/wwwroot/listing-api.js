@@ -5,47 +5,64 @@ document.addEventListener('DOMContentLoaded', () => {
   const money = (n) =>
     (n === null || n === undefined || n === '')
       ? '$—'
-      : new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n));
+      : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
 
-  const API_BASE_URL = 'http://localhost:5000';
+  // Use the same origin that served the page so the client talks to the backend the browser requested
+  const API_BASE_URL = location.origin;
 
   const qs = new URLSearchParams(location.search);
   const itemId = qs.get('id') || qs.get('item');
 
+  async function apiFetch(path, options) {
+    // Try full origin first, then fallback to relative path
+    const full = `${API_BASE_URL}${path}`;
+    try {
+      return await fetch(full, options);
+    } catch (err) {
+      console.warn(`Fetch to ${full} failed, attempting relative path ${path}:`, err);
+      try {
+        return await fetch(path, options);
+      } catch (err2) {
+        console.error(`Both fetch attempts failed for ${path}:`, err2);
+        throw err2;
+      }
+    }
+  }
+
   async function readListing() {
     try {
       let item;
-      
+
       if (itemId) {
-        const response = await fetch(`${API_BASE_URL}/items/${itemId}`);
-        
+        const response = await apiFetch(`/items/${itemId}`);
+
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(`Item with ID ${itemId} not found`);
           }
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         item = await response.json();
       } else {
-        const response = await fetch(`${API_BASE_URL}/items`);
-        
+        const response = await apiFetch(`/items`);
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const items = await response.json();
         if (!items || items.length === 0) {
           throw new Error('No items found');
         }
-        
+
         item = items[0];
       }
 
       let seller = null;
       if (item.userId) {
         try {
-          const userResponse = await fetch(`${API_BASE_URL}/users/${item.userId}`);
+          const userResponse = await apiFetch(`/users/${item.userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -54,64 +71,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-       // Handle both backend API format and fallback JSON format
-       const images = item.pictures || item.images || [];
-       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
-       const price = item.dollarCost ?? item.price ?? 0;
-       const locationLabel = item.location ?? item.locationLabel ?? '';
+      // Handle both backend API format and fallback JSON format
+      const images = item.pictures || item.images || [];
+      const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
+      const price = item.dollarCost ?? item.price ?? 0;
+      const locationLabel = item.location ?? item.locationLabel ?? '';
 
-       // Fetch maintenance data separately
-       let maintenanceData = [];
-       try {
-         console.log('🔍 Fetching maintenance for item:', item.id);
-         const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
-         console.log('📡 Maintenance response status:', maintenanceResponse.status);
-         
-         if (maintenanceResponse.ok) {
-           maintenanceData = await maintenanceResponse.json();
-           console.log('✅ Maintenance data received:', maintenanceData);
-         } else {
-           console.error('❌ Maintenance fetch failed:', maintenanceResponse.status, maintenanceResponse.statusText);
-         }
-       } catch (err) {
-         console.error('❌ Could not fetch maintenance data:', err);
-       }
+      // Fetch maintenance data separately
+      let maintenanceData = [];
+      try {
+        console.log('🔍 Fetching maintenance for item:', item.id);
+        const maintenanceResponse = await apiFetch(`/maintenance/item/${item.id}`);
+        console.log('📡 Maintenance response status:', maintenanceResponse.status);
 
-       return {
-         id: item.id,
-         title: item.title || 'Untitled Item',
-         price: price,
-         condition: item.condition || 'Unknown',
-         description: item.description || '',
-         images: images,
-         imageUrl: imageUrl,
-         createdUtc: item.createdUtc,
-         isNew: item.createdUtc ? (new Date() - new Date(item.createdUtc)) < (7 * 24 * 60 * 60 * 1000) : false,
-         featured: false,
-         seller: {
-           id: item.userId || item.ownerId,
-           name: seller?.firstName && seller?.lastName ? `${seller.firstName} ${seller.lastName}` : 
-                 seller?.name || 'Unknown Seller',
-           email: seller?.email || '',
-           avatar: seller?.profilePicture || 'hippo-exchange-logo.png',
-           since: seller?.createdUtc ? `Joined ${new Date(seller.createdUtc).getFullYear()}` : 'Member',
-         },
-         locationLabel: locationLabel,
-         ships: item.ships || true,
-         pickup: '',
-         lat: item.lat || null,
-         lng: item.lng || null,
-         maintenance: maintenanceData, // Add maintenance data
+        if (maintenanceResponse.ok) {
+          maintenanceData = await maintenanceResponse.json();
+          console.log('✅ Maintenance data received:', maintenanceData);
+        } else {
+          console.error('❌ Maintenance fetch failed:', maintenanceResponse.status, maintenanceResponse.statusText);
+        }
+      } catch (err) {
+        console.error('❌ Could not fetch maintenance data:', err);
+      }
+
+      return {
+        id: item.id,
+        title: item.title || 'Untitled Item',
+        price: price,
+        condition: item.condition || 'Unknown',
+        description: item.description || '',
+        images: images,
+        imageUrl: imageUrl,
+        createdUtc: item.createdUtc,
+        isNew: item.createdUtc ? (new Date() - new Date(item.createdUtc)) < (7 * 24 * 60 * 60 * 1000) : false,
+        featured: false,
+        seller: {
+          id: item.userId || item.ownerId,
+          name: seller?.firstName && seller?.lastName ? `${seller.firstName} ${seller.lastName}` :
+            seller?.name || 'Unknown Seller',
+          email: seller?.email || '',
+          avatar: seller?.profilePicture || 'hippo-exchange-logo.png',
+          since: seller?.createdUtc ? `Joined ${new Date(seller.createdUtc).getFullYear()}` : 'Member',
+        },
+        locationLabel: locationLabel,
+        ships: item.ships || true,
+        pickup: '',
+        lat: item.lat || null,
+        lng: item.lng || null,
+        maintenance: maintenanceData, // Add maintenance data
         bullets: [
           item.condition ? `Condition: ${item.condition}` : null,
-          item.categories && item.categories.length > 0 ? `Categories: ${item.categories.join(', ')}` : 
+          item.categories && item.categories.length > 0 ? `Categories: ${item.categories.join(', ')}` :
             (item.category ? `Category: ${item.category}` : null),
           `Created: ${item.createdUtc ? new Date(item.createdUtc).toLocaleDateString() : 'Unknown'}`
         ].filter(Boolean)
-       };
+      };
 
     } catch (error) {
-      console.error('Error reading listing:', error);
+      // Improved error message for network issues
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('Network error: Failed to fetch. Is the backend running and reachable at', API_BASE_URL);
+      } else {
+        console.error('Error reading listing:', error);
+      }
       throw error;
     }
   }
@@ -128,9 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
       badge.textContent = listing.isNew ? 'Just listed' : 'Featured';
     }
 
-    const hero   = $('hero-img');
+    const hero = $('hero-img');
     const thumbs = $('thumbs');
-    const imgs   = listing.images && listing.images.length ? listing.images : [listing.imageUrl];
+    const imgs = listing.images && listing.images.length ? listing.images : [listing.imageUrl];
 
     hero.src = imgs[0] || PLACEHOLDER_IMG;
     hero.alt = `${listing.title} photo`;
@@ -139,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
     imgs.forEach((src, i) => {
       const b = document.createElement('button');
       b.className = `detail-thumb ${i === 0 ? 'detail-thumb--active' : ''}`;
-      b.innerHTML = `<img src="${src}" alt="Thumbnail ${i+1}" class="w-full h-full object-cover">`;
+      b.innerHTML = `<img src="${src}" alt="Thumbnail ${i + 1}" class="w-full h-full object-cover">`;
       b.addEventListener('click', () => {
         hero.src = src;
         thumbs.querySelectorAll('.detail-thumb').forEach(t => t.classList.remove('detail-thumb--active'));
@@ -159,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     $('fulfillment').textContent =
       listing.ships && listing.pickup ? 'Ships to you • Local pickup available' :
-      listing.ships ? 'Ships to you' :
-      (listing.pickup ? `Local pickup — ${listing.pickup}` : 'Contact seller for details');
+        listing.ships ? 'Ships to you' :
+          (listing.pickup ? `Local pickup — ${listing.pickup}` : 'Contact seller for details');
 
     $('seller-name').textContent = listing.seller.name;
     $('seller-avatar').src = listing.seller.avatar;
@@ -169,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('location-label').textContent = listing.locationLabel;
     if (typeof L !== 'undefined' && listing.lat && listing.lng) {
       const map = L.map('detail-map', { zoomControl: true, scrollWheelZoom: true })
-                  .setView([listing.lat, listing.lng], 11);
+        .setView([listing.lat, listing.lng], 11);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '&copy; OpenStreetMap'
       }).addTo(map);
@@ -193,56 +215,56 @@ document.addEventListener('DOMContentLoaded', () => {
     addInteractivity(listing);
   }
 
-   function renderMaintenance(maintenanceData) {
-     console.log('🎨 Rendering maintenance data:', maintenanceData);
-     
-     const maintenanceList = document.getElementById('maintenance-list');
-     const maintenanceEmpty = document.getElementById('maintenance-empty');
+  function renderMaintenance(maintenanceData) {
+    console.log('🎨 Rendering maintenance data:', maintenanceData);
 
-     if (!maintenanceList || !maintenanceEmpty) {
-       console.warn('⚠️ Maintenance DOM elements not found');
-       return;
-     }
+    const maintenanceList = document.getElementById('maintenance-list');
+    const maintenanceEmpty = document.getElementById('maintenance-empty');
 
-     // Clear existing content
-     maintenanceList.innerHTML = '';
+    if (!maintenanceList || !maintenanceEmpty) {
+      console.warn('⚠️ Maintenance DOM elements not found');
+      return;
+    }
 
-     if (maintenanceData.length === 0) {
-       maintenanceEmpty.style.display = 'block';
-       return;
-     }
+    // Clear existing content
+    maintenanceList.innerHTML = '';
 
-     maintenanceEmpty.style.display = 'none';
+    if (maintenanceData.length === 0) {
+      maintenanceEmpty.style.display = 'block';
+      return;
+    }
 
-     // Render maintenance history (sorted by createdUtc)
-     const sortedMaintenance = [...maintenanceData].sort((a, b) => 
-       new Date(b.createdUtc) - new Date(a.createdUtc)
-     );
+    maintenanceEmpty.style.display = 'none';
 
-     sortedMaintenance.forEach(maintenance => {
-       const entry = document.createElement('div');
-       
-       // Extract maintenance type from description if available
-       const description = maintenance.description || '';
-       let maintenanceType = 'maintenance';
-       
-       // Try to extract type from description
-       if (description.toLowerCase().includes('cleaning')) maintenanceType = 'cleaning';
-       else if (description.toLowerCase().includes('repair')) maintenanceType = 'repair';
-       else if (description.toLowerCase().includes('inspection')) maintenanceType = 'inspection';
-       else if (description.toLowerCase().includes('upgrade')) maintenanceType = 'upgrade';
-       
-       const typeColors = {
-         cleaning: 'border-green-500',
-         repair: 'border-red-500',
-         inspection: 'border-yellow-500',
-         upgrade: 'border-purple-500',
-         maintenance: 'border-blue-500'
-       };
-       
-       entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenanceType] || 'border-blue-500'}`;
-       
-       entry.innerHTML = `
+    // Render maintenance history (sorted by createdUtc)
+    const sortedMaintenance = [...maintenanceData].sort((a, b) =>
+      new Date(b.createdUtc) - new Date(a.createdUtc)
+    );
+
+    sortedMaintenance.forEach(maintenance => {
+      const entry = document.createElement('div');
+
+      // Extract maintenance type from description if available
+      const description = maintenance.description || '';
+      let maintenanceType = 'maintenance';
+
+      // Try to extract type from description
+      if (description.toLowerCase().includes('cleaning')) maintenanceType = 'cleaning';
+      else if (description.toLowerCase().includes('repair')) maintenanceType = 'repair';
+      else if (description.toLowerCase().includes('inspection')) maintenanceType = 'inspection';
+      else if (description.toLowerCase().includes('upgrade')) maintenanceType = 'upgrade';
+
+      const typeColors = {
+        cleaning: 'border-green-500',
+        repair: 'border-red-500',
+        inspection: 'border-yellow-500',
+        upgrade: 'border-purple-500',
+        maintenance: 'border-blue-500'
+      };
+
+      entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenanceType] || 'border-blue-500'}`;
+
+      entry.innerHTML = `
          <div class="flex items-center gap-2 mb-1">
            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
              ${maintenanceType.charAt(0).toUpperCase() + maintenanceType.slice(1)}
@@ -251,10 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
          </div>
          <p class="text-slate-700 text-sm">${description}</p>
        `;
-       
-       maintenanceList.appendChild(entry);
-     });
-   }
+
+      maintenanceList.appendChild(entry);
+    });
+  }
 
   function addInteractivity(listing) {
     const messageBtn = $('message-btn');
@@ -302,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(err => {
       console.error('Failed to load listing:', err);
       $('listing-title').textContent = 'Listing unavailable';
-      
+
       const main = document.querySelector('main');
       const errorDiv = document.createElement('div');
       errorDiv.className = 'glass p-6 rounded-lg text-center mt-6 max-w-md mx-auto';
@@ -313,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="text-sm text-slate-500 mb-4">Error: ${err.message}</div>
         <a href="home.html" class="btn-primary inline-block">Browse other listings</a>
       `;
-      
+
       const existingContent = main.querySelector('section');
       if (existingContent) {
         existingContent.style.display = 'none';
