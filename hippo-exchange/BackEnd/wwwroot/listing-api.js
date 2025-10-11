@@ -730,14 +730,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Prepare thread data
       const threadData = {
         participantIds: [requester?.Id || requester?.id || requester?.userId, listing.seller.id],
-        subject: `Item Request: ${listing.title}`
+        // Include requester display name and item title so inbox shows who requested which item
+        subject: `Item Request from ${requesterName}: ${listing.title}`
       };
 
       console.log('📤 Creating thread data:', threadData);
       console.log('📤 Requester ID:', requester?.Id || requester?.id || requester?.userId);
       console.log('📤 Seller ID:', listing.seller.id);
 
-      const threadResponse = await apiFetch(`/messages/threads`, {
+      const threadResponse = await apiFetch(`/inbox/threads`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -787,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       console.log('📤 Sending initial message data:', messageData);
 
-      const messageResponse = await apiFetch(`/messages/threads/${threadId}/messages`, {
+      const messageResponse = await apiFetch(`/inbox/threads/${threadId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
