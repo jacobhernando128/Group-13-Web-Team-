@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---- Backend calls ----
-  // TODO ADD BACKEND WHEN PROGRAM.CS IS FIXED TOMORROW 
+
   async function loadThreads() {
     const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
