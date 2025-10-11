@@ -60,10 +60,9 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
             </div>
           </div>
           <div class="mt-3 flex items-center justify-between">
@@ -93,9 +92,9 @@
         <article class="lg:col-span-2 space-y-6">
           <div class="glass p-4 rounded-lg">
             <div class="flex items-center gap-3">
-              <img src="hippo-exchange-logo.png" alt="User" class="w-10 h-10 rounded-full ring-2 ring-white/40" />
+              <img id="listing-owner-avatar" src="hippo-exchange-logo.png" alt="User" class="w-10 h-10 rounded-full ring-2 ring-white/40" />
               <div>
-                <div class="font-semibold">Joey Milton</div>
+                <div id="listing-owner-name" class="font-semibold">Loading...</div>
                 <div class="text-sm text-slate-600">Listing to Hippo Exchange • Public</div>
               </div>
             </div>
@@ -235,8 +234,8 @@
               <div>
                 <h5 class="font-medium text-slate-800">Seller information</h5>
                 <div class="flex items-center gap-2 mt-2">
-                  <img src="hippo-exchange-logo.png" alt="Seller" class="w-8 h-8 rounded-full ring-2 ring-white/40" />
-                  <span class="text-sm">Joey Milton</span>
+                  <img id="preview-seller-avatar" src="hippo-exchange-logo.png" alt="Seller" class="w-8 h-8 rounded-full ring-2 ring-white/40" />
+                  <span id="preview-seller-name" class="text-sm">Loading...</span>
                 </div>
                 <a href="#" class="text-sm text-[#2563eb]">Seller details</a>
               </div>
@@ -282,7 +281,6 @@
       </div>
     </div>
   </div>
-  <script defer src="./home.js"></script>
   <script defer src="./create-listing.js"></script>
 </body>
 </html>
