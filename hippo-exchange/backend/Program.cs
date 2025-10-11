@@ -1,4 +1,4 @@
-// ---------- Program.cs (Part 1: USINGS & HELPERS) ----------
+// ---------- Program.cs  ----------
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,12 +70,12 @@ namespace HippoExchange
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-        // ---------- Program.cs (Part 2: MAIN + PIPELINE + ENDPOINTS) ----------
+        // ---------- MAIN + PIPELINE + ENDPOINTS ----------
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Fixed port for local/dev (HTTP). Add HTTPS binding if you have a cert.
+            // Port for local/dev (HTTP). Add HTTPS binding if you have a cert.
             builder.WebHost.ConfigureKestrel(o =>
             {
                 o.ListenAnyIP(5000);
