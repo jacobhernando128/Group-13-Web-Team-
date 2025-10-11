@@ -193,13 +193,35 @@ namespace HippoExchange
                 return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
             });
 
-            app.MapGet("/items", async (FirestoreDb db, string? ownerId) =>
+            // List items (optional filter ownerId aka userID, with pagination)
+            app.MapGet("/items", async (FirestoreDb db, string? ownerId, int limit = 100, int offset = 0) =>
             {
                 Query q = db.Collection("itemID");
-                if (!string.IsNullOrWhiteSpace(ownerId)) q = q.WhereEqualTo("userID", ownerId);
-                var snaps = await q.Limit(50).GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Item>()));
-            });
+                if (!string.IsNullOrWhiteSpace(ownerId))
+                    q = q.WhereEqualTo("userID", ownerId);
+
+                // Apply pagination
+                q = q.Limit(limit).Offset(offset);
+
+                var snaps = await q.GetSnapshotAsync();
+                var items = snaps.Select(s => s.ConvertTo<Item>()).ToList();
+
+                // Get total count for pagination info
+                Query countQuery = db.Collection("itemID");
+                if (!string.IsNullOrWhiteSpace(ownerId))
+                    countQuery = countQuery.WhereEqualTo("userID", ownerId);
+                var countSnaps = await countQuery.GetSnapshotAsync();
+                var totalCount = countSnaps.Count;
+
+                return Results.Ok(new
+                {
+                    items = items,
+                    totalCount = totalCount,
+                    limit = limit,
+                    offset = offset,
+                    hasMore = offset + items.Count < totalCount
+                });
+            }).WithName("ListItems");
 
             app.MapPut("/items/{id}", async (FirestoreDb db, string id, Item update) =>
             {

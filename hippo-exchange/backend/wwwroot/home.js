@@ -67,6 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function performSearch(query) {
     currentSearchQuery = query.trim();
 
+    // Reset pagination when searching
+    paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+    
     let filteredItems = allListings;
 
     if (currentCategory !== 'all') {
@@ -142,6 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentCategory = 'all';
   let allListings = [];
+  let paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+  let isLoadingMore = false;
 
   // Map backend category names to frontend category buttons
   function mapCategoryName(backendCategory) {
@@ -243,7 +248,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(items) {
-    grid.replaceChildren();
+    // Clear all item cards but preserve load more button
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const children = Array.from(grid.children);
+    
+    // Remove all children except load more button
+    children.forEach(child => {
+      if (child.id !== 'load-more-btn') {
+        child.remove();
+      }
+    });
+    
+    // Add all items
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
     updateFilterCount(items.length);
   }
@@ -257,10 +273,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateLoadMoreButton() {
+    let loadMoreBtn = document.getElementById('load-more-btn');
+    
+    if (!loadMoreBtn && paginationInfo.hasMore) {
+      // Create load more button if it doesn't exist and there are more items
+      loadMoreBtn = document.createElement('button');
+      loadMoreBtn.id = 'load-more-btn';
+      loadMoreBtn.className = 'col-span-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 mt-6';
+      loadMoreBtn.textContent = 'Load More Items';
+      loadMoreBtn.addEventListener('click', loadMore);
+      grid.appendChild(loadMoreBtn);
+    } else if (loadMoreBtn && !paginationInfo.hasMore) {
+      // Remove button if no more items
+      loadMoreBtn.remove();
+    } else if (loadMoreBtn) {
+      // Update button text with count info
+      const remaining = paginationInfo.totalCount - allListings.length;
+      loadMoreBtn.textContent = `Load More Items (${remaining} remaining)`;
+    }
+  }
+
+  async function loadMore() {
+    if (isLoadingMore) return;
+    
+    isLoadingMore = true;
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    if (loadMoreBtn) {
+      loadMoreBtn.textContent = 'Loading...';
+      loadMoreBtn.disabled = true;
+    }
+
+    // Update offset for next page
+    paginationInfo.offset = allListings.length;
+    
+    try {
+      await load(true);
+    } finally {
+      isLoadingMore = false;
+      if (loadMoreBtn) {
+        loadMoreBtn.disabled = false;
+      }
+    }
+  }
+
   function filterByCategory(category) {
     currentCategory = category;
     console.log(`Filtering by category: ${category}`);
 
+    // Reset pagination when filtering
+    paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+    
     let filteredItems = allListings;
 
     if (category !== 'all') {
@@ -327,11 +390,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function load() {
+  async function load(loadMore = false) {
     try {
-      grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+      if (!loadMore) {
+        grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        allListings = [];
+        paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+      }
 
-      const res = await fetch('/items', {
+      const url = `/items?limit=${paginationInfo.limit}&offset=${paginationInfo.offset}`;
+      const res = await fetch(url, {
         headers: { 'Accept': 'application/json' }
       });
 
@@ -340,10 +408,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
-      allListings = Array.isArray(data) ? data : [];
+      
+      // Handle new pagination response format
+      if (data.items && Array.isArray(data.items)) {
+        if (loadMore) {
+          allListings = [...allListings, ...data.items];
+        } else {
+          allListings = data.items;
+        }
+        paginationInfo = {
+          totalCount: data.totalCount || 0,
+          limit: data.limit || 100,
+          offset: data.offset || 0,
+          hasMore: data.hasMore || false
+        };
+      } else {
+        // Fallback for old format
+        allListings = Array.isArray(data) ? data : [];
+        paginationInfo.hasMore = false;
+      }
 
-      console.log(`Loaded ${allListings.length} listings from backend`);
+      console.log(`Loaded ${allListings.length} listings from backend (${paginationInfo.totalCount} total)`);
       render(allListings);
+      updateLoadMoreButton();
 
     } catch (err) {
       console.error('Failed to load listings from API:', err);
@@ -355,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
           allListings = Array.isArray(data) ? data : (data.items || []);
           console.log('Using fallback listings.json');
           render(allListings);
+          updateLoadMoreButton();
           return;
         }
       } catch (fallbackErr) {
@@ -373,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         available: true
       }];
       render(allListings);
+      updateLoadMoreButton();
 
       grid.innerHTML += '<div class="col-span-full text-center text-red-600 text-sm mt-4 glass p-4 rounded-lg">Could not load listings from server. Showing sample data. Check browser console for details.</div>';
     }
