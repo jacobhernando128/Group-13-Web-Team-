@@ -475,43 +475,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   deleteBtn.addEventListener('click', () => {
+    // Delete conversation (not implemented) — keep placeholder for now
     alert('Delete conversation is not implemented yet.');
   });
 
-  sendReplyBtn.addEventListener('click', async () => {
-    const text = (replyTextEl.value || '').trim();
-    if (!text || !selectedThread) return;
-    try {
-      await sendReply(selectedThread, text);
-      replyTextEl.value = '';
-    } catch (e) {
-      alert(e.message || 'Failed to send reply.');
-    }
-  });
+  // Compose modal helpers
+  function openCompose() {
+    composeModal.classList.remove('hidden');
+    composeModal.classList.add('flex');
+    composeToEl.focus();
+  }
+  function closeCompose() {
+    composeModal.classList.add('hidden');
+    composeModal.classList.remove('flex');
+    composeToEl.value = '';
+    composeSubjectEl.value = '';
+    composeMessageEl.value = '';
+  }
 
-  // Compose modal
-  function openCompose() { composeModal.classList.remove('hidden'); composeModal.classList.add('flex'); composeToEl.focus(); }
-  function closeCompose() { composeModal.classList.add('hidden'); composeModal.classList.remove('flex'); composeToEl.value = ''; composeSubjectEl.value = ''; composeMessageEl.value = ''; }
+  // Send a quick reply in the currently selected thread
+  if (sendReplyBtn) {
+    sendReplyBtn.addEventListener('click', async () => {
+      const text = (replyTextEl.value || '').trim();
+      if (!text || !selectedThread) return;
+      try {
+        await sendReply(selectedThread, text);
+        replyTextEl.value = '';
+      } catch (e) {
+        alert(e.message || 'Failed to send reply.');
+      }
+    });
+  }
 
-  composeBtn.addEventListener('click', openCompose);
-  closeComposeBtn.addEventListener('click', closeCompose);
-  cancelComposeBtn.addEventListener('click', closeCompose);
+  // Wire compose modal buttons
+  if (composeBtn) composeBtn.addEventListener('click', openCompose);
+  if (closeComposeBtn) closeComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
+  if (cancelComposeBtn) cancelComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
 
-  sendComposeBtn.addEventListener('click', async () => {
-    const to = (composeToEl.value || '').trim().toLowerCase();
-    const subject = (composeSubjectEl.value || '').trim();
-    const body = (composeMessageEl.value || '').trim();
-    if (!to || !body) {
-      alert('Please enter recipient email and a message body.');
-      return;
-    }
-    try {
-      await composeNew(to, subject, body);
-      closeCompose();
-    } catch (e) {
-      alert(e.message || 'Failed to send message.');
-    }
-  });
+  if (sendComposeBtn) {
+    sendComposeBtn.addEventListener('click', async () => {
+      const to = (composeToEl.value || '').trim();
+      const subject = (composeSubjectEl.value || '').trim();
+      const body = (composeMessageEl.value || '').trim();
+      if (!to || !body) {
+        alert('Please provide a recipient and message body.');
+        return;
+      }
+      try {
+        await composeNew(to, subject, body);
+        closeCompose();
+      } catch (e) {
+        alert(e.message || 'Failed to send message.');
+      }
+    });
+  }
 
   // If linked from a notification with ?email=... you can pre-open a compose
   const url = new URL(location.href);
