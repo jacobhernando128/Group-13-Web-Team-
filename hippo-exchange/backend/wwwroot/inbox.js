@@ -1,7 +1,8 @@
 // inbox.js — Production inbox wired to backend threads/messages
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // ---- Config / API ----
   const API = location.origin;
+  let currentUser = null;
 
   // Simple wrapper for backend API calls reads in user from localStorage
   async function api(path, { method = 'GET', body } = {}) {
@@ -20,11 +21,79 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---- Auth / Current user ----
-  let me = null;
-  try { me = JSON.parse(localStorage.getItem('hippo_user') || 'null'); } catch { }
+  async function checkAuthAndLoadUser() {
+    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+    const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
+
+    console.log('Auth check - Token:', !!token, 'UserData:', !!userData);
+
+    if (!token || !userData) {
+      console.log('No auth data found, redirecting to login');
+      window.location.href = './Login.html';
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.log('Auth validation failed, redirecting to login');
+        clearAuthData();
+        window.location.href = './Login.html';
+        return;
+      }
+
+      const user = await response.json();
+      console.log('Auth successful, user:', user);
+      currentUser = user;
+      displayUserInfo(user);
+    } catch (error) {
+      console.error('Auth error:', error);
+      clearAuthData();
+      window.location.href = './Login.html';
+    }
+  }
+
+  function displayUserInfo(user) {
+    const nameElement = document.getElementById('acct-name');
+    const rankElement = document.getElementById('acct-rank');
+    const balanceElement = document.getElementById('acct-balance');
+
+    if (nameElement) {
+      nameElement.textContent = user.name || user.username || user.email || 'User';
+    }
+    if (rankElement) {
+      rankElement.textContent = user.rank || 'Member';
+    }
+    if (balanceElement) {
+      balanceElement.textContent = `${user.balance || 10} HXB`;
+    }
+  }
+
+  function clearAuthData() {
+    localStorage.removeItem('hippo_token');
+    localStorage.removeItem('hippo_user');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+  }
+
+  function signOut() {
+    clearAuthData();
+    window.location.href = './Login.html';
+  }
+
+  // Initialize auth
+  await checkAuthAndLoadUser();
+
+  // Use currentUser for the rest of the app
+  const me = currentUser;
   if (!me || !me.id) {
-    location.href = './Login.html';
-    return;
+    return; // Already redirected in checkAuthAndLoadUser
   }
 
   // ---- DOM Elements ----
@@ -86,11 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
 
   // ---- State ----
-  let activeFilter = 'all';        // 'all' | 'unread' | 'starred'
+  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent'
   let selectedThread = null;       // thread object - currently open thread
   let searchQuery = '';
   let threads = [];                // loaded from backend
   let messagesCache = new Map();   // threadId -> messages[] - avoid reloading if already fetched
+  let userNamesCache = new Map();  // userId -> user name - cache user names
 
   // ---- Utils ----
   function fmtDate(val) {
@@ -112,9 +182,49 @@ document.addEventListener('DOMContentLoaded', () => {
     return (t.starredBy || []).includes(me.id);
   }
 
-  // returns a title for the thread (subject or fallback)
-  function threadTitle(t) {
-    return t.subject || 'Conversation';
+  // checks if thread has messages sent by current user
+  async function hasSentMessages(t) {
+    const msgs = await loadMessages(t.id);
+    return msgs.some(m => m.senderId === me.id);
+  }
+
+  // fetch user name by ID
+  async function getUserName(userId) {
+    if (userNamesCache.has(userId)) {
+      return userNamesCache.get(userId);
+    }
+
+    try {
+      // Get user info from the users endpoint
+      const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
+
+      if (response.ok) {
+        const user = await response.json();
+        const name = user.name || `${user.firstName} ${user.lastName}`.trim() || user.email || 'User';
+        userNamesCache.set(userId, name);
+        return name;
+      }
+    } catch (error) {
+      console.log('Could not fetch user name:', error);
+    }
+
+    // Fallback to showing user ID
+    const fallbackName = `User ${userId.substring(0, 8)}...`;
+    userNamesCache.set(userId, fallbackName);
+    return fallbackName;
+  }
+
+  // returns a title for the thread (subject or recipient name)
+  async function threadTitle(t) {
+    if (t.subject) return t.subject;
+
+    // Get the other participant's name (not the current user)
+    const otherParticipantId = t.Participants?.find(p => p !== me.id);
+    if (otherParticipantId) {
+      return await getUserName(otherParticipantId);
+    }
+
+    return 'Conversation';
   }
 
   // ---- Backend calls ----
@@ -122,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadThreads() {
     const data = await api(`/inbox/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
-    renderThreads();
+    await renderThreads();
   }
 
   async function loadMessages(threadId) {
@@ -140,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const t = threads.find(x => (x.id || x.Id) === threadId);
     if (t) {
       (t.lastReadBy ||= {})[me.id] = new Date().toISOString();
-      renderThreads();
+      await renderThreads();
     }
   }
 
@@ -155,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       thread.starredBy = thread.starredBy.filter(x => x !== me.id);
     }
-    renderThreads();
+    await renderThreads();
   }
 
   async function sendReply(thread, text) {
@@ -192,11 +302,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---- Rendering ----
-  function filterThreadsLocal(list) {
+  async function filterThreadsLocal(list) {
     let arr = [...list];
     // Filter type
     if (activeFilter === 'unread') arr = arr.filter(isUnread);
     else if (activeFilter === 'starred') arr = arr.filter(isStarred);
+    else if (activeFilter === 'sent') {
+      // For sent filter, we need to check each thread for sent messages
+      const sentThreads = [];
+      for (const t of arr) {
+        if (await hasSentMessages(t)) {
+          sentThreads.push(t);
+        }
+      }
+      arr = sentThreads;
+    }
 
     // Search
     const q = searchQuery.trim().toLowerCase();
@@ -212,9 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   //Builds the message list on the left side of the inbox
-  function renderThreads() {
+  async function renderThreads() {
     messagesList.innerHTML = '';
-    const list = filterThreadsLocal(threads);
+    const list = await filterThreadsLocal(threads);
 
     if (list.length === 0) {
       messagesEmpty.classList.remove('hidden');
@@ -226,6 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const li = document.createElement('li');
       const unread = isUnread(t);
       const starred = isStarred(t);
+      const title = await threadTitle(t);
 
       li.className = 'message-item cursor-pointer hover:bg-slate-50 transition-colors';
       li.dataset.threadId = t.id;
@@ -237,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between mb-1">
                 <p class="font-semibold text-slate-800 truncate ${unread ? 'text-slate-900' : ''}">
-                  ${escapeHtml(threadTitle(t))}
+                  ${escapeHtml(title)}
                 </p>
                 <div class="flex items-center gap-2">
                   ${starred ? '<svg class="w-4 h-4 text-yellow-500 fill-current" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>' : ''}
@@ -270,7 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // header info
     senderAvatarEl.src = 'hippo-exchange-logo.png';
-    senderNameEl.textContent = threadTitle(t);
+    const title = await threadTitle(t);
+    senderNameEl.textContent = title;
     messageSubjectEl.textContent = t.subject || '';
 
     // messages
@@ -287,7 +409,16 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
 
-    messageMetaEl.textContent = `Participants: ${(t.participants || []).join(', ')}`;
+    // Show participant names instead of IDs
+    const participantNames = await Promise.all(
+      (t.participants || []).map(async (participantId) => {
+        if (participantId === me.id) {
+          return 'You';
+        }
+        return await getUserName(participantId);
+      })
+    );
+    messageMetaEl.textContent = `Participants: ${participantNames.join(', ')}`;
 
     // mark read
     try { await markThreadRead(t.id); } catch { }
@@ -306,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Events ----
   filterButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       activeFilter = button.dataset.filter || 'all';
       // Update button styles
       filterButtons.forEach(btn => {
@@ -315,13 +446,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       button.classList.remove('bg-white/40', 'text-slate-900');
       button.classList.add('bg-slate-900/80', 'text-white');
-      renderThreads();
+      await renderThreads();
     });
   });
 
-  searchMessages.addEventListener('input', (e) => {
+  searchMessages.addEventListener('input', async (e) => {
     searchQuery = e.target.value || '';
-    renderThreads();
+    await renderThreads();
   });
 
   markAllBtn.addEventListener('click', async () => {
@@ -344,43 +475,60 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   deleteBtn.addEventListener('click', () => {
+    // Delete conversation (not implemented) — keep placeholder for now
     alert('Delete conversation is not implemented yet.');
   });
 
-  sendReplyBtn.addEventListener('click', async () => {
-    const text = (replyTextEl.value || '').trim();
-    if (!text || !selectedThread) return;
-    try {
-      await sendReply(selectedThread, text);
-      replyTextEl.value = '';
-    } catch (e) {
-      alert(e.message || 'Failed to send reply.');
-    }
-  });
+  // Compose modal helpers
+  function openCompose() {
+    composeModal.classList.remove('hidden');
+    composeModal.classList.add('flex');
+    composeToEl.focus();
+  }
+  function closeCompose() {
+    composeModal.classList.add('hidden');
+    composeModal.classList.remove('flex');
+    composeToEl.value = '';
+    composeSubjectEl.value = '';
+    composeMessageEl.value = '';
+  }
 
-  // Compose modal
-  function openCompose() { composeModal.classList.remove('hidden'); composeModal.classList.add('flex'); composeToEl.focus(); }
-  function closeCompose() { composeModal.classList.add('hidden'); composeModal.classList.remove('flex'); composeToEl.value = ''; composeSubjectEl.value = ''; composeMessageEl.value = ''; }
+  // Send a quick reply in the currently selected thread
+  if (sendReplyBtn) {
+    sendReplyBtn.addEventListener('click', async () => {
+      const text = (replyTextEl.value || '').trim();
+      if (!text || !selectedThread) return;
+      try {
+        await sendReply(selectedThread, text);
+        replyTextEl.value = '';
+      } catch (e) {
+        alert(e.message || 'Failed to send reply.');
+      }
+    });
+  }
 
-  composeBtn.addEventListener('click', openCompose);
-  closeComposeBtn.addEventListener('click', closeCompose);
-  cancelComposeBtn.addEventListener('click', closeCompose);
+  // Wire compose modal buttons
+  if (composeBtn) composeBtn.addEventListener('click', openCompose);
+  if (closeComposeBtn) closeComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
+  if (cancelComposeBtn) cancelComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
 
-  sendComposeBtn.addEventListener('click', async () => {
-    const to = (composeToEl.value || '').trim().toLowerCase();
-    const subject = (composeSubjectEl.value || '').trim();
-    const body = (composeMessageEl.value || '').trim();
-    if (!to || !body) {
-      alert('Please enter recipient email and a message body.');
-      return;
-    }
-    try {
-      await composeNew(to, subject, body);
-      closeCompose();
-    } catch (e) {
-      alert(e.message || 'Failed to send message.');
-    }
-  });
+  if (sendComposeBtn) {
+    sendComposeBtn.addEventListener('click', async () => {
+      const to = (composeToEl.value || '').trim();
+      const subject = (composeSubjectEl.value || '').trim();
+      const body = (composeMessageEl.value || '').trim();
+      if (!to || !body) {
+        alert('Please provide a recipient and message body.');
+        return;
+      }
+      try {
+        await composeNew(to, subject, body);
+        closeCompose();
+      } catch (e) {
+        alert(e.message || 'Failed to send message.');
+      }
+    });
+  }
 
   // If linked from a notification with ?email=... you can pre-open a compose
   const url = new URL(location.href);
@@ -388,6 +536,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (preEmail) {
     openCompose();
     composeToEl.value = preEmail;
+  }
+
+  // ---- Sign out functionality ----
+  const signOutLink = document.querySelector('a[href="./Login.html"]');
+  if (signOutLink) {
+    signOutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      signOut();
+    });
   }
 
   // ---- Initial load ----
