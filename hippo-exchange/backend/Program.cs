@@ -417,7 +417,7 @@ namespace HippoExchange
             // -------- Maintenance --------
             app.MapGet("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
             {
-                var snaps = await db.Collection("maintenance").WhereEqualTo("itemID", itemId).GetSnapshotAsync();
+                var snaps = await db.Collection("maintenance").WhereEqualTo("itemId", itemId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Maintenance>()));
             });
 
@@ -441,8 +441,8 @@ namespace HippoExchange
                 {
                     Id = Guid.NewGuid().ToString("n"),
                     ItemId = dto.ItemId.Trim(),
-                    MaintenanceId = dto.MaintenanceId.Trim(),
                     Description = dto.Description.Trim(),
+                    Frequency = dto.Frequency.Trim(),
                     CreatedUtc = DateTime.UtcNow
                 };
                 await db.Collection("maintenance").Document(m.Id).SetAsync(m);
@@ -771,4 +771,137 @@ namespace HippoExchange
         public record CreateReviewDto(int Rating, string RaterId, string UserId, string Description);
         public record UpdateReviewDto(int Rating, string Description);
     }
+
+    // ---------------- Firestore models ----------------
+    [FirestoreData]
+    public class Item
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+
+        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+        [FirestoreProperty("Title")] public string Title { get; set; } = default!;
+        [FirestoreProperty("Description")] public string? Description { get; set; }
+        [FirestoreProperty("Condition")] public string? Condition { get; set; }
+        [FirestoreProperty("Location")] public string? Location { get; set; }
+        [FirestoreProperty("DollarCost")] public double? DollarCost { get; set; }
+        [FirestoreProperty("RepCost")] public double? RepCost { get; set; }
+        [FirestoreProperty] public List<string> Categories { get; set; } = new();
+        [FirestoreProperty] public List<string> Pictures { get; set; } = new();
+        [FirestoreProperty] public List<string> Videos { get; set; } = new();
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+    }
+
+    [FirestoreData]
+    public class UserAuth
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("Email")] public string Email { get; set; } = default!;
+        [FirestoreProperty("Phone")] public string Phone { get; set; } = default!;
+        [FirestoreProperty("FirstName")] public string FirstName { get; set; } = default!;
+        [FirestoreProperty("LastName")] public string LastName { get; set; } = default!;
+        [FirestoreProperty("PasswordHash")] public string? PasswordHash { get; set; } // Optional for Firebase Auth users
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("ProfilePicture")] public string? ProfilePicture { get; set; }
+        [FirestoreProperty("TotalLended")] public double TotalLended { get; set; } = 0;
+        [FirestoreProperty("TotalBorrowed")] public double TotalBorrowed { get; set; } = 0;
+        [FirestoreProperty("Description")] public string? Description { get; set; }
+    }
+
+    [FirestoreData]
+    public class Exchange
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
+        [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
+        [FirestoreProperty("ownerID")] public string OwnerId { get; set; } = default!;
+        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("startDate")] public DateTime? StartDate { get; set; }
+        [FirestoreProperty("endDate")] public DateTime? EndDate { get; set; }
+        [FirestoreProperty("requestCreated")] public DateTime RequestCreated { get; set; }
+        [FirestoreProperty("requestHandled")] public DateTime? RequestHandled { get; set; }
+    }
+
+    [FirestoreData]
+    public class Notification
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("listingID")] public string ListingId { get; set; } = default!;
+        [FirestoreProperty("message")] public string Message { get; set; } = default!;
+        [FirestoreProperty("receiverID")] public string ReceiverId { get; set; } = default!;
+        [FirestoreProperty("senderAvatar")] public string? SenderAvatar { get; set; }
+        [FirestoreProperty("senderID")] public string SenderId { get; set; } = default!;
+        [FirestoreProperty("title")] public string Title { get; set; } = default!;
+        [FirestoreProperty("type")] public string Type { get; set; } = default!;
+    }
+
+    [FirestoreData]
+    public class Listing
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+    }
+
+    [FirestoreData]
+    public class Maintenance
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("description")] public string Description { get; set; } = default!;
+        [FirestoreProperty("itemId")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("frequency")] public string Frequency { get; set; } = default!;
+    }
+
+    [FirestoreData]
+    public class DocumentEntry
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
+        [FirestoreProperty("description")] public string Description { get; set; } = default!;
+        [FirestoreProperty("Document")] public string DocumentContent { get; set; } = default!;
+        [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
+    }
+
+    [FirestoreData]
+    public class Review
+    {
+        [FirestoreDocumentId] public string? Id { get; set; }
+        [FirestoreProperty("Rating")] public int Rating { get; set; }
+        [FirestoreProperty("raterID")] public string RaterId { get; set; } = default!;
+        [FirestoreProperty("description")] public string Description { get; set; } = default!;
+        [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+    }
+
+    // ---------------- DTOs ----------------
+    public record AuthRegisterDto(string Email, string Phone, string FirstName, string LastName, string Password);
+    public record AuthLoginDto(string Email, string Password);
+
+
+    public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
+    public record UpdateExchangeApprovalDto(bool Approved);
+
+    public record CreateNotificationDto(string SenderId, string ReceiverId, string Message, string Title, string Type, string? ListingId = null, string? SenderAvatar = null);
+
+    public record CreateListingDto(string ItemId, string UserId);
+
+    public record CreateMaintenanceDto(string ItemId, string Description, string Frequency);
+    public record UpdateMaintenanceDescriptionDto(string Description);
+
+    public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
+    public record UpdateDocumentDto(string? Description, string? Document);
+
+    // ---- Review DTOs ----
+    public record CreateReviewDto(
+        int Rating,
+        string RaterId,
+        string UserId,
+        string Description
+    );
+
+    public record UpdateReviewDto(
+        int Rating,
+        string Description
+    );
 }

@@ -79,7 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
           );
         }
         // Fallback to old category field if it exists
-        return item.category === currentCategory;
+        if (item.category) {
+          return item.category.toLowerCase() === currentCategory.toLowerCase() ||
+                 mapCategoryName(item.category).toLowerCase() === currentCategory.toLowerCase();
+        }
+        return false;
       });
     }
 
@@ -88,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
+        const location = (item.location || item.locationLabel || '').toLowerCase();
 
         // Check categories array for search term
         let categoryMatch = false;
@@ -166,16 +170,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }).format(Number(val));
 
   const pickHomeFields = (item) => {
-    const hero = item.imageUrl || (Array.isArray(item.images) && item.images[0]) || PLACEHOLDER_IMG;
+    // Handle both backend API format and fallback JSON format
+    const hero = item.imageUrl || 
+                 (Array.isArray(item.images) && item.images[0]) || 
+                 (Array.isArray(item.pictures) && item.pictures[0]) || 
+                 PLACEHOLDER_IMG;
+    
+    // Use dollarCost from backend, fallback to price from JSON
+    const price = item.dollarCost ?? item.price ?? '';
+    
+    // Use location from backend, fallback to locationLabel from JSON
+    const locationLabel = item.location ?? item.locationLabel ?? (item.ships ? 'Ships to you' : '');
+    
     return {
       id: item.id ?? '',
       slug: item.slug ?? '',
       title: item.title ?? 'Untitled listing',
-      price: item.price ?? '',
-      locationLabel: item.locationLabel ?? (item.ships ? 'Ships to you' : ''),
+      price: price,
+      locationLabel: locationLabel,
       imageUrl: hero,
       isNew: !!item.isNew,
-      ships: !!item.ships
+      ships: !!item.ships,
+      // Include backend fields for compatibility
+      categories: item.categories || (item.category ? [item.category] : []),
+      category: item.category || (item.categories && item.categories[0]) || 'other',
+      description: item.description || '',
+      condition: item.condition || ''
     };
   };
 
@@ -257,7 +277,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return matches;
         }
         // Fallback to old category field if it exists
-        return item.category === category;
+        if (item.category) {
+          return item.category.toLowerCase() === category.toLowerCase() ||
+                 mapCategoryName(item.category).toLowerCase() === category.toLowerCase();
+        }
+        return false;
       });
     }
 
@@ -266,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
+        const location = (item.location || item.locationLabel || '').toLowerCase();
 
         // Check categories array for search term
         let categoryMatch = false;
