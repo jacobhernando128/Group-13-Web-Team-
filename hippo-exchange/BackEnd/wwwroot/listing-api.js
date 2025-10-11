@@ -15,7 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
       ? '$—'
       : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
 
-  const API_BASE_URL = 'http://localhost:5000';
+  // Prefer the current origin (works when static files are served by the same backend).
+  // Fall back to localhost:5000 for local dev, and finally relative paths.
+  const API_BASE_URL = (function () {
+    try { return location.origin; } catch { return 'http://localhost:5000'; }
+  })();
   let currentUser = null; // Store current user data
 
   // Geocoding function to get coordinates from location string
@@ -44,19 +48,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const itemId = qs.get('id') || qs.get('item');
 
   async function apiFetch(path, options) {
-    // Try full origin first, then fallback to relative path
-    const full = `${API_BASE_URL}${path}`;
-    try {
-      return await fetch(full, options);
-    } catch (err) {
-      console.warn(`Fetch to ${full} failed, attempting relative path ${path}:`, err);
+    // Attempt order:
+    // 1) API_BASE_URL + path (usually location.origin)
+    // 2) http://localhost:5000 + path (explicit local dev port)
+    // 3) relative path (allow the browser to resolve same-origin)
+    const attempts = [
+      `${API_BASE_URL}${path}`,
+      `http://localhost:5000${path}`,
+      path
+    ];
+
+    let lastError = null;
+    for (const url of attempts) {
       try {
-        return await fetch(path, options);
-      } catch (err2) {
-        console.error(`Both fetch attempts failed for ${path}:`, err2);
-        throw err2;
+        const res = await fetch(url, options);
+        return res;
+      } catch (err) {
+        lastError = err;
+        console.warn(`Fetch to ${url} failed:`, err);
+        // try next
       }
     }
+
+    console.error(`All fetch attempts failed for ${path}. Last error:`, lastError);
+    throw lastError;
   }
 
   async function readListing() {
@@ -124,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       let maintenanceData = [];
       try {
         console.log('🔍 Fetching maintenance for item:', item.id);
-        const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
+        const maintenanceResponse = await apiFetch(`/maintenance/item/${item.id}`);
         console.log('📡 Maintenance response status:', maintenanceResponse.status);
 
         if (maintenanceResponse.ok) {
@@ -479,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       console.log('Sending request data:', requestData);
 
-      const response = await fetch(`${API_BASE_URL}/exchanges`, {
+      const response = await apiFetch(`/exchanges`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -675,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       console.log('📤 Sending notification data:', notificationData);
 
-      const notificationResponse = await fetch(`${API_BASE_URL}/notifications`, {
+      const notificationResponse = await apiFetch(`/notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -722,7 +737,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('📤 Requester ID:', requester?.Id || requester?.id || requester?.userId);
       console.log('📤 Seller ID:', listing.seller.id);
 
-      const threadResponse = await fetch(`${API_BASE_URL}/messages/threads`, {
+      const threadResponse = await apiFetch(`/messages/threads`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -772,7 +787,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       console.log('📤 Sending initial message data:', messageData);
 
-      const messageResponse = await fetch(`${API_BASE_URL}/messages/threads/${threadId}/messages`, {
+      const messageResponse = await apiFetch(`/messages/threads/${threadId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

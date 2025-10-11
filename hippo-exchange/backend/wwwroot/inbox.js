@@ -206,9 +206,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (response.ok) {
         const user = await response.json();
-        const name = user.name || `${user.firstName} ${user.lastName}`.trim() || user.email || 'User';
-        userNamesCache.set(userId, name);
-        return name;
+
+        // Prefer explicit display name if provided
+        if (user && typeof user === 'object') {
+          if (user.name && String(user.name).trim()) {
+            const n = String(user.name).trim();
+            userNamesCache.set(userId, n);
+            return n;
+          }
+
+          // Safely compose first/last only when they are non-empty
+          const fn = (user.firstName || user.FirstName || '') || '';
+          const ln = (user.lastName || user.LastName || '') || '';
+          const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
+          if (parts.length > 0) {
+            const full = parts.join(' ');
+            userNamesCache.set(userId, full);
+            return full;
+          }
+
+          // Fall back to email
+          if (user.email) {
+            const e = String(user.email).trim();
+            userNamesCache.set(userId, e);
+            return e;
+          }
+        }
+
+        // Final fallback
+        userNamesCache.set(userId, 'User');
+        return 'User';
       }
     } catch (error) {
       console.log('Could not fetch user name:', error);
@@ -409,17 +436,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // messages
     const msgs = await loadMessages(t.id);
-    messageBodyEl.innerHTML = msgs.map(m => {
+    // Resolve sender names (avoid duplicate fetches by using a render-time cache)
+    const renderNameCache = new Map();
+    const messageHtmls = await Promise.all(msgs.map(async (m) => {
       const mine = m.senderId === me.id;
+      let senderName = 'User';
+      if (mine) {
+        senderName = 'You';
+      } else {
+        if (renderNameCache.has(m.senderId)) {
+          senderName = renderNameCache.get(m.senderId);
+        } else {
+          try {
+            const nm = await getUserName(m.senderId);
+            renderNameCache.set(m.senderId, nm);
+            senderName = nm;
+          } catch (e) {
+            renderNameCache.set(m.senderId, `User ${m.senderId.substring(0, 8)}...`);
+            senderName = renderNameCache.get(m.senderId);
+          }
+        }
+      }
+
       return `
         <div class="mb-3 ${mine ? 'text-right' : 'text-left'}">
+          <div class="text-[12px] text-slate-500 mb-1">${escapeHtml(senderName)}</div>
           <div class="inline-block rounded-xl px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}">
             ${escapeHtml(m.body)}
           </div>
           <div class="text-[11px] text-slate-500 mt-1">${fmtDate(m.sentUtc)}</div>
         </div>
       `;
-    }).join('');
+    }));
+
+    messageBodyEl.innerHTML = messageHtmls.join('');
 
     // Show participant names instead of IDs
     const participantNames = await Promise.all(
