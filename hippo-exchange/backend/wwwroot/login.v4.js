@@ -7,54 +7,7 @@ console.log("login.js loaded at", location.href);
   const overrideApi = scriptEl?.getAttribute("data-api");
   const API_BASE = (overrideApi && overrideApi.trim()) || location.origin;
 
-  // ---- Firebase config loader ----
-  function getFirebaseConfig() {
-    if (window.FIREBASE_CONFIG && typeof window.FIREBASE_CONFIG === "object") return window.FIREBASE_CONFIG;
-    const json = scriptEl?.getAttribute("data-firebase-config");
-    if (!json) return null;
-    try { return JSON.parse(json); } catch { return null; }
-  }
-
-  let firebaseApp = null;
-  let firebaseAuth = null;
-
-  async function ensureFirebase() {
-    if (firebaseApp && firebaseAuth) return { app: firebaseApp, auth: firebaseAuth };
-
-    const cfg = getFirebaseConfig();
-    if (!cfg) {
-      console.warn("No Firebase config provided. Skipping Firebase sign-in.");
-      return { app: null, auth: null };
-    }
-
-    const [{ initializeApp }, { getAuth, signInWithCustomToken, onAuthStateChanged, signOut }] = await Promise.all([
-      import("https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js"),
-      import("https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js"),
-    ]);
-
-    const app = initializeApp(cfg);
-    const auth = getAuth(app);
-    firebaseApp = app;
-    firebaseAuth = auth;
-    firebaseAuth._hippo = { signInWithCustomToken, onAuthStateChanged, signOut };
-    return { app: firebaseApp, auth: firebaseAuth };
-  }
-
-  async function signInToFirebaseWithCustomToken(userId, extraClaims) {
-    const { auth } = await ensureFirebase();
-    if (!auth) return null;
-    const { token } = await api("/auth/custom-token", {
-      body: extraClaims ? { userId, claims: extraClaims } : { userId }
-    });
-    const cred = await auth._hippo.signInWithCustomToken(auth, token);
-    return cred.user;
-  }
-
-  async function firebaseSignOutIfAny() {
-    const { auth } = await ensureFirebase();
-    if (!auth) return;
-    try { await auth._hippo.signOut(auth); } catch { }
-  }
+  // ---- Simple API-based authentication (like home.js) ----
 
   // ---- Generic API helper ----
   async function api(path, { method = "POST", body = undefined, headers = {} } = {}) {
@@ -161,7 +114,6 @@ console.log("login.js loaded at", location.href);
     e.preventDefault();
     const firstname = e.target["register-firstname"]?.value?.trim() || "";
     const lastname = e.target["register-lastname"]?.value?.trim() || "";
-    const username = e.target["register-username"]?.value?.trim() || "";
     const email = e.target["register-email"]?.value?.trim() || "";
     const phone = e.target["register-phone"]?.value?.trim() || "";
     const password = e.target["register-password"]?.value || "";
@@ -172,53 +124,108 @@ console.log("login.js loaded at", location.href);
     if (password !== confirm) { showMessage("Passwords do not match.", "error"); return; }
 
     try {
-      // Send full profile fields
-      await api("/auth/register", {
+      // Use BCrypt registration (simple approach like home.js)
+      const userProfile = await api("/auth/register", {
         body: {
           email,
           password,
           firstName: firstname || undefined,
           lastName: lastname || undefined,
-          phone: phone || undefined,
-          username: username || undefined,
-          // name optional; backend derives from first/last if omitted
+          phone: phone || undefined
         }
       });
-      showMessage("Registration successful! Please log in.", "success");
-      swapForms(loginForm, registerForm);
+
+      if (!userProfile?.id) {
+        throw new Error("User profile not found after registration.");
+      }
+
+      // Store user data and token
+      localStorage.setItem("hippo_user", JSON.stringify(userProfile));
+      if (userProfile.token) {
+        localStorage.setItem("hippo_token", userProfile.token);
+      }
+      
+      showMessage("Registration successful! Redirecting...", "success");
+      setTimeout(() => { window.location.href = "./Home.html"; }, 1200);
     } catch (err) {
-      console.error(err); showMessage(err.message || "Registration failed.", "error");
+      console.error(err);
+      let errorMessage = "Registration failed.";
+      
+      // Handle specific error cases
+      if (err.message.includes("already registered") || err.message.includes("Email already")) {
+        errorMessage = "This email is already registered.";
+      } else if (err.message.includes("weak password")) {
+        errorMessage = "Password is too weak.";
+      } else if (err.message.includes("invalid email")) {
+        errorMessage = "Invalid email address.";
+      } else {
+        errorMessage = err.message || "Registration failed.";
+      }
+      
+      showMessage(errorMessage, "error");
     }
   });
 
-  // ---- Login (with Firebase custom token) ----
+  // ---- Login (simple BCrypt approach like home.js) ----
   loginForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = e.target["login-email"]?.value?.trim() || "";
     const password = e.target["login-password"]?.value || "";
     if (!email || !password) { showMessage("Email and password are required.", "error"); return; }
+    
     try {
-      const user = await api("/auth/login", { body: { email, password } });
-      if (!user?.id) throw new Error("Login response missing user id.");
+      // Use BCrypt login (simple approach like home.js)
+      const userProfile = await api("/auth/login", { 
+        body: { email, password } 
+      });
 
-      try {
-        await signInToFirebaseWithCustomToken(user.id);
-      } catch (fbErr) {
-        console.warn("Firebase sign-in skipped/failed:", fbErr);
+      if (!userProfile?.id) {
+        throw new Error("User profile not found. Please register first.");
       }
 
-      localStorage.setItem("hippo_user", JSON.stringify(user));
+      // Store user data and token
+      localStorage.setItem("hippo_user", JSON.stringify(userProfile));
+      if (userProfile.token) {
+        localStorage.setItem("hippo_token", userProfile.token);
+      }
+      
       showMessage("Login successful! Redirecting...", "success");
       setTimeout(() => { window.location.href = "./Home.html"; }, 1200);
     } catch (err) {
-      console.error(err); showMessage(err.message || "Login failed.", "error");
+      console.error(err);
+      let errorMessage = "Login failed.";
+      
+      // Handle specific error cases
+      if (err.message.includes("Unauthorized") || err.message.includes("401")) {
+        errorMessage = "Invalid email or password.";
+      } else if (err.message.includes("user not found")) {
+        errorMessage = "No account found with this email.";
+      } else if (err.message.includes("wrong password")) {
+        errorMessage = "Incorrect password.";
+      } else if (err.message.includes("invalid email")) {
+        errorMessage = "Invalid email address.";
+      } else {
+        errorMessage = err.message || "Login failed.";
+      }
+      
+      showMessage(errorMessage, "error");
     }
   });
 
-  // ---- Logout ----
+  // ---- Logout (simple approach like home.js) ----
   const fullLogout = async () => {
+    // Clear all user data (like home.js signOut function)
     localStorage.removeItem("hippo_user");
-    await firebaseSignOutIfAny();
+    localStorage.removeItem("hippo_token");
+    localStorage.removeItem("userToken");
+    localStorage.removeItem("userData");
+    sessionStorage.removeItem("userToken");
+    sessionStorage.removeItem("userData");
+    
+    // Clear cookies
+    document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
     setAuthUI(false);
     showMessage("You have been logged out.", "info");
     setTimeout(() => messageBox?.classList.add("hidden"), 1800);

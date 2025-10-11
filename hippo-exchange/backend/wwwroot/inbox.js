@@ -1,6 +1,103 @@
-// inbox.js — Inbox functionality for Hippo Exchange
-document.addEventListener('DOMContentLoaded', () => {
-  // DOM Elements
+// inbox.js — Production inbox wired to backend threads/messages
+document.addEventListener('DOMContentLoaded', async () => {
+  // ---- Config / API ----
+  const API = location.origin;
+  let currentUser = null;
+
+  // Simple wrapper for backend API calls reads in user from localStorage
+  async function api(path, { method = 'GET', body } = {}) {
+    const res = await fetch(`${API}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) {
+      let msg = await res.text().catch(() => '');
+      try { const j = JSON.parse(msg); msg = j.error || j.message || msg; } catch { }
+      throw new Error(msg || `${res.status} ${res.statusText}`);
+    }
+    const ct = res.headers.get('content-type') || '';
+    return ct.includes('application/json') ? res.json() : null;
+  }
+
+  // ---- Auth / Current user ----
+  async function checkAuthAndLoadUser() {
+    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+    const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
+    
+    console.log('Auth check - Token:', !!token, 'UserData:', !!userData);
+    
+    if (!token || !userData) {
+      console.log('No auth data found, redirecting to login');
+      window.location.href = './Login.html';
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.log('Auth validation failed, redirecting to login');
+        clearAuthData();
+        window.location.href = './Login.html';
+        return;
+      }
+
+      const user = await response.json();
+      console.log('Auth successful, user:', user);
+      currentUser = user;
+      displayUserInfo(user);
+    } catch (error) {
+      console.error('Auth error:', error);
+      clearAuthData();
+      window.location.href = './Login.html';
+    }
+  }
+
+  function displayUserInfo(user) {
+    const nameElement = document.getElementById('acct-name');
+    const rankElement = document.getElementById('acct-rank');
+    const balanceElement = document.getElementById('acct-balance');
+    
+    if (nameElement) {
+      nameElement.textContent = user.name || user.username || user.email || 'User';
+    }
+    if (rankElement) {
+      rankElement.textContent = user.rank || 'Member';
+    }
+    if (balanceElement) {
+      balanceElement.textContent = `${user.balance || 10} HXB`;
+    }
+  }
+
+  function clearAuthData() {
+    localStorage.removeItem('hippo_token');
+    localStorage.removeItem('hippo_user');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+  }
+
+  function signOut() {
+    clearAuthData();
+    window.location.href = './Login.html';
+  }
+
+  // Initialize auth
+  await checkAuthAndLoadUser();
+  
+  // Use currentUser for the rest of the app
+  const me = currentUser;
+  if (!me || !me.id) {
+    return; // Already redirected in checkAuthAndLoadUser
+  }
+
+  // ---- DOM Elements ----
+  // cache all elements used by the inbox UI 
   const messagesList = document.getElementById('messages-list');
   const messagesEmpty = document.getElementById('messages-empty');
   const searchMessages = document.getElementById('search-messages');
@@ -8,392 +105,340 @@ document.addEventListener('DOMContentLoaded', () => {
   const messageContent = document.getElementById('message-content');
   const noMessageSelected = document.getElementById('no-message-selected');
   const replySection = document.getElementById('reply-section');
-  const composeModal = document.getElementById('compose-modal');
   const filterButtons = Array.from(document.querySelectorAll('[data-filter]'));
+  const markAllBtn = document.getElementById('mark-all-read');
+  const starBtn = document.getElementById('star-message');
+  const deleteBtn = document.getElementById('delete-message');
+  const replyTextEl = document.getElementById('reply-text');
+  const sendReplyBtn = document.getElementById('send-reply');
 
-  // Mobile menu functionality
+  // Compose modal
+  const composeModal = document.getElementById('compose-modal');
+  const composeBtn = document.getElementById('compose-btn');
+  const closeComposeBtn = document.getElementById('close-compose');
+  const cancelComposeBtn = document.getElementById('cancel-compose');
+  const sendComposeBtn = document.getElementById('send-compose');
+  const composeToEl = document.getElementById('compose-to');        // recipient email
+  const composeSubjectEl = document.getElementById('compose-subject');
+  const composeMessageEl = document.getElementById('compose-message');
+
+  // Message header bits
+  const senderAvatarEl = document.getElementById('sender-avatar');
+  const senderNameEl = document.getElementById('sender-name');
+  const messageSubjectEl = document.getElementById('message-subject');
+  const messageBodyEl = document.getElementById('message-body');
+  const messageMetaEl = document.getElementById('message-meta');
+
+  // ---- Mobile menu slide in sidebar behavior (toggleMobileMenu, closeMobileMenu) ----
   const menuButton = document.getElementById('menu-button');
   const sidebar = document.getElementById('sidebar');
   const sidebarBackdrop = document.getElementById('sidebar-backdrop');
 
   function toggleMobileMenu() {
     const isOpen = sidebar.classList.contains('translate-x-0');
-    
     if (isOpen) {
-      // Close menu
-      sidebar.classList.remove('translate-x-0');
-      sidebar.classList.add('-translate-x-full');
-      sidebarBackdrop.classList.add('hidden');
-      menuButton.setAttribute('aria-expanded', 'false');
+      sidebar.classList.remove('translate-x-0'); sidebar.classList.add('-translate-x-full');
+      sidebarBackdrop.classList.add('hidden'); menuButton.setAttribute('aria-expanded', 'false');
     } else {
-      // Open menu
-      sidebar.classList.remove('-translate-x-full');
-      sidebar.classList.add('translate-x-0');
-      sidebarBackdrop.classList.remove('hidden');
-      menuButton.setAttribute('aria-expanded', 'true');
+      sidebar.classList.remove('-translate-x-full'); sidebar.classList.add('translate-x-0');
+      sidebarBackdrop.classList.remove('hidden'); menuButton.setAttribute('aria-expanded', 'true');
     }
   }
-
   function closeMobileMenu() {
-    sidebar.classList.remove('translate-x-0');
-    sidebar.classList.add('-translate-x-full');
-    sidebarBackdrop.classList.add('hidden');
-    menuButton.setAttribute('aria-expanded', 'false');
+    sidebar.classList.remove('translate-x-0'); sidebar.classList.add('-translate-x-full');
+    sidebarBackdrop.classList.add('hidden'); menuButton.setAttribute('aria-expanded', 'false');
   }
-
-  // Event listeners for mobile menu
-  if (menuButton) {
-    menuButton.addEventListener('click', toggleMobileMenu);
-  }
-
-  if (sidebarBackdrop) {
-    sidebarBackdrop.addEventListener('click', closeMobileMenu);
-  }
-
-  // Close menu when clicking on nav links (mobile)
+  if (menuButton) menuButton.addEventListener('click', toggleMobileMenu);
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeMobileMenu);
   const navLinks = sidebar.querySelectorAll('a');
-  navLinks.forEach(link => {
-    link.addEventListener('click', () => {
-      if (window.innerWidth < 768) {
-        closeMobileMenu();
-      }
-    });
-  });
+  navLinks.forEach(l => l.addEventListener('click', () => { if (window.innerWidth < 768) closeMobileMenu(); }));
+  window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
 
-  // Handle window resize
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 768) {
-      closeMobileMenu();
-    }
-  });
-  
-  // Filter and state
-  let activeFilter = 'all';
-  let selectedMessageId = null;
+  // ---- State ----
+  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent'
+  let selectedThread = null;       // thread object - currently open thread
   let searchQuery = '';
-  
-  // Storage keys
-  const MESSAGES_KEY = 'inbox.messages';
-  const READ_IDS_KEY = 'inbox.readIds';
-  const STARRED_IDS_KEY = 'inbox.starredIds';
-  
-  // Sample messages data
-  const sampleMessages = [
-    {
-      id: 'm1',
-      from: 'Nalij',
-      fromAvatar: 'hippo-exchange-logo.png',
-      subject: 'Interested in your textbook listing',
-      body: `Hi there! I saw your listing for the Calculus textbook and I'm very interested. Is it still available? I'm willing to pay the full asking price if it's in good condition. Let me know when we can arrange a pickup time. Thanks!`,
-      timestamp: Date.now() - 2 * 60 * 1000, // 2 minutes ago
-      type: 'offer',
-      listingId: 'listing123'
-    },
-    {
-      id: 'm2',
-      from: 'Jane',
-      fromAvatar: 'hippo-exchange-logo.png',
-      subject: 'Re: Coffee table pickup',
-      body: `Perfect! I can meet you at the campus center tomorrow at 2 PM. I'll bring exact change. See you then!`,
-      timestamp: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
-      type: 'arrangement',
-      listingId: 'listing456'
-    },
-    {
-      id: 'm3',
-      from: 'System',
-      fromAvatar: 'hippo-exchange-logo.png',
-      subject: 'Your listing has expired',
-      body: `Your listing "Vintage Guitar" has expired after 30 days. You can renew it from your profile page or create a new listing with updated details.`,
-      timestamp: Date.now() - 3 * 60 * 60 * 1000, // 3 hours ago
-      type: 'system',
-      listingId: null
-    },
-    {
-      id: 'm4',
-      from: 'Mike',
-      fromAvatar: 'hippo-exchange-logo.png',
-      subject: 'Question about bike condition',
-      body: `Hey! I'm interested in the mountain bike you posted. Could you tell me more about its condition? Any scratches or mechanical issues? Also, would you be willing to negotiate on the price? Let me know!`,
-      timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000, // 1 day ago
-      type: 'inquiry',
-      listingId: 'listing789'
-    },
-    {
-      id: 'm5',
-      from: 'Sarah',
-      fromAvatar: 'hippo-exchange-logo.png',
-      subject: 'Thanks for the quick sale!',
-      body: `Just wanted to say thanks for the smooth transaction. The desk is perfect for my dorm room. Great doing business with you!`,
-      timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000, // 2 days ago
-      type: 'feedback',
-      listingId: 'listing321'
+  let threads = [];                // loaded from backend
+  let messagesCache = new Map();   // threadId -> messages[] - avoid reloading if already fetched
+  let userNamesCache = new Map();  // userId -> user name - cache user names
+
+  // ---- Utils ----
+  function fmtDate(val) {
+    const d = new Date(val);
+    return d.toLocaleString();
+  }
+  function escapeHtml(s = '') {
+    return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+
+  // compares thread last read time for current user to updatedUtc
+  function isUnread(t) {
+    const last = (t.lastReadBy || {})[me.id];
+    return !last || new Date(t.updatedUtc) > new Date(last);
+  }
+
+  //checkes thread starredBy array for current user id
+  function isStarred(t) {
+    return (t.starredBy || []).includes(me.id);
+  }
+
+  // checks if thread has messages sent by current user
+  async function hasSentMessages(t) {
+    const msgs = await loadMessages(t.id);
+    return msgs.some(m => m.senderId === me.id);
+  }
+
+  // fetch user name by ID
+  async function getUserName(userId) {
+    if (userNamesCache.has(userId)) {
+      return userNamesCache.get(userId);
     }
-  ];
-  
-  // Load data from localStorage or use sample data
-  function loadMessages() {
+    
     try {
-      const stored = localStorage.getItem(MESSAGES_KEY);
-      return stored ? JSON.parse(stored) : sampleMessages;
-    } catch {
-      return sampleMessages;
+      // Get user info from the users endpoint
+      const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
+      
+      if (response.ok) {
+        const user = await response.json();
+        const name = user.name || `${user.firstName} ${user.lastName}`.trim() || user.email || 'User';
+        userNamesCache.set(userId, name);
+        return name;
+      }
+    } catch (error) {
+      console.log('Could not fetch user name:', error);
+    }
+    
+    // Fallback to showing user ID
+    const fallbackName = `User ${userId.substring(0, 8)}...`;
+    userNamesCache.set(userId, fallbackName);
+    return fallbackName;
+  }
+
+  // returns a title for the thread (subject or recipient name)
+  async function threadTitle(t) {
+    if (t.subject) return t.subject;
+    
+    // Get the other participant's name (not the current user)
+    const otherParticipantId = t.Participants?.find(p => p !== me.id);
+    if (otherParticipantId) {
+      return await getUserName(otherParticipantId);
+    }
+    
+    return 'Conversation';
+  }
+
+  // ---- Backend calls ----
+
+  async function loadThreads() {
+    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    threads = data.map(x => ({ id: x.id || x.Id, ...x }));
+    await renderThreads();
+  }
+
+  async function loadMessages(threadId) {
+    if (messagesCache.has(threadId)) return messagesCache.get(threadId);
+    const msgs = await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`);
+    messagesCache.set(threadId, msgs);
+    return msgs;
+  }
+
+  async function markThreadRead(threadId) {
+    await api(`/messages/threads/${encodeURIComponent(threadId)}/read`, {
+      method: 'POST',
+      body: { userId: me.id }
+    });
+    const t = threads.find(x => (x.id || x.Id) === threadId);
+    if (t) {
+      (t.lastReadBy ||= {})[me.id] = new Date().toISOString();
+      await renderThreads();
     }
   }
-  
-  function saveMessages(messages) {
-    try {
-      localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
-    } catch (e) {
-      console.warn('Failed to save messages:', e);
-    }
-  }
-  
-  function loadReadIds() {
-    try {
-      const stored = localStorage.getItem(READ_IDS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  }
-  
-  function saveReadIds(ids) {
-    try {
-      localStorage.setItem(READ_IDS_KEY, JSON.stringify(ids));
-    } catch (e) {
-      console.warn('Failed to save read IDs:', e);
-    }
-  }
-  
-  function loadStarredIds() {
-    try {
-      const stored = localStorage.getItem(STARRED_IDS_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  }
-  
-  function saveStarredIds(ids) {
-    try {
-      localStorage.setItem(STARRED_IDS_KEY, JSON.stringify(ids));
-    } catch (e) {
-      console.warn('Failed to save starred IDs:', e);
-    }
-  }
-  
-  // Utility functions
-  function isRead(messageId) {
-    return loadReadIds().includes(messageId);
-  }
-  
-  function isStarred(messageId) {
-    return loadStarredIds().includes(messageId);
-  }
-  
-  function markAsRead(messageId) {
-    const readIds = loadReadIds();
-    if (!readIds.includes(messageId)) {
-      readIds.push(messageId);
-      saveReadIds(readIds);
-    }
-  }
-  
-  function toggleStar(messageId) {
-    const starredIds = loadStarredIds();
-    const index = starredIds.indexOf(messageId);
-    if (index >= 0) {
-      starredIds.splice(index, 1);
+
+  async function toggleStar(thread, wantStar) {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/star`, {
+      method: 'POST',
+      body: { userId: me.id, starred: wantStar }
+    });
+    if (!thread.starredBy) thread.starredBy = [];
+    if (wantStar) {
+      if (!thread.starredBy.includes(me.id)) thread.starredBy.push(me.id);
     } else {
-      starredIds.push(messageId);
+      thread.starredBy = thread.starredBy.filter(x => x !== me.id);
     }
-    saveStarredIds(starredIds);
-    return starredIds.includes(messageId);
+    await renderThreads();
   }
-  
-  function formatTime(timestamp) {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const minutes = Math.floor(diff / (1000 * 60));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
-    if (minutes < 60) return `${minutes}m`;
-    if (hours < 24) return `${hours}h`;
-    return `${days}d`;
+
+  async function sendReply(thread, text) {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/messages`, {
+      method: 'POST',
+      body: { senderId: me.id, body: text }
+    });
+    messagesCache.delete(thread.id); // ensure next load is fresh
+    await openThread(thread);        // refresh view
+    await loadThreads();             // refresh list (preview/time)
   }
-  
-  function formatFullTime(timestamp) {
-    return new Date(timestamp).toLocaleString();
+
+  async function composeNew(toEmail, subject, body) {
+    // resolve recipient by email -> userId
+    const to = await api(`/users/by-email?email=${encodeURIComponent(toEmail)}`);
+    const partIds = [me.id, to.id];
+
+    // find or create thread
+    const thread = await api('/messages/threads', {
+      method: 'POST',
+      body: { participantIds: partIds, subject }
+    });
+
+    const threadId = thread.id || thread.Id;
+    await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`, {
+      method: 'POST',
+      body: { senderId: me.id, body }
+    });
+
+    messagesCache.delete(threadId);
+    await loadThreads();
+    const t = threads.find(x => (x.id || x.Id) === threadId) || { id: threadId, ...thread };
+    await openThread(t);
   }
-  
-  // Filter messages
-  function filterMessages(messages) {
-    let filtered = messages;
-    
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(msg => 
-        msg.from.toLowerCase().includes(query) ||
-        msg.subject.toLowerCase().includes(query) ||
-        msg.body.toLowerCase().includes(query)
-      );
+
+  // ---- Rendering ----
+  async function filterThreadsLocal(list) {
+    let arr = [...list];
+    // Filter type
+    if (activeFilter === 'unread') arr = arr.filter(isUnread);
+    else if (activeFilter === 'starred') arr = arr.filter(isStarred);
+    else if (activeFilter === 'sent') {
+      // For sent filter, we need to check each thread for sent messages
+      const sentThreads = [];
+      for (const t of arr) {
+        if (await hasSentMessages(t)) {
+          sentThreads.push(t);
+        }
+      }
+      arr = sentThreads;
     }
-    
-    // Apply category filter
-    if (activeFilter === 'unread') {
-      filtered = filtered.filter(msg => !isRead(msg.id));
-    } else if (activeFilter === 'starred') {
-      filtered = filtered.filter(msg => isStarred(msg.id));
+
+    // Search
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter(t => {
+        const hay = [t.subject || '', t.lastMessagePreview || ''].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
     }
-    
-    return filtered;
+    // sort by updated desc
+    arr.sort((a, b) => new Date(b.updatedUtc) - new Date(a.updatedUtc));
+    return arr;
   }
-  
-  // Render messages list
-  function renderMessagesList() {
-    const messages = loadMessages();
-    const filteredMessages = filterMessages(messages);
-    
+
+  //Builds the message list on the left side of the inbox
+  async function renderThreads() {
     messagesList.innerHTML = '';
-    
-    if (filteredMessages.length === 0) {
+    const list = await filterThreadsLocal(threads);
+
+    if (list.length === 0) {
       messagesEmpty.classList.remove('hidden');
       return;
     }
-    
     messagesEmpty.classList.add('hidden');
-    
-    // Sort messages by timestamp (newest first)
-    filteredMessages.sort((a, b) => b.timestamp - a.timestamp);
-    
-    filteredMessages.forEach(message => {
-      const messageItem = createMessageListItem(message);
-      messagesList.appendChild(messageItem);
-    });
-  }
-  
-  // Create message list item
-  function createMessageListItem(message) {
-    const li = document.createElement('li');
-    const isUnread = !isRead(message.id);
-    const starred = isStarred(message.id);
-    const isSelected = selectedMessageId === message.id;
-    
-    li.className = `message-item cursor-pointer hover:bg-slate-50 transition-colors ${
-      isSelected ? 'bg-blue-50 border-r-4 border-blue-500' : ''
-    }`;
-    li.dataset.messageId = message.id;
-    
-    li.innerHTML = `
-      <div class="p-4 ${isUnread ? 'bg-blue-50/50' : ''}">
-        <div class="flex items-start gap-3">
-          <img src="${message.fromAvatar}" alt="${message.from}" class="w-10 h-10 rounded-full ring-2 ring-white/40 flex-shrink-0">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center justify-between mb-1">
-              <p class="font-semibold text-slate-800 truncate ${isUnread ? 'text-slate-900' : ''}">${message.from}</p>
-              <div class="flex items-center gap-2 flex-shrink-0">
-                ${starred ? '<svg class="w-4 h-4 text-yellow-500 fill-current" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>' : ''}
-                <span class="text-xs text-slate-500">${formatTime(message.timestamp)}</span>
-                ${isUnread ? '<span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}
+
+    for (const t of list) {
+      const li = document.createElement('li');
+      const unread = isUnread(t);
+      const starred = isStarred(t);
+      const title = await threadTitle(t);
+
+      li.className = 'message-item cursor-pointer hover:bg-slate-50 transition-colors';
+      li.dataset.threadId = t.id;
+
+      li.innerHTML = `
+        <div class="p-4 ${unread ? 'bg-blue-50/50' : ''}">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-[#2563eb]">💬</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-1">
+                <p class="font-semibold text-slate-800 truncate ${unread ? 'text-slate-900' : ''}">
+                  ${escapeHtml(title)}
+                </p>
+                <div class="flex items-center gap-2">
+                  ${starred ? '<svg class="w-4 h-4 text-yellow-500 fill-current" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>' : ''}
+                  <span class="text-xs text-slate-500">${fmtDate(t.updatedUtc)}</span>
+                  ${unread ? '<span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}
+                </div>
               </div>
+              <p class="text-sm font-medium text-slate-700 truncate mb-1 ${unread ? 'font-semibold' : ''}">
+                ${escapeHtml(t.subject || '(no subject)')}
+              </p>
+              <p class="text-sm text-slate-600 line-clamp-2">
+                ${escapeHtml(t.lastMessagePreview || '')}
+              </p>
             </div>
-            <p class="text-sm font-medium text-slate-700 truncate mb-1 ${isUnread ? 'font-semibold' : ''}">${message.subject}</p>
-            <p class="text-sm text-slate-600 line-clamp-2">${message.body.substring(0, 100)}${message.body.length > 100 ? '...' : ''}</p>
           </div>
         </div>
-      </div>
-    `;
-    
-    li.addEventListener('click', () => selectMessage(message.id));
-    
-    return li;
-  }
-  
-  // Select and display a message
-  function selectMessage(messageId) {
-    selectedMessageId = messageId;
-    markAsRead(messageId);
-    
-    const messages = loadMessages();
-    const message = messages.find(m => m.id === messageId);
-    
-    if (!message) return;
-    
-    // Update UI selection
-    document.querySelectorAll('.message-item').forEach(item => {
-      item.classList.remove('bg-blue-50', 'border-r-4', 'border-blue-500');
-    });
-    
-    const selectedItem = document.querySelector(`[data-message-id="${messageId}"]`);
-    if (selectedItem) {
-      selectedItem.classList.add('bg-blue-50', 'border-r-4', 'border-blue-500');
+      `;
+      li.addEventListener('click', () => openThread(t));
+      messagesList.appendChild(li);
     }
-    
-    // Show message content
-    displayMessage(message);
-    
-    // Re-render list to update read status
-    renderMessagesList();
   }
-  
-  // Display message content
-  function displayMessage(message) {
-    // Update header
-    document.getElementById('sender-avatar').src = message.fromAvatar;
-    document.getElementById('sender-name').textContent = message.from;
-    document.getElementById('message-subject').textContent = message.subject;
-    
-    // Update star button
-    const starButton = document.getElementById('star-message');
-    const starSvg = starButton.querySelector('svg');
-    if (isStarred(message.id)) {
-      starSvg.classList.add('fill-current', 'text-yellow-500');
-      starSvg.classList.remove('text-slate-400');
-    } else {
-      starSvg.classList.remove('fill-current', 'text-yellow-500');
-      starSvg.classList.add('text-slate-400');
-    }
-    
-    // Update content
-    document.getElementById('message-body').innerHTML = `<p class="text-slate-700 leading-relaxed">${message.body.replace(/\n/g, '<br>')}</p>`;
-    document.getElementById('message-meta').innerHTML = `
-      <div class="flex items-center justify-between">
-        <span>Sent ${formatFullTime(message.timestamp)}</span>
-        ${message.listingId ? `<a href="./listing.html?id=${message.listingId}" class="text-blue-600 hover:underline text-sm">View related listing</a>` : ''}
-      </div>
-    `;
-    
-    // Show message sections
+
+  async function openThread(t) {
+    selectedThread = t;
+    // header + sections
     messageHeader.classList.remove('hidden');
     messageContent.classList.remove('hidden');
     replySection.classList.remove('hidden');
     noMessageSelected.style.display = 'none';
+
+    // header info
+    senderAvatarEl.src = 'hippo-exchange-logo.png';
+    const title = await threadTitle(t);
+    senderNameEl.textContent = title;
+    messageSubjectEl.textContent = t.subject || '';
+
+    // messages
+    const msgs = await loadMessages(t.id);
+    messageBodyEl.innerHTML = msgs.map(m => {
+      const mine = m.senderId === me.id;
+      return `
+        <div class="mb-3 ${mine ? 'text-right' : 'text-left'}">
+          <div class="inline-block rounded-xl px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}">
+            ${escapeHtml(m.body)}
+          </div>
+          <div class="text-[11px] text-slate-500 mt-1">${fmtDate(m.sentUtc)}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Show participant names instead of IDs
+    const participantNames = await Promise.all(
+      (t.participants || []).map(async (participantId) => {
+        if (participantId === me.id) {
+          return 'You';
+        }
+        return await getUserName(participantId);
+      })
+    );
+    messageMetaEl.textContent = `Participants: ${participantNames.join(', ')}`;
+
+    // mark read
+    try { await markThreadRead(t.id); } catch { }
   }
-  
-  // Hide message content
+
   function hideMessage() {
-    selectedMessageId = null;
+    selectedThread = null;
     messageHeader.classList.add('hidden');
     messageContent.classList.add('hidden');
     replySection.classList.add('hidden');
     noMessageSelected.style.display = 'flex';
-    
-    // Clear selection in list
-    document.querySelectorAll('.message-item').forEach(item => {
-      item.classList.remove('bg-blue-50', 'border-r-4', 'border-blue-500');
+    document.querySelectorAll('.message-item').forEach(it => {
+      it.classList.remove('bg-blue-50', 'border-r-4', 'border-blue-500');
     });
   }
-  
-  // Event Listeners
-  
-  // Filter buttons
+
+  // ---- Events ----
   filterButtons.forEach(button => {
-    button.addEventListener('click', () => {
-      activeFilter = button.dataset.filter;
-      
+    button.addEventListener('click', async () => {
+      activeFilter = button.dataset.filter || 'all';
       // Update button styles
       filterButtons.forEach(btn => {
         btn.classList.remove('bg-slate-900/80', 'text-white');
@@ -401,146 +446,90 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       button.classList.remove('bg-white/40', 'text-slate-900');
       button.classList.add('bg-slate-900/80', 'text-white');
-      
-      renderMessagesList();
+      await renderThreads();
     });
   });
-  
-  // Search functionality
-  searchMessages.addEventListener('input', (e) => {
-    searchQuery = e.target.value;
-    renderMessagesList();
+
+  searchMessages.addEventListener('input', async (e) => {
+    searchQuery = e.target.value || '';
+    await renderThreads();
   });
-  
-  // Mark all as read
-  document.getElementById('mark-all-read').addEventListener('click', () => {
-    const messages = loadMessages();
-    const allIds = messages.map(m => m.id);
-    saveReadIds(allIds);
-    renderMessagesList();
-    if (selectedMessageId) {
-      const message = messages.find(m => m.id === selectedMessageId);
-      if (message) displayMessage(message);
+
+  markAllBtn.addEventListener('click', async () => {
+    await Promise.all(threads.map(t =>
+      api(`/messages/threads/${encodeURIComponent(t.id)}/read`, {
+        method: 'POST',
+        body: { userId: me.id }
+      }).catch(() => null)
+    ));
+    await loadThreads();
+    if (selectedThread) {
+      try { await openThread(selectedThread); } catch { }
     }
   });
-  
-  // Star message
-  document.getElementById('star-message').addEventListener('click', () => {
-    if (!selectedMessageId) return;
-    
-    const isNowStarred = toggleStar(selectedMessageId);
-    const starSvg = document.getElementById('star-message').querySelector('svg');
-    
-    if (isNowStarred) {
-      starSvg.classList.add('fill-current', 'text-yellow-500');
-      starSvg.classList.remove('text-slate-400');
-    } else {
-      starSvg.classList.remove('fill-current', 'text-yellow-500');
-      starSvg.classList.add('text-slate-400');
-    }
-    
-    renderMessagesList();
+
+  starBtn.addEventListener('click', async () => {
+    if (!selectedThread) return;
+    const starred = isStarred(selectedThread);
+    await toggleStar(selectedThread, !starred);
   });
-  
-  // Delete message
-  document.getElementById('delete-message').addEventListener('click', () => {
-    if (!selectedMessageId) return;
-    
-    if (confirm('Are you sure you want to delete this message?')) {
-      const messages = loadMessages();
-      const updatedMessages = messages.filter(m => m.id !== selectedMessageId);
-      saveMessages(updatedMessages);
-      
-      // Remove from read/starred lists
-      const readIds = loadReadIds().filter(id => id !== selectedMessageId);
-      const starredIds = loadStarredIds().filter(id => id !== selectedMessageId);
-      saveReadIds(readIds);
-      saveStarredIds(starredIds);
-      
-      hideMessage();
-      renderMessagesList();
+
+  deleteBtn.addEventListener('click', () => {
+    alert('Delete conversation is not implemented yet.');
+  });
+
+  sendReplyBtn.addEventListener('click', async () => {
+    const text = (replyTextEl.value || '').trim();
+    if (!text || !selectedThread) return;
+    try {
+      await sendReply(selectedThread, text);
+      replyTextEl.value = '';
+    } catch (e) {
+      alert(e.message || 'Failed to send reply.');
     }
   });
-  
-  // Reply functionality
-  document.getElementById('send-reply').addEventListener('click', () => {
-    const replyText = document.getElementById('reply-text').value.trim();
-    if (!replyText || !selectedMessageId) return;
-    
-    // In a real app, this would send the reply to the server
-    alert(`Reply sent: "${replyText}"`);
-    document.getElementById('reply-text').value = '';
-  });
-  
+
   // Compose modal
-  document.getElementById('compose-btn').addEventListener('click', () => {
-    composeModal.classList.remove('hidden');
-    composeModal.classList.add('flex');
-  });
-  
-  document.getElementById('close-compose').addEventListener('click', () => {
-    composeModal.classList.add('hidden');
-    composeModal.classList.remove('flex');
-  });
-  
-  document.getElementById('cancel-compose').addEventListener('click', () => {
-    composeModal.classList.add('hidden');
-    composeModal.classList.remove('flex');
-  });
-  
-  document.getElementById('send-compose').addEventListener('click', () => {
-    const to = document.getElementById('compose-to').value.trim();
-    const subject = document.getElementById('compose-subject').value.trim();
-    const body = document.getElementById('compose-message').value.trim();
-    
-    if (!to || !subject || !body) {
-      alert('Please fill in all fields.');
+  function openCompose() { composeModal.classList.remove('hidden'); composeModal.classList.add('flex'); composeToEl.focus(); }
+  function closeCompose() { composeModal.classList.add('hidden'); composeModal.classList.remove('flex'); composeToEl.value = ''; composeSubjectEl.value = ''; composeMessageEl.value = ''; }
+
+  composeBtn.addEventListener('click', openCompose);
+  closeComposeBtn.addEventListener('click', closeCompose);
+  cancelComposeBtn.addEventListener('click', closeCompose);
+
+  sendComposeBtn.addEventListener('click', async () => {
+    const to = (composeToEl.value || '').trim().toLowerCase();
+    const subject = (composeSubjectEl.value || '').trim();
+    const body = (composeMessageEl.value || '').trim();
+    if (!to || !body) {
+      alert('Please enter recipient email and a message body.');
       return;
     }
-    
-    // In a real app, this would send the message to the server
-    alert(`Message sent to ${to}!`);
-    
-    // Clear form and close modal
-    document.getElementById('compose-to').value = '';
-    document.getElementById('compose-subject').value = '';
-    document.getElementById('compose-message').value = '';
-    composeModal.classList.add('hidden');
-    composeModal.classList.remove('flex');
-  });
-  
-  // Handle message from notification (URL parameter)
-  const urlParams = new URLSearchParams(window.location.search);
-  const messageId = urlParams.get('messageId');
-  const notificationId = urlParams.get('from');
-  
-  if (messageId || notificationId) {
-    // If coming from notification, select the specific message
-    if (messageId) {
-      setTimeout(() => selectMessage(messageId), 100);
-    } else if (notificationId) {
-      // Create a new message based on notification data
-      const messages = loadMessages();
-      const newMessage = {
-        id: `msg_${Date.now()}`,
-        from: notificationId,
-        fromAvatar: 'hippo-exchange-logo.png',
-        subject: decodeURIComponent(urlParams.get('subject') || 'New Message'),
-        body: decodeURIComponent(urlParams.get('message') || 'You have a new message.'),
-        timestamp: Date.now(),
-        type: 'message',
-        listingId: urlParams.get('listingId')
-      };
-      
-      messages.unshift(newMessage);
-      saveMessages(messages);
-      setTimeout(() => {
-        renderMessagesList();
-        selectMessage(newMessage.id);
-      }, 100);
+    try {
+      await composeNew(to, subject, body);
+      closeCompose();
+    } catch (e) {
+      alert(e.message || 'Failed to send message.');
     }
+  });
+
+  // If linked from a notification with ?email=... you can pre-open a compose
+  const url = new URL(location.href);
+  const preEmail = url.searchParams.get('email');
+  if (preEmail) {
+    openCompose();
+    composeToEl.value = preEmail;
   }
-  
-  // Initial render
-  renderMessagesList();
+
+  // ---- Sign out functionality ----
+  const signOutLink = document.querySelector('a[href="./Login.html"]');
+  if (signOutLink) {
+    signOutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      signOut();
+    });
+  }
+
+  // ---- Initial load ----
+  loadThreads().catch(err => console.error(err));
 });

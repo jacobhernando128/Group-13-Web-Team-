@@ -1,5 +1,8 @@
 // home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Home page loaded, starting authentication check...');
+  // Check authentication and load user data
+  checkAuthAndLoadUser();
   const grid = document.getElementById('listings-grid');
   const tpl = document.getElementById('item-card-template');
   const filterCount = document.getElementById('filter-count');
@@ -64,10 +67,27 @@ document.addEventListener('DOMContentLoaded', () => {
   function performSearch(query) {
     currentSearchQuery = query.trim();
 
+    // Reset pagination when searching
+    paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+    
     let filteredItems = allListings;
 
     if (currentCategory !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === currentCategory);
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          return item.categories.some(cat => 
+            cat.toLowerCase() === currentCategory.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === currentCategory.toLowerCase()
+          );
+        }
+        // Fallback to old category field if it exists
+        if (item.category) {
+          return item.category.toLowerCase() === currentCategory.toLowerCase() ||
+                 mapCategoryName(item.category).toLowerCase() === currentCategory.toLowerCase();
+        }
+        return false;
+      });
     }
 
     if (currentSearchQuery) {
@@ -75,12 +95,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
+        const location = (item.location || item.locationLabel || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
 
         return title.includes(searchTerm) ||
           description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
+          categoryMatch ||
           location.includes(searchTerm);
       });
     }
@@ -116,6 +145,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentCategory = 'all';
   let allListings = [];
+  let paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+  let isLoadingMore = false;
+
+  // Map backend category names to frontend category buttons
+  function mapCategoryName(backendCategory) {
+    const categoryMap = {
+      'Electronics': 'electronics',
+      'Furniture': 'furniture', 
+      'Clothing': 'clothing',
+      'Vehicles': 'vehicles',
+      'Sports & Recreation': 'sports',
+      'Books & Media': 'books',
+      'Home & Garden': 'home',
+      'Other': 'other',
+      'Entertainment': 'electronics', // Map to electronics
+      'Food': 'other' // Map to other
+    };
+    return categoryMap[backendCategory] || 'other';
+  }
 
   const formatPrice = (val) =>
     (val === null || val === undefined || val === '')
@@ -127,16 +175,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }).format(Number(val));
 
   const pickHomeFields = (item) => {
-    const hero = item.imageUrl || (Array.isArray(item.images) && item.images[0]) || PLACEHOLDER_IMG;
+    // Handle both backend API format and fallback JSON format
+    const hero = item.imageUrl || 
+                 (Array.isArray(item.images) && item.images[0]) || 
+                 (Array.isArray(item.pictures) && item.pictures[0]) || 
+                 PLACEHOLDER_IMG;
+    
+    // Use dollarCost from backend, fallback to price from JSON
+    const price = item.dollarCost ?? item.price ?? '';
+    
+    // Use location from backend, fallback to locationLabel from JSON
+    const locationLabel = item.location ?? item.locationLabel ?? (item.ships ? 'Ships to you' : '');
+    
     return {
       id: item.id ?? '',
       slug: item.slug ?? '',
       title: item.title ?? 'Untitled listing',
-      price: item.price ?? '',
-      locationLabel: item.locationLabel ?? (item.ships ? 'Ships to you' : ''),
+      price: price,
+      locationLabel: locationLabel,
       imageUrl: hero,
       isNew: !!item.isNew,
-      ships: !!item.ships
+      ships: !!item.ships,
+      // Include backend fields for compatibility
+      categories: item.categories || (item.category ? [item.category] : []),
+      category: item.category || (item.categories && item.categories[0]) || 'other',
+      description: item.description || '',
+      condition: item.condition || ''
     };
   };
 
@@ -184,7 +248,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(items) {
-    grid.replaceChildren();
+    // Clear all item cards but preserve load more button
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const children = Array.from(grid.children);
+    
+    // Remove all children except load more button
+    children.forEach(child => {
+      if (child.id !== 'load-more-btn') {
+        child.remove();
+      }
+    });
+    
+    // Add all items
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
     updateFilterCount(items.length);
   }
@@ -198,13 +273,79 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateLoadMoreButton() {
+    let loadMoreBtn = document.getElementById('load-more-btn');
+    
+    if (!loadMoreBtn && paginationInfo.hasMore) {
+      // Create load more button if it doesn't exist and there are more items
+      loadMoreBtn = document.createElement('button');
+      loadMoreBtn.id = 'load-more-btn';
+      loadMoreBtn.className = 'col-span-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 mt-6';
+      loadMoreBtn.textContent = 'Load More Items';
+      loadMoreBtn.addEventListener('click', loadMore);
+      grid.appendChild(loadMoreBtn);
+    } else if (loadMoreBtn && !paginationInfo.hasMore) {
+      // Remove button if no more items
+      loadMoreBtn.remove();
+    } else if (loadMoreBtn) {
+      // Update button text with count info
+      const remaining = paginationInfo.totalCount - allListings.length;
+      loadMoreBtn.textContent = `Load More Items (${remaining} remaining)`;
+    }
+  }
+
+  async function loadMore() {
+    if (isLoadingMore) return;
+    
+    isLoadingMore = true;
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    if (loadMoreBtn) {
+      loadMoreBtn.textContent = 'Loading...';
+      loadMoreBtn.disabled = true;
+    }
+
+    // Update offset for next page
+    paginationInfo.offset = allListings.length;
+    
+    try {
+      await load(true);
+    } finally {
+      isLoadingMore = false;
+      if (loadMoreBtn) {
+        loadMoreBtn.disabled = false;
+      }
+    }
+  }
+
   function filterByCategory(category) {
     currentCategory = category;
+    console.log(`Filtering by category: ${category}`);
 
+    // Reset pagination when filtering
+    paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+    
     let filteredItems = allListings;
 
     if (category !== 'all') {
-      filteredItems = filteredItems.filter(item => item.category === category);
+      filteredItems = filteredItems.filter(item => {
+        // Check if item has categories array and if it contains the selected category
+        if (item.categories && Array.isArray(item.categories)) {
+          const matches = item.categories.some(cat => 
+            cat.toLowerCase() === category.toLowerCase() ||
+            mapCategoryName(cat).toLowerCase() === category.toLowerCase()
+          );
+          if (matches) {
+            console.log(`Item "${item.title}" matches category ${category}`, item.categories);
+          }
+          return matches;
+        }
+        // Fallback to old category field if it exists
+        if (item.category) {
+          return item.category.toLowerCase() === category.toLowerCase() ||
+                 mapCategoryName(item.category).toLowerCase() === category.toLowerCase();
+        }
+        return false;
+      });
     }
 
     if (currentSearchQuery) {
@@ -212,12 +353,21 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredItems = filteredItems.filter(item => {
         const title = (item.title || '').toLowerCase();
         const description = (item.description || '').toLowerCase();
-        const category = (item.category || '').toLowerCase();
-        const location = (item.location || '').toLowerCase();
+        const location = (item.location || item.locationLabel || '').toLowerCase();
+
+        // Check categories array for search term
+        let categoryMatch = false;
+        if (item.categories && Array.isArray(item.categories)) {
+          categoryMatch = item.categories.some(cat => 
+            cat.toLowerCase().includes(searchTerm)
+          );
+        } else if (item.category) {
+          categoryMatch = item.category.toLowerCase().includes(searchTerm);
+        }
 
         return title.includes(searchTerm) ||
           description.includes(searchTerm) ||
-          category.includes(searchTerm) ||
+          categoryMatch ||
           location.includes(searchTerm);
       });
     }
@@ -240,11 +390,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function load() {
+  async function load(loadMore = false) {
     try {
-      grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+      if (!loadMore) {
+        grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        allListings = [];
+        paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+      }
 
-      const res = await fetch('/items', {
+      const url = `/items?limit=${paginationInfo.limit}&offset=${paginationInfo.offset}`;
+      const res = await fetch(url, {
         headers: { 'Accept': 'application/json' }
       });
 
@@ -253,10 +408,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
-      allListings = Array.isArray(data) ? data : [];
+      
+      // Handle new pagination response format
+      if (data.items && Array.isArray(data.items)) {
+        if (loadMore) {
+          allListings = [...allListings, ...data.items];
+        } else {
+          allListings = data.items;
+        }
+        paginationInfo = {
+          totalCount: data.totalCount || 0,
+          limit: data.limit || 100,
+          offset: data.offset || 0,
+          hasMore: data.hasMore || false
+        };
+      } else {
+        // Fallback for old format
+        allListings = Array.isArray(data) ? data : [];
+        paginationInfo.hasMore = false;
+      }
 
-      console.log(`Loaded ${allListings.length} listings from backend`);
+      console.log(`Loaded ${allListings.length} listings from backend (${paginationInfo.totalCount} total)`);
       render(allListings);
+      updateLoadMoreButton();
 
     } catch (err) {
       console.error('Failed to load listings from API:', err);
@@ -268,6 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
           allListings = Array.isArray(data) ? data : (data.items || []);
           console.log('Using fallback listings.json');
           render(allListings);
+          updateLoadMoreButton();
           return;
         }
       } catch (fallbackErr) {
@@ -286,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         available: true
       }];
       render(allListings);
+      updateLoadMoreButton();
 
       grid.innerHTML += '<div class="col-span-full text-center text-red-600 text-sm mt-4 glass p-4 rounded-lg">Could not load listings from server. Showing sample data. Check browser console for details.</div>';
     }
@@ -301,6 +477,98 @@ document.addEventListener('DOMContentLoaded', () => {
   load();
 });
 
+// Authentication and user data functions
+async function checkAuthAndLoadUser() {
+  console.log('Checking authentication...');
+  const token = localStorage.getItem('hippo_token');
+  const userData = localStorage.getItem('hippo_user');
+  
+  console.log('Token exists:', !!token);
+  console.log('User data exists:', !!userData);
+  
+  if (!token || !userData) {
+    console.log('No token or user data, redirecting to login');
+    // No token or user data, redirect to login
+    window.location.href = './Login.html';
+    return;
+  }
+  
+  // First, try to display user info from localStorage as a fallback
+  try {
+    const storedUser = JSON.parse(userData);
+    console.log('Stored user data:', storedUser);
+    displayUserInfo(storedUser);
+  } catch (error) {
+    console.error('Error parsing stored user data:', error);
+  }
+  
+  try {
+    console.log('Verifying token with /auth/me...');
+    // Verify token is still valid by calling /auth/me
+    const response = await fetch('/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Auth response status:', response.status);
+    
+    if (!response.ok) {
+      console.log('Token invalid, but keeping stored user data for now');
+      // Don't redirect immediately, keep the stored user data
+      return;
+    }
+    
+    const currentUser = await response.json();
+    console.log('Current user from /auth/me:', currentUser);
+    displayUserInfo(currentUser);
+    
+  } catch (error) {
+    console.error('Auth check failed:', error);
+    // Don't redirect on network errors, keep the stored user data
+    console.log('Network error, keeping stored user data');
+  }
+}
+
+function displayUserInfo(user) {
+  console.log('Displaying user info:', user); // Debug log
+  
+  // Update the account name display
+  const accountNameElement = document.getElementById('acct-name');
+  if (accountNameElement) {
+    // Check for both uppercase and lowercase property names
+    const firstName = user.FirstName || user.firstName;
+    const lastName = user.LastName || user.lastName;
+    const email = user.Email || user.email;
+    
+    if (firstName && lastName) {
+      accountNameElement.textContent = `${firstName} ${lastName}`;
+      console.log('Set name to:', `${firstName} ${lastName}`);
+    } else if (email) {
+      accountNameElement.textContent = email;
+      console.log('Set name to email:', email);
+    } else {
+      accountNameElement.textContent = 'User';
+      console.log('Set name to default: User');
+    }
+  } else {
+    console.error('Account name element not found!');
+  }
+}
+
+function clearAuthData() {
+  localStorage.removeItem('hippo_user');
+  localStorage.removeItem('hippo_token');
+  localStorage.removeItem('userToken');
+  localStorage.removeItem('userData');
+  sessionStorage.removeItem('userToken');
+  sessionStorage.removeItem('userData');
+  
+  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+}
+
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
   const signoutButton = document.querySelector('a[href="./Login.html"]');
@@ -313,14 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function signOut() {
-  localStorage.removeItem('userToken');
-  localStorage.removeItem('userData');
-  sessionStorage.removeItem('userToken');
-  sessionStorage.removeItem('userData');
-
-  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-
+  clearAuthData();
   window.location.href = './Login.html';
 }
 
