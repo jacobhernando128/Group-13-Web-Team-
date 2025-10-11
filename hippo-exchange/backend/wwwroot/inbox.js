@@ -120,20 +120,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---- Backend calls ----
 
   async function loadThreads() {
-    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    const data = await api(`/inbox/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     renderThreads();
   }
 
   async function loadMessages(threadId) {
     if (messagesCache.has(threadId)) return messagesCache.get(threadId);
-    const msgs = await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`);
+    const msgs = await api(`/inbox/threads/${encodeURIComponent(threadId)}/messages`);
     messagesCache.set(threadId, msgs);
     return msgs;
   }
 
   async function markThreadRead(threadId) {
-    await api(`/messages/threads/${encodeURIComponent(threadId)}/read`, {
+    await api(`/inbox/threads/${encodeURIComponent(threadId)}/read`, {
       method: 'POST',
       body: { userId: me.id }
     });
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function toggleStar(thread, wantStar) {
-    await api(`/messages/threads/${encodeURIComponent(thread.id)}/star`, {
+    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/star`, {
       method: 'POST',
       body: { userId: me.id, starred: wantStar }
     });
@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function sendReply(thread, text) {
-    await api(`/messages/threads/${encodeURIComponent(thread.id)}/messages`, {
+    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/messages`, {
       method: 'POST',
       body: { senderId: me.id, body: text }
     });
@@ -174,13 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const partIds = [me.id, to.id];
 
     // find or create thread
-    const thread = await api('/messages/threads', {
+    const thread = await api('/inbox/threads', {
       method: 'POST',
       body: { participantIds: partIds, subject }
     });
 
     const threadId = thread.id || thread.Id;
-    await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`, {
+    await api(`/inbox/threads/${encodeURIComponent(threadId)}/messages`, {
       method: 'POST',
       body: { senderId: me.id, body }
     });

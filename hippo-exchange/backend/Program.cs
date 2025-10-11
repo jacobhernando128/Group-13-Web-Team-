@@ -76,11 +76,21 @@ namespace HippoExchange
             var builder = WebApplication.CreateBuilder(args);
 
             // Port for local/dev (HTTP). Add HTTPS binding if you have a cert.
-            builder.WebHost.ConfigureKestrel(o =>
+            // To avoid 'address already in use' when another process uses port 5000,
+            // only bind to 5000 when the environment variable USE_FIXED_PORT=true
+            var useFixedPort = Environment.GetEnvironmentVariable("USE_FIXED_PORT") == "true";
+            if (useFixedPort)
             {
-                o.ListenAnyIP(5000);
-                // o.ListenAnyIP(443, lo => lo.UseHttps("cert.pfx", "password"));
-            });
+                builder.WebHost.ConfigureKestrel(o =>
+                {
+                    o.ListenAnyIP(5000);
+                    // o.ListenAnyIP(443, lo => lo.UseHttps("cert.pfx", "password"));
+                });
+            }
+            else
+            {
+                // Optionally, you can configure other ports or settings here if needed
+            }
 
             // ---- Config ----
             var projectId =
@@ -554,10 +564,13 @@ namespace HippoExchange
             {
                 if (string.IsNullOrWhiteSpace(userId)) return Results.BadRequest(new { error = "userId required" });
 
+                // Firestore requires a composite index for queries that combine
+                // array-contains with an orderBy on another field. To avoid
+                // requiring an index in development, fetch the matching documents
+                // and sort them in-memory by updatedUtc.
                 var snaps = await db.Collection(ThreadsCol)
                     .WhereArrayContains("participants", userId)
-                    .OrderByDescending("updatedUtc")
-                    .Limit(100)
+                    .Limit(500) // limit to a reasonable number to avoid large reads
                     .GetSnapshotAsync();
 
                 var threads = snaps.Select(s =>
@@ -565,7 +578,9 @@ namespace HippoExchange
                     var t = s.ConvertTo<MessageThread>();
                     t.Id = s.Id;
                     return t;
-                });
+                })
+                .OrderByDescending(t => t.UpdatedUtc)
+                .Take(100); // return top 100 after sorting
 
                 return Results.Ok(threads);
             });
