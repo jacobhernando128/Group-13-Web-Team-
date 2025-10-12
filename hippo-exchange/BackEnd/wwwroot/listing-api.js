@@ -198,6 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(listing) {
+    // Store listing data globally for maintenance form
+    window.currentListing = listing;
+    
     $('listing-title').textContent = listing.title;
     $('price').textContent = money(listing.price);
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
@@ -363,70 +366,266 @@ document.addEventListener('DOMContentLoaded', () => {
     renderMaintenance(listing.maintenance || []);
 
     addInteractivity(listing);
+    setupMaintenanceModal();
   }
 
-  function renderMaintenance(maintenanceData) {
-    console.log('🎨 Rendering maintenance data:', maintenanceData);
+   function renderMaintenance(maintenanceData) {
+     console.log('🎨 Rendering maintenance data:', maintenanceData);
+     
+     const maintenanceNeededList = document.getElementById('maintenance-needed-list');
+     const maintenanceNeededEmpty = document.getElementById('maintenance-needed-empty');
+     const maintenanceList = document.getElementById('maintenance-list');
+     const maintenanceEmpty = document.getElementById('maintenance-empty');
 
-    const maintenanceList = document.getElementById('maintenance-list');
-    const maintenanceEmpty = document.getElementById('maintenance-empty');
+     if (!maintenanceNeededList || !maintenanceNeededEmpty || !maintenanceList || !maintenanceEmpty) {
+       console.warn('⚠️ Maintenance DOM elements not found');
+       return;
+     }
 
-    if (!maintenanceList || !maintenanceEmpty) {
-      console.warn('⚠️ Maintenance DOM elements not found');
-      return;
-    }
+     // Clear existing content
+     maintenanceNeededList.innerHTML = '';
+     maintenanceList.innerHTML = '';
 
-    // Clear existing content
-    maintenanceList.innerHTML = '';
+     if (maintenanceData.length === 0) {
+       maintenanceNeededEmpty.style.display = 'block';
+       maintenanceEmpty.style.display = 'block';
+       return;
+     }
 
-    if (maintenanceData.length === 0) {
-      maintenanceEmpty.style.display = 'block';
-      return;
-    }
+     // Separate maintenance by type
+     const requiredMaintenance = maintenanceData.filter(m => m.type === 'required');
+     const historyMaintenance = maintenanceData.filter(m => m.type === 'history');
 
-    maintenanceEmpty.style.display = 'none';
+     // Render required maintenance
+     if (requiredMaintenance.length === 0) {
+       maintenanceNeededEmpty.style.display = 'block';
+     } else {
+       maintenanceNeededEmpty.style.display = 'none';
+       renderMaintenanceEntries(requiredMaintenance, maintenanceNeededList, 'required');
+     }
 
-    // Render maintenance history (sorted by createdUtc)
-    const sortedMaintenance = [...maintenanceData].sort((a, b) =>
-      new Date(b.createdUtc) - new Date(a.createdUtc)
-    );
+     // Render maintenance history
+     if (historyMaintenance.length === 0) {
+       maintenanceEmpty.style.display = 'block';
+     } else {
+     maintenanceEmpty.style.display = 'none';
+       renderMaintenanceEntries(historyMaintenance, maintenanceList, 'history');
+     }
+   }
 
-    sortedMaintenance.forEach(maintenance => {
-      const entry = document.createElement('div');
+   function renderMaintenanceEntries(maintenanceData, container, sectionType) {
+     // Sort by createdUtc (newest first)
+     const sortedMaintenance = [...maintenanceData].sort((a, b) => 
+       new Date(b.createdUtc) - new Date(a.createdUtc)
+     );
 
-      // Extract maintenance type from description if available
-      const description = maintenance.description || '';
-      let maintenanceType = 'maintenance';
-
-      // Try to extract type from description
-      if (description.toLowerCase().includes('cleaning')) maintenanceType = 'cleaning';
-      else if (description.toLowerCase().includes('repair')) maintenanceType = 'repair';
-      else if (description.toLowerCase().includes('inspection')) maintenanceType = 'inspection';
-      else if (description.toLowerCase().includes('upgrade')) maintenanceType = 'upgrade';
-
-      const typeColors = {
-        cleaning: 'border-green-500',
-        repair: 'border-red-500',
-        inspection: 'border-yellow-500',
-        upgrade: 'border-purple-500',
-        maintenance: 'border-blue-500'
-      };
-
-      entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenanceType] || 'border-blue-500'}`;
-
-      entry.innerHTML = `
+     sortedMaintenance.forEach(maintenance => {
+       const entry = document.createElement('div');
+       
+       const description = maintenance.description || '';
+       const category = maintenance.category || 'maintenance';
+       
+       // Color coding based on category
+       const categoryColors = {
+         cleaning: 'border-green-500',
+         repair: 'border-red-500',
+         inspection: 'border-yellow-500',
+         upgrade: 'border-purple-500',
+         maintenance: 'border-blue-500'
+       };
+       
+       entry.className = `glass p-3 rounded-lg border-l-4 ${categoryColors[category] || 'border-blue-500'}`;
+       
+       // Different styling for required vs history
+       if (sectionType === 'required') {
+       entry.innerHTML = `
          <div class="flex items-center gap-2 mb-1">
+             <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+               Required
+             </span>
            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-             ${maintenanceType.charAt(0).toUpperCase() + maintenanceType.slice(1)}
+               ${category.charAt(0).toUpperCase() + category.slice(1)}
            </span>
            <span class="text-sm text-slate-600">${new Date(maintenance.createdUtc).toLocaleDateString()}</span>
          </div>
          <p class="text-slate-700 text-sm">${description}</p>
-       `;
+           ${maintenance.frequency ? `<p class="text-xs text-slate-500 mt-1">Frequency: ${maintenance.frequency}</p>` : ''}
+         `;
+       } else {
+         entry.innerHTML = `
+           <div class="flex items-center gap-2 mb-1">
+             <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+               ${category.charAt(0).toUpperCase() + category.slice(1)}
+             </span>
+             <span class="text-sm text-slate-600">${new Date(maintenance.createdUtc).toLocaleDateString()}</span>
+           </div>
+           <p class="text-slate-700 text-sm">${description}</p>
+         `;
+       }
+       
+       container.appendChild(entry);
+     });
+   }
 
-      maintenanceList.appendChild(entry);
+  function setupMaintenanceModal() {
+    const addMaintenanceBtn = document.getElementById('add-maintenance-btn');
+    const maintenanceModal = document.getElementById('maintenance-modal');
+    const closeMaintenanceBtn = document.getElementById('close-maintenance');
+    const cancelMaintenanceBtn = document.getElementById('cancel-maintenance');
+    const maintenanceForm = document.getElementById('maintenance-form');
+
+    if (!addMaintenanceBtn || !maintenanceModal || !maintenanceForm) {
+      console.warn('⚠️ Maintenance modal elements not found');
+      return;
+    }
+
+    // Show add maintenance button for item owners
+    if (currentUser && currentUser.id === window.currentListing?.userId) {
+      addMaintenanceBtn.classList.remove('hidden');
+    }
+
+    // Event listeners
+    addMaintenanceBtn.addEventListener('click', openMaintenanceModal);
+    closeMaintenanceBtn.addEventListener('click', closeMaintenanceModal);
+    cancelMaintenanceBtn.addEventListener('click', closeMaintenanceModal);
+    maintenanceForm.addEventListener('submit', handleMaintenanceSubmit);
+
+    // Maintenance type radio button listeners
+    document.querySelectorAll('input[name="maintenance-type"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        toggleFrequencyField(e.target.value === 'required');
+      });
     });
-  }
+
+    function openMaintenanceModal() {
+      // Reset form
+      maintenanceForm.reset();
+      
+      // Set default maintenance type to 'required' and show frequency field
+      const requiredRadio = document.querySelector('input[name="maintenance-type"][value="required"]');
+      if (requiredRadio) {
+        requiredRadio.checked = true;
+      }
+      toggleFrequencyField(true);
+      
+      // Show modal
+      maintenanceModal.classList.add('active');
+    }
+
+    function closeMaintenanceModal() {
+      maintenanceModal.classList.remove('active');
+      maintenanceForm.reset();
+    }
+
+    function toggleFrequencyField(show) {
+      const frequencySection = document.getElementById('frequency-section');
+      const frequencyInput = document.getElementById('maintenance-frequency-input');
+      
+      if (show) {
+        frequencySection.style.display = 'block';
+        frequencyInput.required = true;
+      } else {
+        frequencySection.style.display = 'none';
+        frequencyInput.required = false;
+        frequencyInput.value = '';
+      }
+    }
+
+    async function handleMaintenanceSubmit(e) {
+      e.preventDefault();
+      
+      if (!window.currentListing) return;
+
+      // Get form data
+      const maintenanceType = document.querySelector('input[name="maintenance-type"]:checked')?.value;
+      const category = document.getElementById('maintenance-category-input').value;
+      const frequency = document.getElementById('maintenance-frequency-input').value;
+      const description = document.getElementById('maintenance-description-input').value;
+
+      // Validate required fields
+      if (!maintenanceType) {
+        showError('Please select a maintenance type.');
+        return;
+      }
+
+      if (!category) {
+        showError('Please select a maintenance category.');
+        return;
+      }
+
+      if (maintenanceType === 'required' && !frequency) {
+        showError('Please select a frequency for required maintenance.');
+        return;
+      }
+
+      if (!description.trim()) {
+        showError('Please provide a description.');
+        return;
+      }
+
+      const formData = {
+        ItemId: window.currentListing.id,
+        Type: maintenanceType,
+        Category: category,
+        Frequency: maintenanceType === 'required' ? frequency : "",
+        Description: description,
+        Date: new Date().toISOString().split('T')[0]
+      };
+
+      console.log('🔧 Sending maintenance data to backend:', formData);
+
+      try {
+        const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+        const response = await fetch(`${API_BASE_URL}/maintenance`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        if (response.ok) {
+          closeMaintenanceModal();
+          showSuccess(maintenanceType === 'required' 
+            ? 'Maintenance requirement added successfully!'
+            : 'Maintenance history entry added successfully!');
+          
+          // Reload the listing to show the new maintenance entry
+          await readListing();
+        } else {
+          const errorText = await response.text();
+          showError(`Failed to add maintenance entry: ${errorText}`);
+        }
+      } catch (error) {
+        console.error('Error adding maintenance entry:', error);
+        showError('An error occurred while adding the maintenance entry.');
+      }
+    }
+
+    function showSuccess(message) {
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+
+    function showError(message) {
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 3000);
+    }
+   }
 
   // Request Item Function
   async function requestItem(listing) {
@@ -848,10 +1047,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const viewProfileBtn = $('view-profile');
-    viewProfileBtn?.addEventListener('click', () => {
-      console.log('View profile:', listing.seller.id);
-      alert(`View profile for ${listing.seller.name} (User ID: ${listing.seller.id})`);
-    });
+    console.log('🔍 View profile button found:', !!viewProfileBtn);
+    console.log('🔍 View profile button element:', viewProfileBtn);
+    
+    if (viewProfileBtn) {
+      viewProfileBtn.addEventListener('click', (e) => {
+        e.preventDefault(); // Prevent default link behavior
+        console.log('🔍 View profile clicked!');
+        console.log('🔍 Listing object:', listing);
+        console.log('🔍 Listing seller:', listing.seller);
+        console.log('🔍 Seller ID:', listing.seller?.id);
+        console.log('🔍 Seller name:', listing.seller?.name);
+        
+        if (listing.seller?.id) {
+          const url = `./otheruser.html?userId=${listing.seller.id}`;
+          console.log('🔍 Full URL will be:', url);
+          window.location.href = url;
+        } else {
+          console.error('❌ No seller ID found in listing object!');
+          console.error('❌ Listing seller object:', listing.seller);
+        }
+      });
+    } else {
+      console.error('❌ View profile button not found!');
+    }
   }
 
   // Set up sign-out functionality
