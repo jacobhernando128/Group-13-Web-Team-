@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hippo Exchange — Listing</title>
 
   <!-- Fonts / Tailwind -->
@@ -12,51 +13,56 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <!-- App styles -->
   <link rel="stylesheet" href="./styles.css" />
-  
+
   <!-- Custom animations for success state -->
   <style>
     @keyframes successPulse {
-      0%, 100% {
+
+      0%,
+      100% {
         box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
       }
+
       50% {
         box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
       }
     }
-    
+
     .success-checkmark {
       animation: checkmarkPop 0.6s ease-out;
     }
-    
+
     @keyframes checkmarkPop {
       0% {
         transform: scale(0);
         opacity: 0;
       }
+
       50% {
         transform: scale(1.2);
         opacity: 1;
       }
+
       100% {
         transform: scale(1);
         opacity: 1;
       }
     }
-    
+
     /* Video thumbnail styles */
     .detail-thumb {
       position: relative;
     }
-    
+
     .detail-thumb video {
       position: relative;
     }
-    
+
     .detail-thumb .play-icon {
       position: absolute;
       top: 50%;
@@ -67,12 +73,13 @@
       padding: 4px;
       z-index: 10;
     }
-    
+
     .detail-thumb:hover .play-icon {
       background: rgba(0, 0, 0, 0.8);
     }
   </style>
 </head>
+
 <body class="relative min-h-screen overflow-hidden">
   <!-- bg blobs -->
   <div class="blob blob-1" aria-hidden="true"></div>
@@ -85,37 +92,50 @@
     <!-- Mobile menu button (hamburger; auto-hides when menu open via styles.css) -->
     <div class="md:hidden fixed top-4 left-4 z-50">
       <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
-              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
         <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
       </button>
     </div>
 
     <!-- Sidebar (same shell as home) -->
-    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+    <aside id="sidebar"
+      class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300"
+      aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
-            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover"/>
+          <div
+            class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
         </div>
         <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
       <div class="relative mt-4">
-        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" placeholder="Search Hippo Exchange"
+          class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500"
+          aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
       </div>
 
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="./Home.html" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a></li>
-          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a>
+          </li>
+          <li><a href="./notifications.html" class="nav-link"><span
+                class="icon-bell"></span><span>Notifications</span></a></li>
           <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
@@ -128,18 +148,19 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar"
+              class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Loading...</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between">
-            <span class="text-xs text-slate-600">Balance</span>
-            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
-          </div>
+          <!-- Balance removed per UX request -->
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
-            <a href="./Login.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+            <a href="./profile.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign
+              out</a>
           </div>
         </div>
       </section>
@@ -147,30 +168,31 @@
 
     <!-- Main content -->
     <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
-        <!-- header -->
-        <header class="glass listing-toolbar p-4 mb-6 flex items-center gap-4 rounded-xl">
+      <!-- header -->
+      <header class="glass listing-toolbar p-4 mb-6 flex items-center gap-4 rounded-xl">
         <a id="back-btn" href="home.html"
-            class="btn-back flex items-center gap-2 group hover:bg-white/20 px-3 py-2 rounded-lg transition-all duration-200"
-            aria-label="Go back">
-            <!-- Left arrow -->
-            <svg class="w-5 h-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-            <span class="hidden sm:inline font-medium">Back</span>
+          class="btn-back flex items-center gap-2 group hover:bg-white/20 px-3 py-2 rounded-lg transition-all duration-200"
+          aria-label="Go back">
+          <!-- Left arrow -->
+          <svg class="w-5 h-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span class="hidden sm:inline font-medium">Back</span>
         </a>
 
         <div class="flex-1">
           <h2 id="listing-title" class="text-xl md:text-2xl font-bold text-slate-800 truncate">Loading…</h2>
           <p class="text-sm text-slate-600 mt-1">Item details and availability</p>
         </div>
-        </header>
+      </header>
 
       <!-- Details layout -->
       <section class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Gallery -->
         <article class="lg:col-span-2 glass p-3 rounded-lg">
           <div class="relative rounded-xl overflow-hidden">
-            <img id="hero-img" class="w-full detail-hero object-cover" alt="Listing image"/>
+            <img id="hero-img" class="w-full detail-hero object-cover" alt="Listing image" />
             <span id="badge" class="badge">Just listed</span>
           </div>
 
@@ -191,37 +213,41 @@
               <h3 class="text-lg font-semibold text-slate-800">Maintenance Information</h3>
               <button id="add-maintenance-btn" class="btn-primary text-sm px-3 py-1 hidden">
                 <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Add Entry
               </button>
             </div>
 
-                        <!-- Maintenance Needed Section -->
-                        <div class="mb-6">
-                          <h4 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
-                            </svg>
-                            Maintenance Required
-                          </h4>
-                          <div id="maintenance-needed-list" class="space-y-2">
-                            <!-- Maintenance requirements will be populated here -->
-                          </div>
-                          <div id="maintenance-needed-empty" class="text-center py-4 text-slate-500">
-                            <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <p class="text-sm">No special maintenance required</p>
-                          </div>
-                        </div>
-            
-            
+            <!-- Maintenance Needed Section -->
+            <div class="mb-6">
+              <h4 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                Maintenance Required
+              </h4>
+              <div id="maintenance-needed-list" class="space-y-2">
+                <!-- Maintenance requirements will be populated here -->
+              </div>
+              <div id="maintenance-needed-empty" class="text-center py-4 text-slate-500">
+                <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-sm">No special maintenance required</p>
+              </div>
+            </div>
+
+
             <!-- Maintenance History Section -->
             <div>
               <h4 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
                 <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Maintenance History
               </h4>
@@ -230,7 +256,8 @@
               </div>
               <div id="maintenance-empty" class="text-center py-4 text-slate-500">
                 <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p class="text-sm">No maintenance records yet</p>
               </div>
@@ -253,28 +280,34 @@
               <div id="owner-controls" class="space-y-2 hidden">
                 <button class="btn-primary w-full" id="edit-item-btn">
                   <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit Item
                 </button>
                 <button class="btn-ghost w-full text-red-600 hover:bg-red-50" id="delete-item-btn">
                   <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                   Delete Item
                 </button>
               </div>
-              
+
               <!-- Regular user controls -->
               <div id="user-controls">
                 <button class="btn-primary w-full group relative overflow-hidden" id="request-item-btn">
                   <div class="flex items-center justify-center relative z-10">
-                    <svg class="w-4 h-4 mr-2 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    <svg class="w-4 h-4 mr-2 transition-transform group-hover:scale-110" fill="none"
+                      stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span class="font-medium">Request Item</span>
                   </div>
-                  <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0"></div>
+                  <div
+                    class="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0">
+                  </div>
                 </button>
               </div>
             </div>
@@ -288,7 +321,8 @@
           <!-- Map -->
           <div class="glass p-3 rounded-lg">
             <div class="text-sm text-slate-700 mb-2" id="location-label"></div>
-            <div id="detail-map" class="h-[220px] rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+            <div id="detail-map"
+              class="h-[220px] rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
               <div class="text-gray-500">Loading map...</div>
             </div>
           </div>
@@ -296,13 +330,16 @@
           <!-- Seller -->
           <div class="glass p-4 rounded-lg">
             <div class="flex items-center gap-3">
-              <img id="seller-avatar" class="w-10 h-10 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg" alt="Seller avatar"/>
+              <img id="seller-avatar"
+                class="w-10 h-10 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg"
+                alt="Seller avatar" />
               <div>
                 <div id="seller-name" class="font-semibold">Seller</div>
                 <div id="seller-meta" class="text-xs text-slate-600">—</div>
               </div>
             </div>
-            <a href="./otheruser.html" class="btn-primary w-full mt-3 block text-center" id="view-profile">View profile</a>
+            <a href="./otheruser.html" class="btn-primary w-full mt-3 block text-center" id="view-profile">View
+              profile</a>
           </div>
         </aside>
       </section>
@@ -320,7 +357,9 @@
       <div class="modal-header">
         <h3 id="edit-title" class="text-xl font-bold">Edit Item</h3>
         <button id="close-edit" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body space-y-4">
@@ -355,7 +394,9 @@
       <div class="modal-header">
         <h3 id="maintenance-title" class="text-xl font-bold">Add Maintenance Entry</h3>
         <button id="close-maintenance" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body space-y-4">
@@ -375,7 +416,7 @@
                 </label>
               </div>
             </div>
-            
+
             <!-- Maintenance Category Selection -->
             <div>
               <label class="block text-sm text-slate-300 mb-2">Maintenance Category</label>
@@ -388,7 +429,7 @@
                 <option value="general-maintenance">General Maintenance</option>
               </select>
             </div>
-            
+
             <!-- Frequency Field (only shown for Required type) -->
             <div id="frequency-section">
               <label class="block text-sm text-slate-300 mb-2">Frequency</label>
@@ -402,10 +443,11 @@
                 <option value="as-needed">As Needed</option>
               </select>
             </div>
-            
+
             <div>
               <label class="block text-sm text-slate-300 mb-2">Description</label>
-              <textarea id="maintenance-description-input" class="field w-full h-24" placeholder="Describe the maintenance requirement or record..." required></textarea>
+              <textarea id="maintenance-description-input" class="field w-full h-24"
+                placeholder="Describe the maintenance requirement or record..." required></textarea>
             </div>
           </div>
           <div class="flex justify-end pt-2 gap-2">
@@ -423,14 +465,17 @@
       <div class="modal-header">
         <h3 id="delete-title" class="text-xl font-bold">Delete Item</h3>
         <button id="close-delete" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body">
         <p class="text-slate-300 mb-4">Are you sure you want to delete this item? This action cannot be undone.</p>
         <div class="flex justify-end gap-2">
           <button id="cancel-delete" class="btn-ghost">Cancel</button>
-          <button id="confirm-delete" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+          <button id="confirm-delete"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
             Delete Item
           </button>
         </div>
@@ -478,7 +523,7 @@
           cost: 0
         },
         {
-          id: "maint2", 
+          id: "maint2",
           date: "2024-01-01",
           type: "maintenance",
           description: "Reapplied food-safe mineral oil finish to maintain wood quality",
@@ -495,7 +540,7 @@
         },
         {
           id: "req2",
-          type: "maintenance", 
+          type: "maintenance",
           description: "Apply food-safe mineral oil monthly to prevent cracking",
           frequency: "Monthly",
           importance: "medium"
@@ -511,4 +556,5 @@
     };
   </script>
 </body>
+
 </html>

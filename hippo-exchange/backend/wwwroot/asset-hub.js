@@ -7,7 +7,7 @@ class AssetHub {
         this.borrowedItems = [];
         this.currentEditingItem = null;
         this.currentDeletingItem = null;
-        
+
         this.init();
     }
 
@@ -26,11 +26,11 @@ class AssetHub {
     async checkAuthAndLoadUser() {
         const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
         const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
-        
+
         console.log('Asset Hub: Checking authentication...');
         console.log('Token exists:', !!token);
         console.log('User data exists:', !!userData);
-        
+
         if (!token || !userData) {
             console.log('No authentication data found, redirecting to login...');
             window.location.href = './Login.html';
@@ -69,16 +69,16 @@ class AssetHub {
 
     displayUserInfo(user) {
         console.log('Displaying user info:', user);
-        
+
         // Check for both uppercase and lowercase property names
-        const displayName = user?.FirstName && user?.LastName 
+        const displayName = user?.FirstName && user?.LastName
             ? `${user.FirstName} ${user.LastName}`
-            : user?.firstName && user?.lastName 
-            ? `${user.firstName} ${user.lastName}`
-            : user?.email || 'User';
-        
+            : user?.firstName && user?.lastName
+                ? `${user.firstName} ${user.lastName}`
+                : user?.email || 'User';
+
         console.log('Computed display name:', displayName);
-        
+
         // Update account name
         const acctNameEl = document.getElementById('acct-name');
         if (acctNameEl) {
@@ -86,18 +86,14 @@ class AssetHub {
             acctNameEl.textContent = displayName;
             console.log('Set account name to:', displayName);
         }
-        
+
         // Update account rank (you can customize this logic)
         const acctRankEl = document.getElementById('acct-rank');
         if (acctRankEl) {
             acctRankEl.textContent = 'Member';
         }
-        
-        // Update account balance (you can customize this logic)
-        const acctBalanceEl = document.getElementById('acct-balance');
-        if (acctBalanceEl) {
-            acctBalanceEl.textContent = '10 HXB';
-        }
+
+        // Balance display intentionally omitted
     }
 
     clearAuthData() {
@@ -143,7 +139,7 @@ class AssetHub {
         document.getElementById('close-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('maintenance-form').addEventListener('submit', (e) => this.handleMaintenanceSubmit(e));
-        
+
         // Maintenance type radio button listeners
         document.querySelectorAll('input[name="maintenance-type"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -157,7 +153,7 @@ class AssetHub {
 
         // Search functionality
         this.setupSearch();
-        
+
         // Test function for debugging
         window.testEditModal = () => {
             const testItem = {
@@ -207,7 +203,7 @@ class AssetHub {
 
         function performSearch(query) {
             currentSearchQuery = query.trim();
-            
+
             if (!currentSearchQuery) {
                 // Show all items when search is empty
                 this.renderOwnedItems();
@@ -223,11 +219,11 @@ class AssetHub {
                 const description = (item.description || '').toLowerCase();
                 const category = (item.category || '').toLowerCase();
                 const location = (item.location || '').toLowerCase();
-                
-                return title.includes(searchTerm) || 
-                       description.includes(searchTerm) || 
-                       category.includes(searchTerm) || 
-                       location.includes(searchTerm);
+
+                return title.includes(searchTerm) ||
+                    description.includes(searchTerm) ||
+                    category.includes(searchTerm) ||
+                    location.includes(searchTerm);
             });
 
             const filteredBorrowedItems = originalBorrowedItems.filter(item => {
@@ -236,17 +232,17 @@ class AssetHub {
                 const description = (item.description || '').toLowerCase();
                 const status = (item.status || '').toLowerCase();
                 const borrowedFrom = (item.borrowedFrom || '').toLowerCase();
-                
-                return title.includes(searchTerm) || 
-                       description.includes(searchTerm) || 
-                       status.includes(searchTerm) || 
-                       borrowedFrom.includes(searchTerm);
+
+                return title.includes(searchTerm) ||
+                    description.includes(searchTerm) ||
+                    status.includes(searchTerm) ||
+                    borrowedFrom.includes(searchTerm);
             });
 
             // Temporarily update the displayed items
             this.ownedItems = filteredOwnedItems;
             this.borrowedItems = filteredBorrowedItems;
-            
+
             // Re-render the items
             this.renderOwnedItems();
             this.renderBorrowedItems();
@@ -256,12 +252,12 @@ class AssetHub {
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
                 const query = e.target.value;
-                
+
                 // Clear previous timeout
                 if (searchTimeout) {
                     clearTimeout(searchTimeout);
                 }
-                
+
                 // Set new timeout for debounced search
                 searchTimeout = setTimeout(() => {
                     performSearch.call(this, query);
@@ -282,7 +278,7 @@ class AssetHub {
 
         // Store original data when assets are loaded
         const originalLoadUserAssets = this.loadUserAssets.bind(this);
-        this.loadUserAssets = async function() {
+        this.loadUserAssets = async function () {
             await originalLoadUserAssets();
             // Store original data for search
             originalOwnedItems = [...this.ownedItems];
@@ -303,7 +299,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            
+
             // Load owned items - fetch all items and filter by current user
             const ownedResponse = await fetch('http://localhost:5000/items', {
                 headers: {
@@ -311,11 +307,11 @@ class AssetHub {
                     'Accept': 'application/json'
                 }
             });
-            
+
             if (ownedResponse.ok) {
                 const allItems = await ownedResponse.json();
                 // Filter items by current user ID
-                this.ownedItems = allItems.items ? allItems.items.filter(item => 
+                this.ownedItems = allItems.items ? allItems.items.filter(item =>
                     item.userId === this.currentUserId || item.ownerId === this.currentUserId
                 ) : [];
             } else {
@@ -348,20 +344,20 @@ class AssetHub {
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             console.log('🔍 Fetching borrowed items for user:', this.currentUserId);
-            
+
             const response = await fetch(`http://localhost:5000/exchanges/borrower/${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
                 }
             });
-            
+
             console.log('📡 Borrowed items response status:', response.status);
-            
+
             if (response.ok) {
                 const exchanges = await response.json();
                 console.log('✅ Exchanges received:', exchanges);
-                
+
                 // Fetch actual item details and owner names for each exchange
                 const borrowedItems = [];
                 for (const exchange of exchanges) {
@@ -373,11 +369,11 @@ class AssetHub {
                                 'Accept': 'application/json'
                             }
                         });
-                        
+
                         if (itemResponse.ok) {
                             const item = await itemResponse.json();
                             console.log('✅ Item details received:', item);
-                            
+
                             // Fetch owner details
                             let ownerName = 'Unknown Owner';
                             try {
@@ -388,7 +384,7 @@ class AssetHub {
                                         'Accept': 'application/json'
                                     }
                                 });
-                                
+
                                 if (ownerResponse.ok) {
                                     const owner = await ownerResponse.json();
                                     console.log('✅ Owner details received:', owner);
@@ -399,7 +395,7 @@ class AssetHub {
                             } catch (ownerError) {
                                 console.warn('⚠️ Error fetching owner details:', ownerError);
                             }
-                            
+
                             // Create borrowed item with full details
                             borrowedItems.push({
                                 id: exchange.Id || exchange.id,
@@ -419,7 +415,7 @@ class AssetHub {
                             });
                         } else {
                             console.warn('⚠️ Failed to fetch item details for:', exchange.ItemId || exchange.itemId);
-                            
+
                             // Still try to fetch owner name even if item details fail
                             let ownerName = 'Unknown Owner';
                             try {
@@ -430,7 +426,7 @@ class AssetHub {
                                         'Accept': 'application/json'
                                     }
                                 });
-                                
+
                                 if (ownerResponse.ok) {
                                     const owner = await ownerResponse.json();
                                     console.log('✅ Owner details received for fallback:', owner);
@@ -439,7 +435,7 @@ class AssetHub {
                             } catch (ownerError) {
                                 console.warn('⚠️ Error fetching owner details for fallback:', ownerError);
                             }
-                            
+
                             // Fallback with basic info
                             borrowedItems.push({
                                 id: exchange.Id || exchange.id,
@@ -460,7 +456,7 @@ class AssetHub {
                         }
                     } catch (itemError) {
                         console.warn('⚠️ Error fetching item details for:', exchange.ItemId || exchange.itemId, itemError);
-                        
+
                         // Still try to fetch owner name even if everything fails
                         let ownerName = 'Unknown Owner';
                         try {
@@ -471,7 +467,7 @@ class AssetHub {
                                     'Accept': 'application/json'
                                 }
                             });
-                            
+
                             if (ownerResponse.ok) {
                                 const owner = await ownerResponse.json();
                                 console.log('✅ Owner details received for error fallback:', owner);
@@ -480,7 +476,7 @@ class AssetHub {
                         } catch (ownerError) {
                             console.warn('⚠️ Error fetching owner details for error fallback:', ownerError);
                         }
-                        
+
                         // Fallback with basic info
                         borrowedItems.push({
                             id: exchange.Id || exchange.id,
@@ -500,12 +496,12 @@ class AssetHub {
                         });
                     }
                 }
-                
+
                 console.log('✅ Final borrowed items:', borrowedItems);
                 return borrowedItems;
             } else {
                 console.error('❌ Failed to fetch exchanges:', response.status);
-            return this.getPlaceholderBorrowedItems();
+                return this.getPlaceholderBorrowedItems();
             }
         } catch (error) {
             console.error('❌ Error fetching borrowed items:', error);
@@ -596,7 +592,7 @@ class AssetHub {
     renderOwnedItems() {
         const grid = document.getElementById('owned-items-grid');
         const empty = document.getElementById('owned-empty');
-        
+
         if (this.ownedItems.length === 0) {
             grid.innerHTML = '';
             empty.classList.remove('hidden');
@@ -615,7 +611,7 @@ class AssetHub {
     renderBorrowedItems() {
         const grid = document.getElementById('borrowed-items-grid');
         const empty = document.getElementById('borrowed-empty');
-        
+
         if (this.borrowedItems.length === 0) {
             grid.innerHTML = '';
             empty.classList.remove('hidden');
@@ -634,19 +630,19 @@ class AssetHub {
     createItemCard(item, type) {
         const template = document.getElementById('asset-card-template');
         const card = template.content.cloneNode(true);
-        
+
         const article = card.querySelector('article');
         article.setAttribute('data-id', item.id);
-        
+
         // Set image
         const img = card.querySelector('.card-img');
         if (item.imageUrl) {
             img.src = item.imageUrl;
         } else {
-        img.src = 'https://placehold.co/400x300/ffffff/111111?text=' + encodeURIComponent(item.title);
+            img.src = 'https://placehold.co/400x300/ffffff/111111?text=' + encodeURIComponent(item.title);
         }
         img.alt = item.title;
-        
+
         // Set title and description
         card.querySelector('.title').textContent = item.title;
         if (type === 'borrowed') {
@@ -658,11 +654,11 @@ class AssetHub {
         } else {
             card.querySelector('.description').textContent = item.description || 'No description provided';
         }
-        
+
         // Set created date
         const createdDate = new Date(item.createdUtc);
         card.querySelector('.created-date').textContent = createdDate.toLocaleDateString();
-        
+
         // Set availability status
         const statusBadge = card.querySelector('.status-badge');
         if (type === 'borrowed') {
@@ -698,8 +694,8 @@ class AssetHub {
         const viewBtn = card.querySelector('.view-btn');
         const deleteBtn = card.querySelector('.delete-btn');
         const maintenanceBtn = card.querySelector('.maintenance-btn');
-        
-        
+
+
         // Dropdown functionality
         if (dropdownBtn && dropdownMenu) {
             dropdownBtn.addEventListener('click', (e) => {
@@ -714,7 +710,7 @@ class AssetHub {
                 dropdownMenu.classList.toggle('show');
             });
         }
-        
+
         // Close dropdown when clicking outside
         if (dropdownBtn && dropdownMenu) {
             document.addEventListener('click', (e) => {
@@ -755,7 +751,7 @@ class AssetHub {
             // For borrowed items, hide edit and delete buttons, but show maintenance button
             if (editBtn) editBtn.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
-            
+
             // Show maintenance button for borrowed items
             if (maintenanceBtn) {
                 maintenanceBtn.style.display = 'block';
@@ -783,7 +779,7 @@ class AssetHub {
     showOwnedItems() {
         document.getElementById('owned-section').classList.remove('hidden');
         document.getElementById('borrowed-section').classList.add('hidden');
-        
+
         // Update tab styles
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
@@ -792,7 +788,7 @@ class AssetHub {
     showBorrowedItems() {
         document.getElementById('owned-section').classList.add('hidden');
         document.getElementById('borrowed-section').classList.remove('hidden');
-        
+
         // Update tab styles
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
@@ -805,13 +801,13 @@ class AssetHub {
 
     async openEditModal(item) {
         this.currentEditingItem = item;
-        
+
         console.log('🔍 Opening edit modal for item:', item);
         console.log('🔍 Item keys:', Object.keys(item));
-        
+
         // Wait a moment to ensure DOM is ready
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Populate the edit form with current item data
         const titleInput = document.getElementById('edit-item-title-input');
         const descriptionInput = document.getElementById('edit-item-description-input');
@@ -819,7 +815,7 @@ class AssetHub {
         const conditionInput = document.getElementById('edit-item-condition-input');
         const availableInput = document.getElementById('edit-item-available-input');
         const locationInput = document.getElementById('edit-item-location-input');
-        
+
         console.log('🔍 Form elements found:', {
             titleInput: !!titleInput,
             descriptionInput: !!descriptionInput,
@@ -828,12 +824,12 @@ class AssetHub {
             availableInput: !!availableInput,
             locationInput: !!locationInput
         });
-        
+
         if (!titleInput || !descriptionInput || !categoryInput || !conditionInput || !availableInput || !locationInput) {
             console.error('❌ Some form elements not found!');
             return;
         }
-        
+
         // Set values with fallbacks for different field name variations
         const titleValue = item.Title || item.title || '';
         const descriptionValue = item.Description || item.description || '';
@@ -841,7 +837,7 @@ class AssetHub {
         const conditionValue = item.Condition || item.condition || '';
         const availableValue = (item.Available !== undefined ? item.Available : (item.available !== undefined ? item.available : true)).toString();
         const locationValue = item.Location || item.location || '';
-        
+
         console.log('🔍 Setting values:', {
             titleValue,
             descriptionValue,
@@ -850,28 +846,28 @@ class AssetHub {
             availableValue,
             locationValue
         });
-        
+
         titleInput.value = titleValue;
         descriptionInput.value = descriptionValue;
         categoryInput.value = categoryValue;
         conditionInput.value = conditionValue;
         availableInput.value = availableValue;
         locationInput.value = locationValue;
-        
+
         // Show photo upload indicator if item has photos
         const photoIndicator = document.getElementById('photo-upload-indicator');
         const photoCount = document.getElementById('photo-count');
         const photos = item.Pictures || item.pictures || item.Images || item.images || [];
-        
+
         if (photos.length > 0) {
             photoIndicator.classList.remove('hidden');
             photoCount.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} uploaded`;
         } else {
             photoIndicator.classList.add('hidden');
         }
-        
+
         console.log('✅ Form populated successfully');
-        
+
         // Show the modal
         const modal = document.getElementById('edit-item-modal');
         if (modal) {
@@ -892,7 +888,7 @@ class AssetHub {
 
     async handleEditSubmit(e) {
         e.preventDefault();
-        
+
         if (!this.currentEditingItem) return;
 
         const formData = {
@@ -919,13 +915,13 @@ class AssetHub {
 
             if (response.ok) {
                 const updatedItem = await response.json();
-                
+
                 // Update local data
                 const index = this.ownedItems.findIndex(item => item.id === this.currentEditingItem.id);
                 if (index !== -1) {
                     this.ownedItems[index] = updatedItem;
                 }
-                
+
                 this.renderOwnedItems();
                 this.closeEditModal();
                 this.showSuccess('Item updated successfully!');
@@ -964,7 +960,7 @@ class AssetHub {
             if (response.ok) {
                 // Remove from local data
                 this.ownedItems = this.ownedItems.filter(item => item.id !== this.currentDeletingItem.id);
-                
+
                 this.renderOwnedItems();
                 this.updateCounts();
                 this.closeDeleteModal();
@@ -985,48 +981,48 @@ class AssetHub {
 
     async openMaintenanceModal(item) {
         this.currentMaintenanceItem = item;
-        
+
         console.log('🔧 Opening maintenance modal for item:', item);
-        
+
         // Reset form
         document.getElementById('maintenance-form').reset();
-        
+
         // Check if this is a borrowed item (borrowed items should only allow history)
         const isBorrowedItem = !this.ownedItems.some(ownedItem => ownedItem.id === item.id);
-        
+
         if (isBorrowedItem) {
             // For borrowed items, hide the "Required" option and set default to "History"
             const requiredRadio = document.querySelector('input[name="maintenance-type"][value="required"]');
             const historyRadio = document.querySelector('input[name="maintenance-type"][value="history"]');
             const requiredLabel = requiredRadio?.closest('label');
-            
+
             if (requiredLabel) {
                 requiredLabel.style.display = 'none';
             }
-            
+
             if (historyRadio) {
                 historyRadio.checked = true;
             }
-            
+
             this.toggleFrequencyField(false);
         } else {
             // For owned items, show both options and default to "Required"
             const requiredRadio = document.querySelector('input[name="maintenance-type"][value="required"]');
             const requiredLabel = requiredRadio?.closest('label');
-            
+
             if (requiredLabel) {
                 requiredLabel.style.display = 'flex';
             }
-            
+
             if (requiredRadio) {
                 requiredRadio.checked = true;
             }
-            
+
             this.toggleFrequencyField(true);
         }
-        
+
         // Maintenance history section removed - no longer loading history
-        
+
         // Show modal
         document.getElementById('maintenance-modal').classList.add('active');
     }
@@ -1034,20 +1030,20 @@ class AssetHub {
     closeMaintenanceModal() {
         document.getElementById('maintenance-modal').classList.remove('active');
         document.getElementById('maintenance-form').reset();
-        
+
         // Restore the "Required" option visibility for next time
         const requiredLabel = document.querySelector('input[name="maintenance-type"][value="required"]')?.closest('label');
         if (requiredLabel) {
             requiredLabel.style.display = 'flex';
         }
-        
+
         this.currentMaintenanceItem = null;
     }
 
     toggleFrequencyField(show) {
         const frequencySection = document.getElementById('frequency-section');
         const frequencyInput = document.getElementById('maintenance-frequency-input');
-        
+
         if (show) {
             frequencySection.style.display = 'block';
             frequencyInput.required = true;
@@ -1081,7 +1077,7 @@ class AssetHub {
                         frequency: null
                     },
                     {
-                        id: 'maint2', 
+                        id: 'maint2',
                         date: '2024-01-01',
                         type: 'required',
                         description: 'Regular maintenance check - oil change and filter replacement',
@@ -1126,7 +1122,7 @@ class AssetHub {
                         cost: 0
                     },
                     {
-                        id: 'maint2', 
+                        id: 'maint2',
                         date: '2024-01-01',
                         type: 'maintenance',
                         description: 'Reapplied food-safe mineral oil finish to maintain wood quality',
@@ -1144,7 +1140,7 @@ class AssetHub {
     renderMaintenanceHistory(maintenanceList) {
         const container = document.getElementById('maintenance-history-list');
         const empty = document.getElementById('maintenance-history-empty');
-        
+
         if (!maintenanceList || maintenanceList.length === 0) {
             container.innerHTML = '';
             empty.classList.remove('hidden');
@@ -1160,7 +1156,7 @@ class AssetHub {
         sortedMaintenance.forEach(maintenance => {
             const entry = document.createElement('div');
             entry.className = 'glass p-3 rounded-lg border-l-4';
-            
+
             const typeColors = {
                 required: 'border-blue-500',
                 history: 'border-green-500',
@@ -1170,15 +1166,15 @@ class AssetHub {
                 upgrade: 'border-purple-500',
                 maintenance: 'border-blue-500'
             };
-            
+
             entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenance.type] || 'border-blue-500'}`;
-            
-            const typeLabel = maintenance.type === 'required' ? 'Required' : 
-                             maintenance.type === 'history' ? 'History' :
-                             maintenance.type.charAt(0).toUpperCase() + maintenance.type.slice(1);
-            
+
+            const typeLabel = maintenance.type === 'required' ? 'Required' :
+                maintenance.type === 'history' ? 'History' :
+                    maintenance.type.charAt(0).toUpperCase() + maintenance.type.slice(1);
+
             const frequencyText = maintenance.frequency ? ` • ${maintenance.frequency}` : '';
-            
+
             entry.innerHTML = `
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
@@ -1193,7 +1189,7 @@ class AssetHub {
                     </div>
                 </div>
             `;
-            
+
             container.appendChild(entry);
         });
     }
@@ -1201,7 +1197,7 @@ class AssetHub {
     renderEditMaintenance(maintenanceList) {
         const container = document.getElementById('edit-maintenance-list');
         const empty = document.getElementById('edit-maintenance-empty');
-        
+
         if (!maintenanceList || maintenanceList.length === 0) {
             container.innerHTML = '';
             empty.classList.remove('hidden');
@@ -1217,7 +1213,7 @@ class AssetHub {
         sortedMaintenance.forEach(maintenance => {
             const entry = document.createElement('div');
             entry.className = 'glass p-3 rounded-lg border-l-4 border-blue-500';
-            
+
             const typeColors = {
                 cleaning: 'border-green-500',
                 repair: 'border-red-500',
@@ -1225,9 +1221,9 @@ class AssetHub {
                 upgrade: 'border-purple-500',
                 maintenance: 'border-blue-500'
             };
-            
+
             entry.className = `glass p-3 rounded-lg border-l-4 ${typeColors[maintenance.type] || 'border-blue-500'}`;
-            
+
             entry.innerHTML = `
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
@@ -1247,7 +1243,7 @@ class AssetHub {
                     </button>
                 </div>
             `;
-            
+
             container.appendChild(entry);
         });
 
@@ -1288,7 +1284,7 @@ class AssetHub {
 
     async handleMaintenanceSubmit(e) {
         e.preventDefault();
-        
+
         if (!this.currentMaintenanceItem) return;
 
         // Get maintenance type, category, frequency and description
@@ -1307,7 +1303,7 @@ class AssetHub {
 
         // Check if this is a borrowed item
         const isBorrowedItem = !this.ownedItems.some(ownedItem => ownedItem.id === this.currentMaintenanceItem.id);
-        
+
         // Validate required fields
         if (!maintenanceType) {
             this.showError('Please select a maintenance type.');
@@ -1359,24 +1355,24 @@ class AssetHub {
             });
 
             if (response.ok) {
-                const successMessage = maintenanceType === 'required' 
+                const successMessage = maintenanceType === 'required'
                     ? 'Maintenance requirement added successfully!'
                     : 'Maintenance history entry added successfully!';
                 this.showSuccess(successMessage);
-                
+
                 // Maintenance history section removed - no longer reloading history
-                
+
                 // Reload maintenance list if we're in edit modal
                 if (this.currentEditingItem) {
                     await this.loadItemMaintenance(this.currentEditingItem.id);
                 }
-                
+
                 // Reset form for next entry
                 document.getElementById('maintenance-form').reset();
-                
+
                 // Check if this is a borrowed item to set appropriate defaults
                 const isBorrowedItem = !this.ownedItems.some(ownedItem => ownedItem.id === this.currentMaintenanceItem.id);
-                
+
                 if (isBorrowedItem) {
                     // For borrowed items, default to "History"
                     const historyRadio = document.querySelector('input[name="maintenance-type"][value="history"]');
@@ -1408,7 +1404,7 @@ class AssetHub {
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
         notification.textContent = message;
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 3000);
@@ -1420,7 +1416,7 @@ class AssetHub {
         notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
         notification.textContent = message;
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 3000);
