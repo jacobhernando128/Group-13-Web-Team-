@@ -3,9 +3,15 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Create listing page loaded, starting authentication check...');
     // Check authentication and load user data
     checkAuthAndLoadUser();
-    
+
     // ===== CONFIGURATION =====
-    const API_BASE_URL = 'http://localhost:5000';
+    // Use same origin the page was served from so dev/prod ports match
+    const API_BASE_URL = location.origin;
+
+    // Helper to get auth token from common storage keys
+    function getAuthToken() {
+        return localStorage.getItem('hippo_token') || localStorage.getItem('userToken') || sessionStorage.getItem('userToken') || null;
+    }
 
     const form = document.getElementById('create-form');
     const message = document.getElementById('message');
@@ -265,8 +271,47 @@ document.addEventListener('DOMContentLoaded', () => {
             // Note: Maintenance entries will be sent separately to /maintenance endpoint
 
             // Get the current user ID from authentication data
-            const userId = currentUser?.Id || currentUser?.id || currentUser?.userId;
+            console.debug('createListing: currentUser (before userId check) =', currentUser);
+            // If currentUser wasn't populated during page init, try to restore from storage as a fallback
+            if (!currentUser) {
+                try {
+                    const maybe = localStorage.getItem('hippo_user') || localStorage.getItem('userData') || sessionStorage.getItem('userData');
+                    if (maybe) {
+                        const parsed = JSON.parse(maybe);
+                        if (parsed && Object.keys(parsed).length) {
+                            console.debug('createListing: restored currentUser from storage =', parsed);
+                            currentUser = parsed;
+                        }
+                    }
+                } catch (err) {
+                    console.warn('createListing: failed to restore currentUser from storage', err);
+                }
+            }
+            let userId = currentUser?.Id || currentUser?.id || currentUser?.userId;
             if (!userId) {
+                // Attempt to recover currentUser from token by calling /auth/me
+                const maybeToken = getAuthToken();
+                console.debug('createListing: no userId in currentUser; trying token-based /auth/me recovery — token present:', !!maybeToken);
+                if (maybeToken) {
+                    try {
+                        const meRes = await fetch(`${API_BASE_URL}/auth/me`, {
+                            headers: { 'Authorization': `Bearer ${maybeToken}`, 'Content-Type': 'application/json' }
+                        });
+                        if (meRes.ok) {
+                            const recovered = await meRes.json();
+                            console.debug('createListing: recovered currentUser from /auth/me:', recovered);
+                            currentUser = recovered;
+                            userId = currentUser?.Id || currentUser?.id || currentUser?.userId;
+                        } else {
+                            console.warn('createListing: /auth/me returned non-ok status', meRes.status);
+                        }
+                    } catch (err) {
+                        console.warn('createListing: error calling /auth/me for recovery', err);
+                    }
+                }
+            }
+            if (!userId) {
+                console.error('createListing: no userId found after recovery attempts; aborting.');
                 throw new Error('User not authenticated. Please log in again.');
             }
 
@@ -294,11 +339,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log('📤 Sending data to backend:', data);
 
+            const token = getAuthToken();
+            console.debug('createListing: auth token (before POST) =', token ? '[REDACTED]' : null);
+            if (!token) {
+                console.error('createListing: no token found; aborting.');
+                throw new Error('User not authenticated. Please log in again.');
+            }
+
             const res = await fetch(`${API_BASE_URL}/items`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(data)
             });
@@ -339,7 +392,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'Accept': 'application/json'
+                                'Accept': 'application/json',
+                                'Authorization': `Bearer ${getAuthToken()}`
                             },
                             body: JSON.stringify(maintenanceData)
                         });
@@ -479,124 +533,124 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-  console.log('Checking authentication...');
-  const token = localStorage.getItem('hippo_token');
-  const userData = localStorage.getItem('hippo_user');
-  
-  console.log('Token exists:', !!token);
-  console.log('User data exists:', !!userData);
-  
-  if (!token || !userData) {
-    console.log('No token or user data, redirecting to login');
-    // No token or user data, redirect to login
-    window.location.href = './Login.html';
-    return;
-  }
-  
-  // First, try to display user info from localStorage as a fallback
-  try {
-    const storedUser = JSON.parse(userData);
-    console.log('Stored user data:', storedUser);
-    displayUserInfo(storedUser);
-  } catch (error) {
-    console.error('Error parsing stored user data:', error);
-  }
-  
-  try {
-    console.log('Verifying token with /auth/me...');
-    // Verify token is still valid by calling /auth/me
-    const response = await fetch('/auth/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Auth response status:', response.status);
-    
-    if (!response.ok) {
-      console.log('Token invalid, but keeping stored user data for now');
-      // Don't redirect immediately, keep the stored user data
-      return;
+    console.log('Checking authentication...');
+    const token = localStorage.getItem('hippo_token');
+    const userData = localStorage.getItem('hippo_user');
+
+    console.log('Token exists:', !!token);
+    console.log('User data exists:', !!userData);
+
+    if (!token || !userData) {
+        console.log('No token or user data, redirecting to login');
+        // No token or user data, redirect to login
+        window.location.href = './Login.html';
+        return;
     }
-    
-    const currentUser = await response.json();
-    console.log('Current user from /auth/me:', currentUser);
-    displayUserInfo(currentUser);
-    
-  } catch (error) {
-    console.error('Auth check failed:', error);
-    // Don't redirect on network errors, keep the stored user data
-    console.log('Network error, keeping stored user data');
-  }
+
+    // First, try to display user info from localStorage as a fallback
+    try {
+        const storedUser = JSON.parse(userData);
+        console.log('Stored user data:', storedUser);
+        displayUserInfo(storedUser);
+    } catch (error) {
+        console.error('Error parsing stored user data:', error);
+    }
+
+    try {
+        console.log('Verifying token with /auth/me...');
+        // Verify token is still valid by calling /auth/me on same origin
+        const response = await fetch(`${location.origin}/auth/me`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Auth response status:', response.status);
+
+        if (!response.ok) {
+            console.log('Token invalid, but keeping stored user data for now');
+            // Don't redirect immediately, keep the stored user data
+            return;
+        }
+
+        const currentUser = await response.json();
+        console.log('Current user from /auth/me:', currentUser);
+        displayUserInfo(currentUser);
+
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        // Don't redirect on network errors, keep the stored user data
+        console.log('Network error, keeping stored user data');
+    }
 }
 
 function displayUserInfo(user) {
-  console.log('Displaying user info:', user); // Debug log
-  
-  // Store current user data for use in createListing function
-  currentUser = user;
-  
-  // Check for both uppercase and lowercase property names
-  const firstName = user.FirstName || user.firstName;
-  const lastName = user.LastName || user.lastName;
-  const email = user.Email || user.email;
-  
-  let displayName = 'User';
-  if (firstName && lastName) {
-    displayName = `${firstName} ${lastName}`;
-  } else if (email) {
-    displayName = email;
-  }
-  
-  // Update the account name display in sidebar
-  const accountNameElement = document.getElementById('acct-name');
-  if (accountNameElement) {
-    accountNameElement.textContent = displayName;
-    console.log('Set account name to:', displayName);
-  } else {
-    console.error('Account name element not found!');
-  }
-  
-  // Update the listing owner name
-  const listingOwnerNameElement = document.getElementById('listing-owner-name');
-  if (listingOwnerNameElement) {
-    listingOwnerNameElement.textContent = displayName;
-    console.log('Set listing owner name to:', displayName);
-  }
-  
-  // Update the preview seller name
-  const previewSellerNameElement = document.getElementById('preview-seller-name');
-  if (previewSellerNameElement) {
-    previewSellerNameElement.textContent = displayName;
-    console.log('Set preview seller name to:', displayName);
-  }
+    console.log('Displaying user info:', user); // Debug log
+
+    // Store current user data for use in createListing function
+    currentUser = user;
+
+    // Check for both uppercase and lowercase property names
+    const firstName = user.FirstName || user.firstName;
+    const lastName = user.LastName || user.lastName;
+    const email = user.Email || user.email;
+
+    let displayName = 'User';
+    if (firstName && lastName) {
+        displayName = `${firstName} ${lastName}`;
+    } else if (email) {
+        displayName = email;
+    }
+
+    // Update the account name display in sidebar
+    const accountNameElement = document.getElementById('acct-name');
+    if (accountNameElement) {
+        accountNameElement.textContent = displayName;
+        console.log('Set account name to:', displayName);
+    } else {
+        console.error('Account name element not found!');
+    }
+
+    // Update the listing owner name
+    const listingOwnerNameElement = document.getElementById('listing-owner-name');
+    if (listingOwnerNameElement) {
+        listingOwnerNameElement.textContent = displayName;
+        console.log('Set listing owner name to:', displayName);
+    }
+
+    // Update the preview seller name
+    const previewSellerNameElement = document.getElementById('preview-seller-name');
+    if (previewSellerNameElement) {
+        previewSellerNameElement.textContent = displayName;
+        console.log('Set preview seller name to:', displayName);
+    }
 }
 
 function clearAuthData() {
-  localStorage.removeItem('hippo_user');
-  localStorage.removeItem('hippo_token');
-  localStorage.removeItem('userToken');
-  localStorage.removeItem('userData');
-  sessionStorage.removeItem('userToken');
-  sessionStorage.removeItem('userData');
-  
-  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    localStorage.removeItem('hippo_user');
+    localStorage.removeItem('hippo_token');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+    sessionStorage.removeItem('userToken');
+    sessionStorage.removeItem('userData');
+
+    document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 }
 
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
-  const signoutButton = document.querySelector('a[href="./Login.html"]');
-  if (signoutButton) {
-    signoutButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      signOut();
-    });
-  }
+    const signoutButton = document.querySelector('a[href="./Login.html"]');
+    if (signoutButton) {
+        signoutButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            signOut();
+        });
+    }
 });
 
 function signOut() {
-  clearAuthData();
-  window.location.href = './Login.html';
+    clearAuthData();
+    window.location.href = './Login.html';
 }

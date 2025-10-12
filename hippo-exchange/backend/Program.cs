@@ -1,35 +1,96 @@
-using System.Security.Cryptography;
+// ---------- Program.cs  ----------
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
 using System.Text;
+
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using Google.Cloud.Storage.V1;
+
 using FirebaseAdmin;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using BCrypt.Net;
 
 namespace HippoExchange
 {
     public class Program
     {
+        // ---- Small helpers available inside Main via local functions, but declared here for clarity ----
+        private static string PublicUrl(string bucket, string objectName)
+            => $"https://storage.googleapis.com/{bucket}/{Uri.EscapeDataString(objectName)}";
+
+        private static string CanonicalKeyFor(params string[] ids) =>
+            string.Join("|", ids.Where(s => !string.IsNullOrWhiteSpace(s))
+                                .Select(s => s.Trim())
+                                .OrderBy(s => s, StringComparer.Ordinal));
+
+        private static string Preview(string body, int max = 120)
+        {
+            if (string.IsNullOrWhiteSpace(body)) return "";
+            body = body.Trim();
+            return body.Length <= max ? body : body.Substring(0, max) + "…";
+        }
+
+        private static string GenerateJwtToken(
+            UserAuth user,
+            string jwtKey,
+            string jwtIssuer,
+            string jwtAudience,
+            int expiryMinutes)
+        {
+            var key = Encoding.UTF8.GetBytes(jwtKey);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+                new Claim(ClaimTypes.GivenName, user.FirstName ?? string.Empty),
+                new Claim(ClaimTypes.Surname, user.LastName ?? string.Empty),
+                new Claim("phone", user.Phone ?? string.Empty),
+            };
+
+            var creds = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature);
+            var token = new JwtSecurityToken(
+                issuer: jwtIssuer,
+                audience: jwtAudience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+        // ---------- MAIN + PIPELINE + ENDPOINTS ----------
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Optional: expose HTTP on a fixed port for local/dev
-            builder.WebHost.ConfigureKestrel(options =>
+            // Port for local/dev (HTTP). Add HTTPS binding if you have a cert.
+            // To avoid 'address already in use' when another process uses port 5000,
+            // only bind to 5000 when the environment variable USE_FIXED_PORT=true
+            var useFixedPort = Environment.GetEnvironmentVariable("USE_FIXED_PORT") == "true";
+            if (useFixedPort)
             {
-                options.ListenAnyIP(5000);
-                // For HTTPS with a cert:
-                // options.ListenAnyIP(443, lo => lo.UseHttps("cert.pfx", "password"));
-            });
+                builder.WebHost.ConfigureKestrel(o =>
+                {
+                    o.ListenAnyIP(5000);
+                    // o.ListenAnyIP(443, lo => lo.UseHttps("cert.pfx", "password"));
+                });
+            }
+            else
+            {
+                // Optionally, you can configure other ports or settings here if needed
+            }
 
             // ---- Config ----
             var projectId =
@@ -46,7 +107,7 @@ namespace HippoExchange
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
 
-            if (string.IsNullOrWhiteSpace(credPath) || !File.Exists(credPath))
+            if (string.IsNullOrWhiteSpace(credPath) || !System.IO.File.Exists(credPath))
             {
                 throw new InvalidOperationException(
                     "Credentials not found. Set GOOGLE_APPLICATION_CREDENTIALS or GoogleCloud:CredentialPath " +
@@ -54,35 +115,6 @@ namespace HippoExchange
             }
 
             var googleCred = GoogleCredential.FromFile(credPath);
-
-            static string PublicUrl(string bucket, string objectName)
-                => $"https://storage.googleapis.com/{bucket}/{Uri.EscapeDataString(objectName)}";
-
-            // JWT Token Generation
-            static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
-            {
-                if (user == null) throw new ArgumentNullException(nameof(user));
-                
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.UTF8.GetBytes(jwtKey);
-                var tokenDescriptor = new SecurityTokenDescriptor
-                {
-                    Subject = new ClaimsIdentity(new[]
-                    {
-                        new Claim(ClaimTypes.NameIdentifier, user.Id ?? string.Empty),
-                        new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-                        new Claim(ClaimTypes.GivenName, user.FirstName ?? string.Empty),
-                        new Claim(ClaimTypes.Surname, user.LastName ?? string.Empty),
-                        new Claim("phone", user.Phone ?? string.Empty)
-                    }),
-                    Expires = DateTime.UtcNow.AddMinutes(expiryMinutes),
-                    Issuer = jwtIssuer,
-                    Audience = jwtAudience,
-                    SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-                };
-                var token = tokenHandler.CreateToken(tokenDescriptor);
-                return tokenHandler.WriteToken(token);
-            }
 
             // ---- Services ----
             builder.Services.AddSingleton(_ => new FirestoreDbBuilder
@@ -92,18 +124,18 @@ namespace HippoExchange
                 Credential = googleCred
             }.Build());
 
-            // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
-            // JWT Authentication
-            var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
+            // JWT config
+            var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not configured.");
             var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
             var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
+            var jwtExpiry = int.TryParse(builder.Configuration["Jwt:ExpiryMinutes"], out var m) ? m : 60;
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+                .AddJwtBearer(o =>
                 {
-                    options.TokenValidationParameters = new TokenValidationParameters
+                    o.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,
                         ValidateAudience = true,
@@ -124,23 +156,20 @@ namespace HippoExchange
                 {
                     Title = "HippoExchange API",
                     Version = "v1",
-                    Description = "CRUD API backed by Firestore; BCrypt auth; GCS media upload"
+                    Description = "CRUD API backed by Firestore; JWT auth; GCS media uploads; Inbox"
                 });
             });
 
             builder.Services.AddCors(o =>
             {
-                // TODO: tighten for prod
+                // For production, restrict origins.
                 o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
             });
 
-            // Firebase Admin (optional, present for future token work)
+            // Firebase Admin (optional)
             if (FirebaseApp.DefaultInstance is null)
             {
-                FirebaseApp.Create(new FirebaseAdmin.AppOptions
-                {
-                    Credential = googleCred
-                });
+                FirebaseApp.Create(new FirebaseAdmin.AppOptions { Credential = googleCred });
             }
 
             var app = builder.Build();
@@ -158,7 +187,7 @@ namespace HippoExchange
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // ---- Serve frontend ----
+            // ---- Serve static frontend ----
             var defaults = new DefaultFilesOptions();
             defaults.DefaultFileNames.Clear();
             defaults.DefaultFileNames.Add("Login.html");
@@ -170,53 +199,35 @@ namespace HippoExchange
             // ===================== API =====================
 
             // ---- Health ----
-            app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
-               .WithName("Health");
-
+            app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
             app.MapGet("/health/firestore", async (FirestoreDb db, ILogger<Program> logger) =>
             {
                 try
                 {
                     await db.Collection("users").Limit(1).GetSnapshotAsync();
-                    return Results.Json(new
-                    {
-                        status = "ok",
-                        firestore = "ok",
-                        projectId = db.ProjectId,
-                        databaseId = db.DatabaseId
-                    });
+                    return Results.Json(new { status = "ok", firestore = "ok", projectId = db.ProjectId, databaseId = db.DatabaseId });
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Firestore health check failed");
                     return Results.Problem(title: "Firestore check failed", detail: ex.Message, statusCode: 503);
                 }
-            }).WithName("Health_Firestore");
-
-            // Show credential path/existence
-            app.MapGet("/debug/adc", () =>
-            {
-                var exists = !string.IsNullOrWhiteSpace(credPath) && File.Exists(credPath);
-                return Results.Ok(new { credentialPath = credPath, exists });
-            }).WithName("Debug_ADC");
+            });
 
             // -------- Items --------
-
-            // Create item
             app.MapPost("/items", async (FirestoreDb db, Item item) =>
             {
                 item.Id = Guid.NewGuid().ToString("n");
                 item.CreatedUtc = DateTime.UtcNow;
                 await db.Collection("itemID").Document(item.Id).SetAsync(item);
                 return Results.Created($"/items/{item.Id}", item);
-            }).WithName("CreateItem");
+            });
 
-            // Get item by id
             app.MapGet("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 var snap = await db.Collection("itemID").Document(id).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<Item>()) : Results.NotFound();
-            }).WithName("GetItemById");
+            });
 
             // List items (optional filter ownerId aka userID, with pagination)
             app.MapGet("/items", async (FirestoreDb db, string? ownerId, int limit = 100, int offset = 0) =>
@@ -227,18 +238,19 @@ namespace HippoExchange
 
                 // Apply pagination
                 q = q.Limit(limit).Offset(offset);
-                
+
                 var snaps = await q.GetSnapshotAsync();
                 var items = snaps.Select(s => s.ConvertTo<Item>()).ToList();
-                
+
                 // Get total count for pagination info
                 Query countQuery = db.Collection("itemID");
                 if (!string.IsNullOrWhiteSpace(ownerId))
                     countQuery = countQuery.WhereEqualTo("userID", ownerId);
                 var countSnaps = await countQuery.GetSnapshotAsync();
                 var totalCount = countSnaps.Count;
-                
-                return Results.Ok(new {
+
+                return Results.Ok(new
+                {
                     items = items,
                     totalCount = totalCount,
                     limit = limit,
@@ -247,7 +259,6 @@ namespace HippoExchange
                 });
             }).WithName("ListItems");
 
-            // Update item
             app.MapPut("/items/{id}", async (FirestoreDb db, string id, Item update) =>
             {
                 var doc = db.Collection("itemID").Document(id);
@@ -269,18 +280,16 @@ namespace HippoExchange
 
                 await doc.SetAsync(current, SetOptions.Overwrite);
                 return Results.Ok(current);
-            }).WithName("UpdateItem");
+            });
 
-            // Delete item
             app.MapDelete("/items/{id}", async (FirestoreDb db, string id) =>
             {
                 var doc = db.Collection("itemID").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
-
                 await doc.DeleteAsync();
                 return Results.NoContent();
-            }).WithName("DeleteItem");
+            });
 
             // Upload pictures
             app.MapPost("/items/{id}/pictures", async (HttpRequest req, FirestoreDb db, StorageClient storage, string id) =>
@@ -300,19 +309,13 @@ namespace HippoExchange
                 {
                     await using var stream = file.OpenReadStream();
                     var objectName = $"items/{id}/pictures/{Guid.NewGuid():n}-{file.FileName}";
-                    await storage.UploadObjectAsync(
-                        bucket,
-                        objectName,
-                        file.ContentType ?? "application/octet-stream",
-                        stream
-                    );
-
+                    await storage.UploadObjectAsync(bucket, objectName, file.ContentType ?? "application/octet-stream", stream);
                     urls.Add(PublicUrl(bucket, objectName));
                 }
 
                 await itemDoc.UpdateAsync("Pictures", FieldValue.ArrayUnion(urls.Cast<object>().ToArray()));
                 return Results.Ok(new { added = urls.Count, urls });
-            }).WithName("AddItemPictures");
+            });
 
             // Upload videos
             app.MapPost("/items/{id}/videos", async (HttpRequest req, FirestoreDb db, StorageClient storage, string id) =>
@@ -332,34 +335,27 @@ namespace HippoExchange
                 {
                     await using var stream = file.OpenReadStream();
                     var objectName = $"items/{id}/videos/{Guid.NewGuid():n}-{file.FileName}";
-                    await storage.UploadObjectAsync(
-                        bucket,
-                        objectName,
-                        file.ContentType ?? "application/octet-stream",
-                        stream
-                    );
-
+                    await storage.UploadObjectAsync(bucket, objectName, file.ContentType ?? "application/octet-stream", stream);
                     urls.Add(PublicUrl(bucket, objectName));
                 }
 
                 await itemDoc.UpdateAsync("Videos", FieldValue.ArrayUnion(urls.Cast<object>().ToArray()));
                 return Results.Ok(new { added = urls.Count, urls });
-            }).WithName("AddItemVideos");
+            });
 
             // -------- Users --------
-
             app.MapGet("/users/{userId}/items", async (FirestoreDb db, string userId) =>
             {
                 var q = db.Collection("itemID").WhereEqualTo("userID", userId);
                 var snaps = await q.GetSnapshotAsync();
                 return snaps.Select(s => s.ConvertTo<Item>());
-            }).WithName("GetUserItems");
+            });
 
             app.MapGet("/users/{userId}", async (FirestoreDb db, string userId) =>
             {
                 var snap = await db.Collection("users").Document(userId).GetSnapshotAsync();
                 return snap.Exists ? Results.Ok(snap.ConvertTo<UserAuth>()) : Results.NotFound();
-            }).WithName("GetUserById");
+            });
 
             app.MapPost("/users", async (FirestoreDb db, UserAuth user) =>
             {
@@ -367,21 +363,20 @@ namespace HippoExchange
                 user.CreatedUtc = DateTime.UtcNow;
                 await db.Collection("users").Document(user.Id).SetAsync(user);
                 return Results.Created($"/users/{user.Id}", user);
-            }).WithName("CreateUser");
+            });
 
             // -------- Exchanges --------
-
             app.MapGet("/exchanges/owner/{ownerId}", async (FirestoreDb db, string ownerId) =>
             {
                 var snaps = await db.Collection("exchanges").WhereEqualTo("ownerID", ownerId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
-            }).WithName("GetExchangesByOwner");
+            });
 
             app.MapGet("/exchanges/borrower/{borrowerId}", async (FirestoreDb db, string borrowerId) =>
             {
                 var snaps = await db.Collection("exchanges").WhereEqualTo("borrowerID", borrowerId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
-            }).WithName("GetExchangesByBorrower");
+            });
 
             app.MapPost("/exchanges", async (FirestoreDb db, CreateExchangeDto dto) =>
             {
@@ -394,10 +389,9 @@ namespace HippoExchange
                     Approved = false,
                     RequestCreated = DateTime.UtcNow
                 };
-
                 await db.Collection("exchanges").Document(ex.Id).SetAsync(ex);
                 return Results.Created($"/exchanges/{ex.Id}", ex);
-            }).WithName("CreateExchange");
+            });
 
             app.MapPut("/exchanges/{id}/approval", async (FirestoreDb db, string id, UpdateExchangeApprovalDto dto) =>
             {
@@ -408,7 +402,7 @@ namespace HippoExchange
                 await doc.UpdateAsync(new Dictionary<string, object> { ["approved"] = dto.Approved });
                 var updated = await doc.GetSnapshotAsync();
                 return Results.Ok(updated.ConvertTo<Exchange>());
-            }).WithName("UpdateExchangeApproval");
+            });
 
             app.MapDelete("/exchanges/{id}", async (FirestoreDb db, string id) =>
             {
@@ -418,15 +412,14 @@ namespace HippoExchange
 
                 await doc.DeleteAsync();
                 return Results.NoContent();
-            }).WithName("DeleteExchange");
+            });
 
             // -------- Notifications --------
-
             app.MapGet("/notifications/receiver/{receiverId}", async (FirestoreDb db, string receiverId) =>
             {
                 var snaps = await db.Collection("notifications").WhereEqualTo("receiverID", receiverId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Notification>()));
-            }).WithName("GetNotificationsByReceiver");
+            });
 
             app.MapPost("/notifications", async (FirestoreDb db, CreateNotificationDto dto) =>
             {
@@ -445,15 +438,14 @@ namespace HippoExchange
 
                 await db.Collection("notifications").Document(notif.Id).SetAsync(notif);
                 return Results.Created($"/notifications/{notif.Id}", notif);
-            }).WithName("CreateNotification");
+            });
 
             // -------- Listings --------
-
             app.MapGet("/listings/user/{userId}", async (FirestoreDb db, string userId) =>
             {
                 var snaps = await db.Collection("listings").WhereEqualTo("userID", userId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Listing>()));
-            }).WithName("GetListingsByUser");
+            });
 
             app.MapPost("/listings", async (FirestoreDb db, CreateListingDto dto) =>
             {
@@ -464,10 +456,9 @@ namespace HippoExchange
                     UserId = dto.UserId.Trim(),
                     CreatedUtc = DateTime.UtcNow
                 };
-
                 await db.Collection("listings").Document(listing.Id).SetAsync(listing);
                 return Results.Created($"/listings/{listing.Id}", listing);
-            }).WithName("CreateListing");
+            });
 
             app.MapDelete("/listings/item/{itemId}", async (FirestoreDb db, string itemId) =>
             {
@@ -479,22 +470,18 @@ namespace HippoExchange
                 await batch.CommitAsync();
 
                 return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteListingsByItemId");
+            });
 
             // -------- Maintenance --------
-
             app.MapGet("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
             {
                 var snaps = await db.Collection("maintenance").WhereEqualTo("itemId", itemId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Maintenance>()));
-            }).WithName("GetMaintenanceByItemId");
+            });
 
             app.MapPut("/maintenance/{maintenanceId}/description", async (FirestoreDb db, string maintenanceId, UpdateMaintenanceDescriptionDto dto) =>
             {
-                var snaps = await db.Collection("maintenance")
-                                    .WhereEqualTo("maintenanceID", maintenanceId)
-                                    .Limit(1).GetSnapshotAsync();
-
+                var snaps = await db.Collection("maintenance").WhereEqualTo("maintenanceID", maintenanceId).Limit(1).GetSnapshotAsync();
                 if (!snaps.Any()) return Results.NotFound();
 
                 var docRef = snaps.First().Reference;
@@ -502,7 +489,7 @@ namespace HippoExchange
 
                 var updated = await docRef.GetSnapshotAsync();
                 return Results.Ok(updated.ConvertTo<Maintenance>());
-            }).WithName("UpdateMaintenanceDescription");
+            });
 
             app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto, ILogger<Program> logger) =>
             {
@@ -525,7 +512,7 @@ namespace HippoExchange
 
                 await db.Collection("maintenance").Document(m.Id).SetAsync(m);
                 return Results.Created($"/maintenance/{m.Id}", m);
-            }).WithName("CreateMaintenance");
+            });
 
             app.MapDelete("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
             {
@@ -537,15 +524,14 @@ namespace HippoExchange
                 await batch.CommitAsync();
 
                 return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteMaintenanceByItemId");
+            });
 
             // -------- Reviews --------
-
             app.MapGet("/reviews/user/{userId}", async (FirestoreDb db, string userId) =>
             {
                 var snaps = await db.Collection("reviews").WhereEqualTo("userID", userId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<Review>()));
-            }).WithName("GetReviewsByUserId");
+            });
 
             app.MapPost("/reviews", async (FirestoreDb db, CreateReviewDto dto) =>
             {
@@ -565,10 +551,9 @@ namespace HippoExchange
                     UserId = user,
                     Description = desc
                 };
-
                 await db.Collection("reviews").Document(review.Id).SetAsync(review);
                 return Results.Created($"/reviews/{review.Id}", review);
-            }).WithName("CreateReview");
+            });
 
             app.MapPut("/reviews/{id}", async (FirestoreDb db, string id, UpdateReviewDto dto) =>
             {
@@ -578,7 +563,6 @@ namespace HippoExchange
 
                 var rating = dto.Rating;
                 var desc = (dto.Description ?? "").Trim();
-
                 if (rating == 0 || string.IsNullOrWhiteSpace(desc))
                     return Results.BadRequest(new { message = "Both rating and description are required." });
 
@@ -590,7 +574,7 @@ namespace HippoExchange
 
                 var updated = await docRef.GetSnapshotAsync();
                 return Results.Ok(updated.ConvertTo<Review>());
-            }).WithName("UpdateReview");
+            });
 
             app.MapDelete("/reviews/{id}", async (FirestoreDb db, string id) =>
             {
@@ -600,15 +584,215 @@ namespace HippoExchange
 
                 await docRef.DeleteAsync();
                 return Results.NoContent();
-            }).WithName("DeleteReview");
+            });
+
+            // ========== Inbox (threads + messages) ==========
+            const string ThreadsCol = "messageThreads";
+            const string MessagesSubcol = "messages";
+
+            // List threads for a user (newest first)
+            app.MapGet("/inbox/threads", async (FirestoreDb db, string userId) =>
+            {
+                if (string.IsNullOrWhiteSpace(userId)) return Results.BadRequest(new { error = "userId required" });
+
+                // Firestore requires a composite index for queries that combine
+                // array-contains with an orderBy on another field. To avoid
+                // requiring an index in development, fetch the matching documents
+                // and sort them in-memory by updatedUtc.
+                var snaps = await db.Collection(ThreadsCol)
+                    .WhereArrayContains("participants", userId)
+                    .Limit(500) // limit to a reasonable number to avoid large reads
+                    .GetSnapshotAsync();
+
+                var threads = snaps.Select(s =>
+                {
+                    var t = s.ConvertTo<MessageThread>();
+                    t.Id = s.Id;
+                    return t;
+                })
+                .OrderByDescending(t => t.UpdatedUtc)
+                .Take(100); // return top 100 after sorting
+
+                return Results.Ok(threads);
+            });
+
+            // Create (or reuse) a thread by participant IDs
+            app.MapPost("/inbox/threads", async (FirestoreDb db, CreateThreadDto dto) =>
+            {
+                var participants = dto.ParticipantIds?.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList() ?? new();
+                if (participants.Count < 2) return Results.BadRequest(new { error = "At least two participant IDs are required." });
+
+                var canonical = CanonicalKeyFor(participants.ToArray());
+
+                // Try to find an existing thread with same canonical key
+                var q = await db.Collection(ThreadsCol)
+                    .WhereEqualTo("canonicalKey", canonical)
+                    .Limit(1)
+                    .GetSnapshotAsync();
+
+                DocumentReference threadRef;
+                MessageThread thread;
+
+                if (q.Any())
+                {
+                    var snap = q.First();
+                    threadRef = snap.Reference;
+                    thread = snap.ConvertTo<MessageThread>();
+                    thread.Id = snap.Id;
+                }
+                else
+                {
+                    thread = new MessageThread
+                    {
+                        Participants = participants,
+                        CanonicalKey = canonical,
+                        Subject = string.IsNullOrWhiteSpace(dto.Subject) ? null : dto.Subject!.Trim(),
+                        LastMessagePreview = null,
+                        UpdatedUtc = DateTime.UtcNow
+                    };
+                    threadRef = await db.Collection(ThreadsCol).AddAsync(thread);
+                    thread.Id = threadRef.Id;
+                }
+
+                return Results.Created($"/inbox/threads/{threadRef.Id}", thread);
+            });
+
+            // Get a thread (plus last N messages)
+            app.MapGet("/inbox/threads/{threadId}", async (FirestoreDb db, string threadId, int take = 50) =>
+            {
+                var threadRef = db.Collection(ThreadsCol).Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                var thread = snap.ConvertTo<MessageThread>();
+                thread.Id = snap.Id;
+
+                take = Math.Clamp(take, 1, 200);
+
+                var msgSnaps = await threadRef.Collection(MessagesSubcol)
+                    .OrderByDescending("sentUtc")
+                    .Limit(take)
+                    .GetSnapshotAsync();
+
+                var messages = msgSnaps.Select(s =>
+                {
+                    var mdoc = s.ConvertTo<MessageDoc>();
+                    mdoc.Id = s.Id;
+                    return mdoc;
+                })
+                .OrderBy(m => m.SentUtc)
+                .ToList();
+
+                return Results.Ok(new { thread, messages });
+            });
+
+            // Send a message to a thread
+            app.MapPost("/inbox/threads/{threadId}/messages", async (FirestoreDb db, string threadId, SendMessageDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.SenderId) || string.IsNullOrWhiteSpace(dto.Body))
+                    return Results.BadRequest(new { error = "senderId and body are required." });
+
+                var threadRef = db.Collection(ThreadsCol).Document(threadId);
+                var threadSnap = await threadRef.GetSnapshotAsync();
+                if (!threadSnap.Exists) return Results.NotFound();
+
+                var msg = new MessageDoc
+                {
+                    SenderId = dto.SenderId.Trim(),
+                    Body = dto.Body.Trim(),
+                    SentUtc = DateTime.UtcNow
+                };
+
+                await threadRef.Collection(MessagesSubcol).AddAsync(msg);
+
+                // Update thread summary
+                var updates = new Dictionary<string, object>
+                {
+                    ["lastMessagePreview"] = Preview(msg.Body),
+                    ["updatedUtc"] = msg.SentUtc,
+                    [$"lastReadBy.{dto.SenderId.Trim()}"] = msg.SentUtc
+                };
+
+                await threadRef.UpdateAsync(updates);
+
+                return Results.Accepted($"/inbox/threads/{threadId}");
+            });
+
+            // Mark a thread read for a user
+            app.MapPost("/inbox/threads/{threadId}/read", async (FirestoreDb db, string threadId, MarkReadDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.UserId)) return Results.BadRequest(new { error = "userId required." });
+
+                var threadRef = db.Collection(ThreadsCol).Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                await threadRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    [$"lastReadBy.{dto.UserId.Trim()}"] = DateTime.UtcNow
+                });
+
+                return Results.NoContent();
+            });
+
+            // Star / unstar a thread for a user
+            app.MapPost("/inbox/threads/{threadId}/star", async (FirestoreDb db, string threadId, StarDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.UserId)) return Results.BadRequest(new { error = "userId required." });
+
+                var threadRef = db.Collection(ThreadsCol).Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                if (dto.Starred)
+                    await threadRef.UpdateAsync("starredBy", FieldValue.ArrayUnion(dto.UserId.Trim()));
+                else
+                    await threadRef.UpdateAsync("starredBy", FieldValue.ArrayRemove(dto.UserId.Trim()));
+
+                return Results.NoContent();
+            });
+
+            // Convenience: get-or-create 1:1 thread between two users
+            app.MapPost("/inbox/with", async (FirestoreDb db, string userA, string userB, string? subject) =>
+            {
+                if (string.IsNullOrWhiteSpace(userA) || string.IsNullOrWhiteSpace(userB))
+                    return Results.BadRequest(new { error = "userA and userB required." });
+
+                var participants = new List<string> { userA.Trim(), userB.Trim() };
+                var canonical = CanonicalKeyFor(participants.ToArray());
+
+                var q = await db.Collection(ThreadsCol)
+                    .WhereEqualTo("canonicalKey", canonical)
+                    .Limit(1)
+                    .GetSnapshotAsync();
+
+                if (q.Any())
+                {
+                    var snap = q.First();
+                    var existing = snap.ConvertTo<MessageThread>();
+                    existing.Id = snap.Id;
+                    return Results.Ok(existing);
+                }
+
+                var thread = new MessageThread
+                {
+                    Participants = participants,
+                    CanonicalKey = canonical,
+                    Subject = string.IsNullOrWhiteSpace(subject) ? null : subject!.Trim(),
+                    UpdatedUtc = DateTime.UtcNow
+                };
+                var added = await db.Collection(ThreadsCol).AddAsync(thread);
+                thread.Id = added.Id;
+
+                return Results.Created($"/inbox/threads/{thread.Id}", thread);
+            });
 
             // -------- Documents --------
-
             app.MapGet("/documents/maintenance/{maintenanceId}", async (FirestoreDb db, string maintenanceId) =>
             {
                 var snaps = await db.Collection("Document").WhereEqualTo("maintenanceID", maintenanceId).GetSnapshotAsync();
                 return Results.Ok(snaps.Select(s => s.ConvertTo<DocumentEntry>()));
-            }).WithName("GetDocumentsByMaintenanceId");
+            });
 
             app.MapPost("/documents", async (FirestoreDb db, CreateDocumentDto dto) =>
             {
@@ -620,10 +804,9 @@ namespace HippoExchange
                     DocumentContent = dto.Document.Trim(),
                     CreatedUtc = DateTime.UtcNow
                 };
-
                 await db.Collection("Document").Document(docEnt.Id).SetAsync(docEnt);
                 return Results.Created($"/documents/{docEnt.Id}", docEnt);
-            }).WithName("CreateDocument");
+            });
 
             app.MapPut("/documents/{id}", async (FirestoreDb db, string id, UpdateDocumentDto dto) =>
             {
@@ -634,13 +817,12 @@ namespace HippoExchange
                 var updates = new Dictionary<string, object>();
                 if (!string.IsNullOrWhiteSpace(dto.Description)) updates["description"] = dto.Description.Trim();
                 if (!string.IsNullOrWhiteSpace(dto.Document)) updates["Document"] = dto.Document.Trim();
-
                 if (updates.Count == 0) return Results.BadRequest(new { message = "No fields to update." });
 
                 await docRef.UpdateAsync(updates);
                 var updated = await docRef.GetSnapshotAsync();
                 return Results.Ok(updated.ConvertTo<DocumentEntry>());
-            }).WithName("UpdateDocument");
+            });
 
             app.MapDelete("/documents/maintenance/{maintenanceId}", async (FirestoreDb db, string maintenanceId) =>
             {
@@ -652,107 +834,73 @@ namespace HippoExchange
                 await batch.CommitAsync();
 
                 return Results.Ok(new { deleted = snaps.Count });
-            }).WithName("DeleteDocumentsByMaintenanceId");
+            });
 
-            // -------- Auth (BCrypt + Firestore) --------
-
-            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto, ILogger<Program> log) =>
+            // -------- Auth (BCrypt + JWT) --------
+            app.MapPost("/auth/register", async (FirestoreDb db, AuthRegisterDto dto) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
                 if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(dto.Password))
                     return Results.BadRequest(new { message = "Email and password are required." });
 
-                try
+                var exists = await db.Collection("users")
+                                     .WhereEqualTo(nameof(UserAuth.Email), email)
+                                     .Limit(1).GetSnapshotAsync();
+                if (exists.Any()) return Results.Conflict(new { message = "Email already registered." });
+
+                var user = new UserAuth
                 {
-                    var exists = await db.Collection("users")
-                        .WhereEqualTo(nameof(UserAuth.Email), email)
-                        .Limit(1).GetSnapshotAsync();
+                    Id = Guid.NewGuid().ToString("n"),
+                    Email = email,
+                    FirstName = (dto.FirstName ?? "").Trim(),
+                    LastName = (dto.LastName ?? "").Trim(),
+                    Phone = (dto.Phone ?? "").Trim(),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                    CreatedUtc = DateTime.UtcNow
+                };
+                await db.Collection("users").Document(user.Id!).SetAsync(user);
 
-                    if (exists.Any())
-                        return Results.Conflict(new { message = "Email already registered." });
+                var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, jwtExpiry);
 
-                    var user = new UserAuth
-                    {
-                        Id = Guid.NewGuid().ToString("n"),
-                        Email = email,
-                        FirstName = (dto.FirstName ?? "").Trim(),
-                        LastName = (dto.LastName ?? "").Trim(),
-                        Phone = (dto.Phone ?? "").Trim(),
-                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                        CreatedUtc = DateTime.UtcNow
-                    };
-
-                    await db.Collection("users").Document(user.Id).SetAsync(user);
-                    
-                    // Generate JWT token for new user
-                    var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
-                    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
-                    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
-                    var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-                    
-                    var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
-                    
-                    return Results.Created($"/users/{user.Id}", new
-                    {
-                        user.Id,
-                        user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName,
-                        Token = token
-                    });
-                }
-                catch (Exception ex)
+                return Results.Created($"/users/{user.Id}", new
                 {
-                    log.LogError(ex, "Register failed");
-                    return Results.Problem(title: "Register failed", detail: ex.Message, statusCode: 500);
-                }
-            }).WithName("Register");
+                    user.Id,
+                    user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Token = token
+                });
+            });
 
-            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto, ILogger<Program> log) =>
+            app.MapPost("/auth/login", async (FirestoreDb db, AuthLoginDto dto) =>
             {
                 var email = (dto.Email ?? "").Trim().ToLowerInvariant();
-                try
-                {
-                    var snaps = await db.Collection("users")
-                        .WhereEqualTo(nameof(UserAuth.Email), email)
-                        .Limit(1).GetSnapshotAsync();
 
-                    if (!snaps.Any()) return Results.Unauthorized();
+                var snaps = await db.Collection("users")
+                                    .WhereEqualTo(nameof(UserAuth.Email), email)
+                                    .Limit(1).GetSnapshotAsync();
+                if (!snaps.Any()) return Results.Unauthorized();
 
-                    var user = snaps.First().ConvertTo<UserAuth>();
-                    var ok = BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash);
-                    if (!ok) return Results.Unauthorized();
-
-                    // Generate JWT token
-                    var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
-                    var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
-                    var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
-                    var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-                    
-                    var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
-
-                    return Results.Ok(new
-                    {
-                        user.Id,
-                        user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName,
-                        Token = token
-                    });
-                }
-                catch (Exception ex)
-                {
-                    log.LogError(ex, "Login failed");
-                    return Results.Problem(title: "Login failed", detail: ex.Message, statusCode: 500);
-                }
-            }).WithName("Login");
-
-            // Get current user info from token
-            app.MapGet("/auth/me", (ClaimsPrincipal user) =>
-            {
-                if (user?.Identity?.IsAuthenticated != true)
+                var user = snaps.First().ConvertTo<UserAuth>();
+                if (string.IsNullOrEmpty(user.PasswordHash) ||
+                    !BCrypt.Net.BCrypt.Verify(dto.Password ?? "", user.PasswordHash))
                     return Results.Unauthorized();
 
+                var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, jwtExpiry);
+
+                return Results.Ok(new
+                {
+                    user.Id,
+                    user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Token = token
+                });
+            });
+
+            app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+            {
+                if (user?.Identity?.IsAuthenticated != true) return Results.Unauthorized();
                 return Results.Ok(new
                 {
                     Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
@@ -761,7 +909,7 @@ namespace HippoExchange
                     LastName = user.FindFirst(ClaimTypes.Surname)?.Value,
                     Phone = user.FindFirst("phone")?.Value
                 });
-            }).RequireAuthorization().WithName("GetCurrentUser");
+            }).RequireAuthorization();
 
             // -------- Messaging --------
 
@@ -774,10 +922,10 @@ namespace HippoExchange
                 var q = db.Collection("messageThreads").Limit(100);
                 var snaps = await q.GetSnapshotAsync();
                 var allThreads = snaps.Select(s => s.ConvertTo<MessageThread>()).ToList();
-                
+
                 // Filter threads where user is a participant
                 var threads = allThreads.Where(t => t.Participants?.Contains(userId) == true).ToList();
-                
+
                 // Sort in memory
                 threads = threads.OrderByDescending(t => t.UpdatedUtc).ToList();
 
@@ -940,29 +1088,17 @@ namespace HippoExchange
 
                 var u = doc.ConvertTo<UserAuth>();
                 u.Id = doc.Id;
-                return Results.Ok(new { 
-                    id = u.Id, 
-                    email = u.Email, 
-                    firstName = u.FirstName, 
+                return Results.Ok(new
+                {
+                    id = u.Id,
+                    email = u.Email,
+                    firstName = u.FirstName,
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim() 
+                    name = $"{u.FirstName} {u.LastName}".Trim()
                 });
             });
 
             app.Run();
-        }
-
-        // helpers inside main above the endpoints 
-        static string CanonicalKeyFor(params string[] ids)
-            => string.Join("|", ids.Where(s => !string.IsNullOrWhiteSpace(s))
-                                   .Select(s => s.Trim())
-                                   .OrderBy(s => s, StringComparer.Ordinal));
-
-        static string Preview(string body, int max = 120)
-        {
-            if (string.IsNullOrWhiteSpace(body)) return "";
-            body = body.Trim();
-            return body.Length <= max ? body : body.Substring(0, max) + "…";
         }
     }
 
@@ -1108,7 +1244,7 @@ namespace HippoExchange
     // ---------------- DTOs ----------------
     public record AuthRegisterDto(string Email, string Phone, string FirstName, string LastName, string Password);
     public record AuthLoginDto(string Email, string Password);
-    
+
 
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
     public record UpdateExchangeApprovalDto(bool Approved);
