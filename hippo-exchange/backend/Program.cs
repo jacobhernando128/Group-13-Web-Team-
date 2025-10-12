@@ -504,16 +504,24 @@ namespace HippoExchange
                 return Results.Ok(updated.ConvertTo<Maintenance>());
             }).WithName("UpdateMaintenanceDescription");
 
-            app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto) =>
+            app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto, ILogger<Program> logger) =>
             {
+                logger.LogInformation("Received maintenance data: ItemId={ItemId}, Type={Type}, Category={Category}, Frequency={Frequency}, Description={Description}, Date={Date}", 
+                    dto.ItemId, dto.Type, dto.Category, dto.Frequency, dto.Description, dto.Date);
+
                 var m = new Maintenance
                 {
                     Id = Guid.NewGuid().ToString("n"),
                     ItemId = dto.ItemId.Trim(),
                     Description = dto.Description.Trim(),
-                    Frequency = dto.Frequency.Trim(),
+                    Frequency = dto.Frequency?.Trim() ?? "",
+                    Type = dto.Type?.Trim() ?? "",
+                    Category = dto.Category?.Trim() ?? "",
+                    Date = dto.Date?.Trim() ?? "",
                     CreatedUtc = DateTime.UtcNow
                 };
+
+                logger.LogInformation("Saving maintenance to Firestore: Type={Type}, Category={Category}", m.Type, m.Category);
 
                 await db.Collection("maintenance").Document(m.Id).SetAsync(m);
                 return Results.Created($"/maintenance/{m.Id}", m);
@@ -1038,6 +1046,9 @@ namespace HippoExchange
         [FirestoreProperty("description")] public string Description { get; set; } = default!;
         [FirestoreProperty("itemId")] public string ItemId { get; set; } = default!;
         [FirestoreProperty("frequency")] public string Frequency { get; set; } = default!;
+        [FirestoreProperty("type")] public string Type { get; set; } = default!;
+        [FirestoreProperty("category")] public string Category { get; set; } = default!;
+        [FirestoreProperty("date")] public string Date { get; set; } = default!;
     }
 
     [FirestoreData]
@@ -1106,7 +1117,7 @@ namespace HippoExchange
 
     public record CreateListingDto(string ItemId, string UserId);
 
-    public record CreateMaintenanceDto(string ItemId, string Description, string Frequency);
+    public record CreateMaintenanceDto(string ItemId, string Description, string Frequency, string Type, string Category, string Date);
     public record UpdateMaintenanceDescriptionDto(string Description);
 
     public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
