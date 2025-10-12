@@ -7,12 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const tpl = document.getElementById('item-card-template');
   const filterCount = document.getElementById('filter-count');
 
-  // Defensive checks: if key DOM nodes are missing, stop early and log clearly.
-  if (!grid) {
-    console.error('home.js: required element #listings-grid not found in DOM. Aborting listings load/render.');
-    return;
-  }
-
   // Mobile menu functionality
   const menuButton = document.getElementById('menu-button');
   const sidebar = document.getElementById('sidebar');
@@ -75,14 +69,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reset pagination when searching
     paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
-
+    
     let filteredItems = allListings;
 
     if (currentCategory !== 'all') {
       filteredItems = filteredItems.filter(item => {
         // Check if item has categories array and if it contains the selected category
         if (item.categories && Array.isArray(item.categories)) {
-          return item.categories.some(cat =>
+          return item.categories.some(cat => 
             cat.toLowerCase() === currentCategory.toLowerCase() ||
             mapCategoryName(cat).toLowerCase() === currentCategory.toLowerCase()
           );
@@ -90,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fallback to old category field if it exists
         if (item.category) {
           return item.category.toLowerCase() === currentCategory.toLowerCase() ||
-            mapCategoryName(item.category).toLowerCase() === currentCategory.toLowerCase();
+                 mapCategoryName(item.category).toLowerCase() === currentCategory.toLowerCase();
         }
         return false;
       });
@@ -106,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check categories array for search term
         let categoryMatch = false;
         if (item.categories && Array.isArray(item.categories)) {
-          categoryMatch = item.categories.some(cat =>
+          categoryMatch = item.categories.some(cat => 
             cat.toLowerCase().includes(searchTerm)
           );
         } else if (item.category) {
@@ -158,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function mapCategoryName(backendCategory) {
     const categoryMap = {
       'Electronics': 'electronics',
-      'Furniture': 'furniture',
+      'Furniture': 'furniture', 
       'Clothing': 'clothing',
       'Vehicles': 'vehicles',
       'Sports & Recreation': 'sports',
@@ -182,27 +176,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const pickHomeFields = (item) => {
     // Handle both backend API format and fallback JSON format
-    // Prefer a safe, loadable URL. Transient blob: or file: URLs (created during local previews)
-    // are not reliable across pages/sessions and will cause 'Not allowed to load local resource'
-    // or 404 errors — treat those as invalid and fall back to placeholder.
-    const candidate = item.imageUrl || (Array.isArray(item.images) && item.images[0]) || (Array.isArray(item.pictures) && item.pictures[0]);
-    function isGoodImageUrl(u) {
-      if (!u || typeof u !== 'string') return false;
-      const s = u.trim();
-      // allow data URLs and absolute/relative http(s) URLs
-      if (s.startsWith('data:')) return true;
-      if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/')) return true;
-      // disallow blob: and file: and other local or arbitrary strings
-      return false;
-    }
-    const hero = isGoodImageUrl(candidate) ? candidate : PLACEHOLDER_IMG;
-
+    const hero = item.imageUrl || 
+                 (Array.isArray(item.images) && item.images[0]) || 
+                 (Array.isArray(item.pictures) && item.pictures[0]) || 
+                 PLACEHOLDER_IMG;
+    
     // Use dollarCost from backend, fallback to price from JSON
     const price = item.dollarCost ?? item.price ?? '';
-
+    
     // Use location from backend, fallback to locationLabel from JSON
     const locationLabel = item.location ?? item.locationLabel ?? (item.ships ? 'Ships to you' : '');
-
+    
     return {
       id: item.id ?? '',
       slug: item.slug ?? '',
@@ -221,11 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function toCard(min) {
-    if (!grid) {
-      console.error('toCard: #listings-grid is missing, cannot create card');
-      return document.createElement('div');
-    }
-
     const el = tpl?.content?.firstElementChild
       ? tpl.content.firstElementChild.cloneNode(true)
       : document.createElement('article');
@@ -269,22 +248,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(items) {
-    if (!grid) {
-      console.error('render: #listings-grid not found, aborting render');
-      return;
-    }
-
     // Clear all item cards but preserve load more button
     const loadMoreBtn = document.getElementById('load-more-btn');
     const children = Array.from(grid.children);
-
+    
     // Remove all children except load more button
     children.forEach(child => {
       if (child.id !== 'load-more-btn') {
         child.remove();
       }
     });
-
+    
     // Add all items
     items.map(pickHomeFields).forEach(min => grid.appendChild(toCard(min)));
     updateFilterCount(items.length);
@@ -300,13 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateLoadMoreButton() {
-    if (!grid) {
-      console.warn('updateLoadMoreButton: #listings-grid not present');
-      return;
-    }
-
     let loadMoreBtn = document.getElementById('load-more-btn');
-
+    
     if (!loadMoreBtn && paginationInfo.hasMore) {
       // Create load more button if it doesn't exist and there are more items
       loadMoreBtn = document.createElement('button');
@@ -327,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function loadMore() {
     if (isLoadingMore) return;
-
+    
     isLoadingMore = true;
     const loadMoreBtn = document.getElementById('load-more-btn');
     if (loadMoreBtn) {
@@ -337,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update offset for next page
     paginationInfo.offset = allListings.length;
-
+    
     try {
       await load(true);
     } finally {
@@ -354,14 +323,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Reset pagination when filtering
     paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
-
+    
     let filteredItems = allListings;
 
     if (category !== 'all') {
       filteredItems = filteredItems.filter(item => {
         // Check if item has categories array and if it contains the selected category
         if (item.categories && Array.isArray(item.categories)) {
-          const matches = item.categories.some(cat =>
+          const matches = item.categories.some(cat => 
             cat.toLowerCase() === category.toLowerCase() ||
             mapCategoryName(cat).toLowerCase() === category.toLowerCase()
           );
@@ -373,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fallback to old category field if it exists
         if (item.category) {
           return item.category.toLowerCase() === category.toLowerCase() ||
-            mapCategoryName(item.category).toLowerCase() === category.toLowerCase();
+                 mapCategoryName(item.category).toLowerCase() === category.toLowerCase();
         }
         return false;
       });
@@ -389,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check categories array for search term
         let categoryMatch = false;
         if (item.categories && Array.isArray(item.categories)) {
-          categoryMatch = item.categories.some(cat =>
+          categoryMatch = item.categories.some(cat => 
             cat.toLowerCase().includes(searchTerm)
           );
         } else if (item.category) {
@@ -423,11 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function load(loadMore = false) {
     try {
-      if (!grid) {
-        console.error('load: #listings-grid not found in DOM — aborting load');
-        return;
-      }
-
       if (!loadMore) {
         grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
         allListings = [];
@@ -444,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const data = await res.json();
-
+      
       // Handle new pagination response format
       if (data.items && Array.isArray(data.items)) {
         if (loadMore) {
@@ -518,17 +482,17 @@ async function checkAuthAndLoadUser() {
   console.log('Checking authentication...');
   const token = localStorage.getItem('hippo_token');
   const userData = localStorage.getItem('hippo_user');
-
+  
   console.log('Token exists:', !!token);
   console.log('User data exists:', !!userData);
-
+  
   if (!token || !userData) {
     console.log('No token or user data, redirecting to login');
     // No token or user data, redirect to login
     window.location.href = './Login.html';
     return;
   }
-
+  
   // First, try to display user info from localStorage as a fallback
   try {
     const storedUser = JSON.parse(userData);
@@ -537,7 +501,7 @@ async function checkAuthAndLoadUser() {
   } catch (error) {
     console.error('Error parsing stored user data:', error);
   }
-
+  
   try {
     console.log('Verifying token with /auth/me...');
     // Verify token is still valid by calling /auth/me
@@ -547,19 +511,19 @@ async function checkAuthAndLoadUser() {
         'Content-Type': 'application/json'
       }
     });
-
+    
     console.log('Auth response status:', response.status);
-
+    
     if (!response.ok) {
       console.log('Token invalid, but keeping stored user data for now');
       // Don't redirect immediately, keep the stored user data
       return;
     }
-
+    
     const currentUser = await response.json();
     console.log('Current user from /auth/me:', currentUser);
     displayUserInfo(currentUser);
-
+    
   } catch (error) {
     console.error('Auth check failed:', error);
     // Don't redirect on network errors, keep the stored user data
@@ -569,7 +533,7 @@ async function checkAuthAndLoadUser() {
 
 function displayUserInfo(user) {
   console.log('Displaying user info:', user); // Debug log
-
+  
   // Update the account name display
   const accountNameElement = document.getElementById('acct-name');
   if (accountNameElement) {
@@ -577,7 +541,7 @@ function displayUserInfo(user) {
     const firstName = user.FirstName || user.firstName;
     const lastName = user.LastName || user.lastName;
     const email = user.Email || user.email;
-
+    
     if (firstName && lastName) {
       accountNameElement.textContent = `${firstName} ${lastName}`;
       console.log('Set name to:', `${firstName} ${lastName}`);
@@ -600,7 +564,7 @@ function clearAuthData() {
   localStorage.removeItem('userData');
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
-
+  
   document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 }

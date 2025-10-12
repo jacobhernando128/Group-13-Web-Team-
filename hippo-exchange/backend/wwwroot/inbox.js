@@ -4,19 +4,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const API = location.origin;
   let currentUser = null;
 
-  // Simple wrapper for backend API calls. Automatically attaches Authorization if token present.
+  // Simple wrapper for backend API calls reads in user from localStorage
   async function api(path, { method = 'GET', body } = {}) {
-    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken') || sessionStorage.getItem('userToken');
-    const headers = {};
-    if (body) headers['Content-Type'] = 'application/json';
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
     const res = await fetch(`${API}${path}`, {
       method,
-      headers: Object.keys(headers).length ? headers : undefined,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined
     });
-
     if (!res.ok) {
       let msg = await res.text().catch(() => '');
       try { const j = JSON.parse(msg); msg = j.error || j.message || msg; } catch { }
@@ -30,9 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function checkAuthAndLoadUser() {
     const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
     const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
-
+    
     console.log('Auth check - Token:', !!token, 'UserData:', !!userData);
-
+    
     if (!token || !userData) {
       console.log('No auth data found, redirecting to login');
       window.location.href = './Login.html';
@@ -69,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nameElement = document.getElementById('acct-name');
     const rankElement = document.getElementById('acct-rank');
     const balanceElement = document.getElementById('acct-balance');
-
+    
     if (nameElement) {
       nameElement.textContent = user.name || user.username || user.email || 'User';
     }
@@ -95,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize auth
   await checkAuthAndLoadUser();
-
+  
   // Use currentUser for the rest of the app
   const me = currentUser;
   if (!me || !me.id) {
@@ -199,48 +193,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (userNamesCache.has(userId)) {
       return userNamesCache.get(userId);
     }
-
+    
     try {
       // Get user info from the users endpoint
       const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
-
+      
       if (response.ok) {
         const user = await response.json();
-
-        // Prefer explicit display name if provided
-        if (user && typeof user === 'object') {
-          if (user.name && String(user.name).trim()) {
-            const n = String(user.name).trim();
-            userNamesCache.set(userId, n);
-            return n;
-          }
-
-          // Safely compose first/last only when they are non-empty
-          const fn = (user.firstName || user.FirstName || '') || '';
-          const ln = (user.lastName || user.LastName || '') || '';
-          const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
-          if (parts.length > 0) {
-            const full = parts.join(' ');
-            userNamesCache.set(userId, full);
-            return full;
-          }
-
-          // Fall back to email
-          if (user.email) {
-            const e = String(user.email).trim();
-            userNamesCache.set(userId, e);
-            return e;
-          }
-        }
-
-        // Final fallback
-        userNamesCache.set(userId, 'User');
-        return 'User';
+        const name = user.name || `${user.firstName} ${user.lastName}`.trim() || user.email || 'User';
+        userNamesCache.set(userId, name);
+        return name;
       }
     } catch (error) {
       console.log('Could not fetch user name:', error);
     }
-
+    
     // Fallback to showing user ID
     const fallbackName = `User ${userId.substring(0, 8)}...`;
     userNamesCache.set(userId, fallbackName);
@@ -250,39 +217,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   // returns a title for the thread (subject or recipient name)
   async function threadTitle(t) {
     if (t.subject) return t.subject;
-
+    
     // Get the other participant's name (not the current user)
-    const participants = t.participants || t.Participants || [];
-    const otherParticipantId = participants.find(p => p !== me.id);
+    const otherParticipantId = t.Participants?.find(p => p !== me.id);
     if (otherParticipantId) {
       return await getUserName(otherParticipantId);
     }
-
+    
     return 'Conversation';
   }
 
   // ---- Backend calls ----
 
   async function loadThreads() {
-    const data = await api(`/inbox/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     await renderThreads();
   }
 
   async function loadMessages(threadId) {
     if (messagesCache.has(threadId)) return messagesCache.get(threadId);
-    // Server returns { thread, messages } for GET /inbox/threads/{threadId}
-    const resp = await api(`/inbox/threads/${encodeURIComponent(threadId)}`);
-    let msgs = [];
-    if (!resp) msgs = [];
-    else if (Array.isArray(resp)) msgs = resp;
-    else msgs = resp.messages || resp.Messages || [];
+    const msgs = await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`);
     messagesCache.set(threadId, msgs);
     return msgs;
   }
 
   async function markThreadRead(threadId) {
-    await api(`/inbox/threads/${encodeURIComponent(threadId)}/read`, {
+    await api(`/messages/threads/${encodeURIComponent(threadId)}/read`, {
       method: 'POST',
       body: { userId: me.id }
     });
@@ -294,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function toggleStar(thread, wantStar) {
-    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/star`, {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/star`, {
       method: 'POST',
       body: { userId: me.id, starred: wantStar }
     });
@@ -308,7 +269,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function sendReply(thread, text) {
-    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/messages`, {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/messages`, {
       method: 'POST',
       body: { senderId: me.id, body: text }
     });
@@ -323,13 +284,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const partIds = [me.id, to.id];
 
     // find or create thread
-    const thread = await api('/inbox/threads', {
+    const thread = await api('/messages/threads', {
       method: 'POST',
       body: { participantIds: partIds, subject }
     });
 
     const threadId = thread.id || thread.Id;
-    await api(`/inbox/threads/${encodeURIComponent(threadId)}/messages`, {
+    await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`, {
       method: 'POST',
       body: { senderId: me.id, body }
     });
@@ -436,40 +397,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // messages
     const msgs = await loadMessages(t.id);
-    // Resolve sender names (avoid duplicate fetches by using a render-time cache)
-    const renderNameCache = new Map();
-    const messageHtmls = await Promise.all(msgs.map(async (m) => {
+    messageBodyEl.innerHTML = msgs.map(m => {
       const mine = m.senderId === me.id;
-      let senderName = 'User';
-      if (mine) {
-        senderName = 'You';
-      } else {
-        if (renderNameCache.has(m.senderId)) {
-          senderName = renderNameCache.get(m.senderId);
-        } else {
-          try {
-            const nm = await getUserName(m.senderId);
-            renderNameCache.set(m.senderId, nm);
-            senderName = nm;
-          } catch (e) {
-            renderNameCache.set(m.senderId, `User ${m.senderId.substring(0, 8)}...`);
-            senderName = renderNameCache.get(m.senderId);
-          }
-        }
-      }
-
       return `
         <div class="mb-3 ${mine ? 'text-right' : 'text-left'}">
-          <div class="text-[12px] text-slate-500 mb-1">${escapeHtml(senderName)}</div>
           <div class="inline-block rounded-xl px-3 py-2 ${mine ? 'bg-blue-600 text-white' : 'bg-white text-slate-800'}">
             ${escapeHtml(m.body)}
           </div>
           <div class="text-[11px] text-slate-500 mt-1">${fmtDate(m.sentUtc)}</div>
         </div>
       `;
-    }));
-
-    messageBodyEl.innerHTML = messageHtmls.join('');
+    }).join('');
 
     // Show participant names instead of IDs
     const participantNames = await Promise.all(
@@ -519,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   markAllBtn.addEventListener('click', async () => {
     await Promise.all(threads.map(t =>
-      api(`/inbox/threads/${encodeURIComponent(t.id)}/read`, {
+      api(`/messages/threads/${encodeURIComponent(t.id)}/read`, {
         method: 'POST',
         body: { userId: me.id }
       }).catch(() => null)
@@ -537,60 +475,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   deleteBtn.addEventListener('click', () => {
-    // Delete conversation (not implemented) — keep placeholder for now
     alert('Delete conversation is not implemented yet.');
   });
 
-  // Compose modal helpers
-  function openCompose() {
-    composeModal.classList.remove('hidden');
-    composeModal.classList.add('flex');
-    composeToEl.focus();
-  }
-  function closeCompose() {
-    composeModal.classList.add('hidden');
-    composeModal.classList.remove('flex');
-    composeToEl.value = '';
-    composeSubjectEl.value = '';
-    composeMessageEl.value = '';
-  }
+  sendReplyBtn.addEventListener('click', async () => {
+    const text = (replyTextEl.value || '').trim();
+    if (!text || !selectedThread) return;
+    try {
+      await sendReply(selectedThread, text);
+      replyTextEl.value = '';
+    } catch (e) {
+      alert(e.message || 'Failed to send reply.');
+    }
+  });
 
-  // Send a quick reply in the currently selected thread
-  if (sendReplyBtn) {
-    sendReplyBtn.addEventListener('click', async () => {
-      const text = (replyTextEl.value || '').trim();
-      if (!text || !selectedThread) return;
-      try {
-        await sendReply(selectedThread, text);
-        replyTextEl.value = '';
-      } catch (e) {
-        alert(e.message || 'Failed to send reply.');
-      }
-    });
-  }
+  // Compose modal
+  function openCompose() { composeModal.classList.remove('hidden'); composeModal.classList.add('flex'); composeToEl.focus(); }
+  function closeCompose() { composeModal.classList.add('hidden'); composeModal.classList.remove('flex'); composeToEl.value = ''; composeSubjectEl.value = ''; composeMessageEl.value = ''; }
 
-  // Wire compose modal buttons
-  if (composeBtn) composeBtn.addEventListener('click', openCompose);
-  if (closeComposeBtn) closeComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
-  if (cancelComposeBtn) cancelComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
+  composeBtn.addEventListener('click', openCompose);
+  closeComposeBtn.addEventListener('click', closeCompose);
+  cancelComposeBtn.addEventListener('click', closeCompose);
 
-  if (sendComposeBtn) {
-    sendComposeBtn.addEventListener('click', async () => {
-      const to = (composeToEl.value || '').trim();
-      const subject = (composeSubjectEl.value || '').trim();
-      const body = (composeMessageEl.value || '').trim();
-      if (!to || !body) {
-        alert('Please provide a recipient and message body.');
-        return;
-      }
-      try {
-        await composeNew(to, subject, body);
-        closeCompose();
-      } catch (e) {
-        alert(e.message || 'Failed to send message.');
-      }
-    });
-  }
+  sendComposeBtn.addEventListener('click', async () => {
+    const to = (composeToEl.value || '').trim().toLowerCase();
+    const subject = (composeSubjectEl.value || '').trim();
+    const body = (composeMessageEl.value || '').trim();
+    if (!to || !body) {
+      alert('Please enter recipient email and a message body.');
+      return;
+    }
+    try {
+      await composeNew(to, subject, body);
+      closeCompose();
+    } catch (e) {
+      alert(e.message || 'Failed to send message.');
+    }
+  });
 
   // If linked from a notification with ?email=... you can pre-open a compose
   const url = new URL(location.href);
