@@ -42,6 +42,11 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
+<<<<<<< Updated upstream
+=======
+            
+
+>>>>>>> Stashed changes
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
