@@ -1,8 +1,12 @@
 // Enhanced create-listing.js - Production version
-document.addEventListener('DOMContentLoaded', () => {
+// Global variables
+let currentUser = null; // Store current user data
+
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('Create listing page loaded, starting authentication check...');
-    // Check authentication and load user data
-    checkAuthAndLoadUser();
+    // Check authentication and load user data FIRST
+    await checkAuthAndLoadUser();
+    console.log('Authentication check completed, currentUser:', currentUser);
 
     // ===== CONFIGURATION =====
     const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
@@ -100,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let uploadedVideos = [];
     let maintenanceList = [];
     let currentStep = 1;
-    let currentUser = null; // Store current user data
 
     function showMessage(text, type) {
         const styles = {

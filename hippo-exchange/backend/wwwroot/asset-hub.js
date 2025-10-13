@@ -748,20 +748,10 @@ class AssetHub {
                 });
             }
         } else {
-            // For borrowed items, hide edit and delete buttons, but show maintenance button
+            // For borrowed items, hide edit, delete, and maintenance buttons
             if (editBtn) editBtn.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
-
-            // Show maintenance button for borrowed items
-            if (maintenanceBtn) {
-                maintenanceBtn.style.display = 'block';
-                maintenanceBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (dropdownMenu) dropdownMenu.classList.remove('show');
-                    this.openMaintenanceModal(item);
-                });
-            }
+            if (maintenanceBtn) maintenanceBtn.style.display = 'none';
         }
 
         if (viewBtn) {
@@ -1424,7 +1414,9 @@ class AssetHub {
 
     viewItem(item) {
         // Navigate to item detail page
-        window.location.href = `./listing.html?id=${item.id || item.Id}`;
+        // For borrowed items, use itemId instead of id (which is the exchange ID)
+        const itemId = item.itemId || item.id || item.Id;
+        window.location.href = `./listing.html?id=${itemId}`;
     }
 }
 

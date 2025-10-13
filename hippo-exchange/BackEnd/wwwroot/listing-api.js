@@ -1,22 +1,49 @@
 // listing-api.js — Connect to your C# API
-document.addEventListener('DOMContentLoaded', () => {
+// Global variables
+const $ = (id) => document.getElementById(id);
+const PLACEHOLDER_IMG = 'https://placehold.co/1200x700/ffffff/111111?text=Listing+Image';
+const money = (n) =>
+  (n === null || n === undefined || n === '')
+    ? '$—'
+    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
+
+const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+let currentUser = null; // Store current user data
+
+// Get item ID from URL parameters
+const qs = new URLSearchParams(location.search);
+const itemId = qs.get('id') || qs.get('item');
+
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('Listing page loaded, starting authentication check...');
-  // Check authentication and load user data
-  checkAuthAndLoadUser().then(() => {
-    console.log('Authentication check completed, currentUser:', currentUser);
-  }).catch(err => {
-    console.error('Authentication check failed:', err);
-  });
+  // Check authentication and load user data FIRST
+  await checkAuthAndLoadUser();
+  console.log('Authentication check completed, currentUser:', currentUser);
+  
+  // Now load and render the listing
+  readListing()
+    .then(render)
+    .catch(err => {
+      console.error('Failed to load listing:', err);
+      $('listing-title').textContent = 'Listing unavailable';
 
-  const $ = (id) => document.getElementById(id);
-  const PLACEHOLDER_IMG = 'https://placehold.co/1200x700/ffffff/111111?text=Listing+Image';
-  const money = (n) =>
-    (n === null || n === undefined || n === '')
-      ? '$—'
-      : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
+      const main = document.querySelector('main');
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'glass p-6 rounded-lg text-center mt-6 max-w-md mx-auto';
+      errorDiv.innerHTML = `
+        <div class="text-6xl mb-4">😔</div>
+        <h3 class="text-lg font-semibold text-slate-800 mb-2">Unable to load listing</h3>
+        <p class="text-slate-600 mb-4">This listing may have been removed or is temporarily unavailable.</p>
+        <div class="text-sm text-slate-500 mb-4">Error: ${err.message}</div>
+        <a href="home.html" class="btn-primary inline-block">Browse other listings</a>
+      `;
 
-  const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
-  let currentUser = null; // Store current user data
+      const existingContent = main.querySelector('section');
+      if (existingContent) {
+        existingContent.style.display = 'none';
+      }
+      main.appendChild(errorDiv);
+    });
 
   // Geocoding function to get coordinates from location string
   async function geocodeLocation(locationString) {
@@ -39,9 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     return null;
   }
-
-  const qs = new URLSearchParams(location.search);
-  const itemId = qs.get('id') || qs.get('item');
 
   async function readListing() {
     try {
@@ -325,16 +349,95 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Render maintenance data
+    // Render maintenance data only for item owners
     console.log('📋 Listing data for maintenance rendering:', listing);
-    renderMaintenance(listing.maintenance || []);
+    console.log('👤 Current user:', currentUser);
+    console.log('🏠 Listing seller:', listing.seller);
+    
+    // Get current user ID with multiple fallbacks
+    const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
+    const sellerId = listing.seller?.id || listing.seller?.Id;
+    
+    console.log('🔍 Current user ID:', currentUserId);
+    console.log('🔍 Seller ID:', sellerId);
+    
+    const isOwner = currentUserId && sellerId && currentUserId === sellerId;
+    console.log('🔍 Is owner check:', isOwner);
+    
+    if (isOwner) {
+      console.log('✅ User is owner, showing maintenance section');
+      renderMaintenance(listing.maintenance || []);
+    } else {
+      console.log('❌ User is not owner, hiding maintenance section');
+      hideMaintenanceSection();
+    }
 
     addInteractivity(listing);
     setupMaintenanceModal();
   }
 
+  function hideMaintenanceSection() {
+    console.log('🔒 Hiding maintenance section for non-owners');
+    
+    // Try multiple selectors to find the maintenance section
+    let maintenanceSection = null;
+    
+    // Method 1: Look for the specific heading
+    const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
+    if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
+      maintenanceSection = maintenanceHeading.closest('.glass');
+      console.log('📍 Found maintenance section via heading method');
+    }
+    
+    // Method 2: Look for the maintenance section by its content
+    if (!maintenanceSection) {
+      const allGlassSections = document.querySelectorAll('.glass');
+      for (const section of allGlassSections) {
+        if (section.textContent.includes('Maintenance Information')) {
+          maintenanceSection = section;
+          console.log('📍 Found maintenance section via content method');
+          break;
+        }
+      }
+    }
+    
+    if (maintenanceSection) {
+      maintenanceSection.style.display = 'none';
+      console.log('✅ Maintenance section hidden for non-owner');
+    } else {
+      console.warn('⚠️ Could not find maintenance section to hide');
+    }
+  }
+
   function renderMaintenance(maintenanceData) {
     console.log('🎨 Rendering maintenance data:', maintenanceData);
+
+    // Ensure maintenance section is visible for owners
+    let maintenanceSection = null;
+    
+    // Method 1: Look for the specific heading
+    const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
+    if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
+      maintenanceSection = maintenanceHeading.closest('.glass');
+    }
+    
+    // Method 2: Look for the maintenance section by its content
+    if (!maintenanceSection) {
+      const allGlassSections = document.querySelectorAll('.glass');
+      for (const section of allGlassSections) {
+        if (section.textContent.includes('Maintenance Information')) {
+          maintenanceSection = section;
+          break;
+        }
+      }
+    }
+    
+    if (maintenanceSection) {
+      maintenanceSection.style.display = 'block';
+      console.log('✅ Maintenance section shown for owner');
+    } else {
+      console.warn('⚠️ Could not find maintenance section to show');
+    }
 
     const maintenanceNeededList = document.getElementById('maintenance-needed-list');
     const maintenanceNeededEmpty = document.getElementById('maintenance-needed-empty');
@@ -1045,29 +1148,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  readListing()
-    .then(render)
-    .catch(err => {
-      console.error('Failed to load listing:', err);
-      $('listing-title').textContent = 'Listing unavailable';
-
-      const main = document.querySelector('main');
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'glass p-6 rounded-lg text-center mt-6 max-w-md mx-auto';
-      errorDiv.innerHTML = `
-        <div class="text-6xl mb-4">😔</div>
-        <h3 class="text-lg font-semibold text-slate-800 mb-2">Unable to load listing</h3>
-        <p class="text-slate-600 mb-4">This listing may have been removed or is temporarily unavailable.</p>
-        <div class="text-sm text-slate-500 mb-4">Error: ${err.message}</div>
-        <a href="home.html" class="btn-primary inline-block">Browse other listings</a>
-      `;
-
-      const existingContent = main.querySelector('section');
-      if (existingContent) {
-        existingContent.style.display = 'none';
-      }
-      main.appendChild(errorDiv);
-    });
 });
 
 const back = document.getElementById('back-btn');
