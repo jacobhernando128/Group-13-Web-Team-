@@ -238,16 +238,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // returns a title for the thread (subject or recipient name)
   async function threadTitle(t) {
-    if (t.subject) return t.subject;
+      // Prefer 'Requester Name - Item Title' where possible
+      const subjectFromThread = t.subject || '';
+      let listingTitle = '';
+      const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
+      if (match && match[1]) listingTitle = match[1].trim();
 
-    // Get the other participant's name (not the current user)
-    const participants = t.participants || t.Participants || [];
-    const otherParticipantId = participants.find(p => p !== me.id);
-    if (otherParticipantId) {
-      return await getUserName(otherParticipantId);
-    }
+      try {
+        // Try to load earliest message and use its sender as requester
+        const msgs = await loadMessages(t.id);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          const first = msgs[0];
+          if (first && first.senderId) {
+            const requester = await getUserName(first.senderId);
+            if (requester && listingTitle) return `${requester} - ${listingTitle}`;
+            if (requester) return requester;
+          }
+        }
+      } catch (e) {
+        // ignore and fall back
+      }
 
-    return 'Conversation';
+      // Fallback to other participant name
+      const participants = t.participants || t.Participants || [];
+      const otherParticipantId = participants.find(p => p !== me.id);
+      if (otherParticipantId) {
+        const other = await getUserName(otherParticipantId);
+        if (other && listingTitle) return `${other} - ${listingTitle}`;
+        if (other) return other;
+      }
+
+      if (subjectFromThread) return subjectFromThread;
+      return 'Conversation';
   }
 
   // ---- Backend calls ----
@@ -398,12 +420,61 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // header info
     senderAvatarEl.src = 'hippo-exchange-logo.png';
-    const title = await threadTitle(t);
-    senderNameEl.textContent = title;
-    messageSubjectEl.textContent = t.subject || '';
+    // Build header: prefer "Requester Name - Item Name" when possible.
+    const subjectFromThread = t.subject || '';
+    let listingTitle = '';
+    // If subject follows pattern like "Item Request: <Listing Title>" set by listing flow
+    const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
+    if (match && match[1]) listingTitle = match[1].trim();
 
-    // messages
+    // Load messages first so we can reliably identify the requester as the earliest message sender
     const msgs = await loadMessages(t.id);
+    let requesterName = '';
+    try {
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const first = msgs[0];
+        if (first && first.senderId) {
+          requesterName = await getUserName(first.senderId);
+        }
+      }
+    } catch (e) {
+      // ignore and continue to fallbacks
+      console.debug('Could not resolve requester name from messages', e);
+    }
+
+    // If we couldn't resolve requester from messages, try the other participant as a fallback
+    let otherName = '';
+    if (!requesterName) {
+      try {
+        const participants = t.participants || t.Participants || [];
+        const otherId = participants.find(p => p !== me.id);
+        if (otherId) {
+          otherName = await getUserName(otherId);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (requesterName && listingTitle) {
+      senderNameEl.textContent = `${requesterName} - ${listingTitle}`;
+      messageSubjectEl.textContent = subjectFromThread || '';
+    } else if (otherName && listingTitle) {
+      // fallback to other participant if requester not found
+      senderNameEl.textContent = `${otherName} - ${listingTitle}`;
+      messageSubjectEl.textContent = subjectFromThread || '';
+    } else if (requesterName) {
+      senderNameEl.textContent = requesterName;
+      messageSubjectEl.textContent = subjectFromThread || '';
+    } else if (otherName) {
+      senderNameEl.textContent = otherName;
+      messageSubjectEl.textContent = subjectFromThread || '';
+    } else {
+      // fallback to previous behavior
+      const title = await threadTitle(t);
+      senderNameEl.textContent = title;
+      messageSubjectEl.textContent = subjectFromThread || '';
+    }
     // Resolve sender names (avoid duplicate fetches by using a render-time cache)
     const renderNameCache = new Map();
     const messageHtmls = await Promise.all(msgs.map(async (m) => {
