@@ -62,7 +62,7 @@ namespace HippoExchange
             static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
             {
                 if (user == null) throw new ArgumentNullException(nameof(user));
-                
+
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var key = Encoding.UTF8.GetBytes(jwtKey);
                 var tokenDescriptor = new SecurityTokenDescriptor
@@ -227,18 +227,19 @@ namespace HippoExchange
 
                 // Apply pagination
                 q = q.Limit(limit).Offset(offset);
-                
+
                 var snaps = await q.GetSnapshotAsync();
                 var items = snaps.Select(s => s.ConvertTo<Item>()).ToList();
-                
+
                 // Get total count for pagination info
                 Query countQuery = db.Collection("itemID");
                 if (!string.IsNullOrWhiteSpace(ownerId))
                     countQuery = countQuery.WhereEqualTo("userID", ownerId);
                 var countSnaps = await countQuery.GetSnapshotAsync();
                 var totalCount = countSnaps.Count;
-                
-                return Results.Ok(new {
+
+                return Results.Ok(new
+                {
                     items = items,
                     totalCount = totalCount,
                     limit = limit,
@@ -506,7 +507,7 @@ namespace HippoExchange
 
             app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto, ILogger<Program> logger) =>
             {
-                logger.LogInformation("Received maintenance data: ItemId={ItemId}, Type={Type}, Category={Category}, Frequency={Frequency}, Description={Description}, Date={Date}", 
+                logger.LogInformation("Received maintenance data: ItemId={ItemId}, Type={Type}, Category={Category}, Frequency={Frequency}, Description={Description}, Date={Date}",
                     dto.ItemId, dto.Type, dto.Category, dto.Frequency, dto.Description, dto.Date);
 
                 var m = new Maintenance
@@ -683,15 +684,15 @@ namespace HippoExchange
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
-                    
+
                     // Generate JWT token for new user
                     var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
                     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
                     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
                     var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-                    
+
                     var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
-                    
+
                     return Results.Created($"/users/{user.Id}", new
                     {
                         user.Id,
@@ -728,7 +729,7 @@ namespace HippoExchange
                     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
                     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
                     var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-                    
+
                     var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
 
                     return Results.Ok(new
@@ -774,10 +775,10 @@ namespace HippoExchange
                 var q = db.Collection("messageThreads").Limit(100);
                 var snaps = await q.GetSnapshotAsync();
                 var allThreads = snaps.Select(s => s.ConvertTo<MessageThread>()).ToList();
-                
+
                 // Filter threads where user is a participant
                 var threads = allThreads.Where(t => t.Participants?.Contains(userId) == true).ToList();
-                
+
                 // Sort in memory
                 threads = threads.OrderByDescending(t => t.UpdatedUtc).ToList();
 
@@ -895,6 +896,124 @@ namespace HippoExchange
                 return Results.NoContent();
             });
 
+            // ===== Inbox aliases (mirror /messages/*) =====
+            // Provide /inbox/* routes to keep compatibility with frontend expectations
+            // GET /inbox/threads?userId=...&filter=all|unread|starred
+            app.MapGet("/inbox/threads", async (FirestoreDb db, string userId, string? filter) =>
+            {
+                if (string.IsNullOrWhiteSpace(userId)) return Results.BadRequest(new { error = "userId required" });
+
+                var q = db.Collection("messageThreads").Limit(100);
+                var snaps = await q.GetSnapshotAsync();
+                var allThreads = snaps.Select(s => s.ConvertTo<MessageThread>()).ToList();
+                var threads = allThreads.Where(t => t.Participants?.Contains(userId) == true).ToList();
+                threads = threads.OrderByDescending(t => t.UpdatedUtc).ToList();
+
+                filter = (filter ?? "all").ToLowerInvariant();
+                if (filter == "starred")
+                    threads = threads.Where(t => t.StarredBy?.Contains(userId) == true).ToList();
+                else if (filter == "unread")
+                    threads = threads.Where(t => !t.LastReadBy.TryGetValue(userId, out var last) || t.UpdatedUtc > last).ToList();
+
+                return Results.Ok(threads);
+            });
+
+            // GET /inbox/threads/{threadId} -> returns { thread, messages }
+            app.MapGet("/inbox/threads/{threadId}", async (FirestoreDb db, string threadId, int take = 50) =>
+            {
+                var threadRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                var thread = snap.ConvertTo<MessageThread>();
+                thread.Id = snap.Id;
+
+                take = Math.Clamp(take, 1, 500);
+                var msgSnaps = await threadRef.Collection("messages").OrderBy("sentUtc").Limit(take).GetSnapshotAsync();
+                var messages = msgSnaps.Select(s => { var m = s.ConvertTo<MessageDoc>(); m.Id = s.Id; return m; }).ToList();
+
+                return Results.Ok(new { thread, messages });
+            });
+
+            // POST /inbox/threads  { participantIds: [meId, themId], subject? }
+            app.MapPost("/inbox/threads", async (FirestoreDb db, CreateThreadDto dto) =>
+            {
+                if (dto.ParticipantIds is null || dto.ParticipantIds.Count < 2)
+                    return Results.BadRequest(new { error = "At least 2 participantIds are required" });
+
+                var canon = CanonicalKeyFor(dto.ParticipantIds.ToArray());
+                var existing = await db.Collection("messageThreads").WhereEqualTo("canonicalKey", canon).Limit(1).GetSnapshotAsync();
+                if (existing.Count > 0)
+                {
+                    var t = existing[0].ConvertTo<MessageThread>();
+                    t.Id = existing[0].Id;
+                    return Results.Ok(t);
+                }
+
+                var thread = new MessageThread
+                {
+                    Participants = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
+                    CanonicalKey = canon,
+                    Subject = dto.Subject?.Trim(),
+                    UpdatedUtc = DateTime.UtcNow,
+                    LastMessagePreview = null,
+                    LastReadBy = new(),
+                    StarredBy = new()
+                };
+
+                var added = await db.Collection("messageThreads").AddAsync(thread);
+                thread.Id = added.Id;
+                return Results.Created($"/inbox/threads/{thread.Id}", thread);
+            });
+
+            // POST /inbox/threads/{threadId}/messages  { senderId, body }
+            app.MapPost("/inbox/threads/{threadId}/messages", async (FirestoreDb db, string threadId, SendMessageDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.SenderId) || string.IsNullOrWhiteSpace(dto.Body))
+                    return Results.BadRequest(new { error = "senderId and body are required" });
+
+                var threadRef = db.Collection("messageThreads").Document(threadId);
+                var threadSnap = await threadRef.GetSnapshotAsync();
+                if (!threadSnap.Exists) return Results.NotFound(new { error = "thread not found" });
+
+                var msg = new MessageDoc { SenderId = dto.SenderId.Trim(), Body = dto.Body.Trim(), SentUtc = DateTime.UtcNow };
+                await threadRef.Collection("messages").AddAsync(msg);
+
+                var updates = new Dictionary<string, object>
+                {
+                    ["lastMessagePreview"] = Preview(msg.Body),
+                    ["updatedUtc"] = msg.SentUtc,
+                    [$"lastReadBy.{msg.SenderId}"] = msg.SentUtc
+                };
+                await threadRef.UpdateAsync(updates);
+                return Results.Ok(msg);
+            });
+
+            // POST /inbox/threads/{threadId}/read  { userId }
+            app.MapPost("/inbox/threads/{threadId}/read", async (FirestoreDb db, string threadId, MarkReadDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.UserId)) return Results.BadRequest(new { error = "userId required" });
+                var threadRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+                await threadRef.UpdateAsync(new Dictionary<string, object> { [$"lastReadBy.{dto.UserId}"] = DateTime.UtcNow });
+                return Results.NoContent();
+            });
+
+            // POST /inbox/threads/{threadId}/star  { userId, starred }
+            app.MapPost("/inbox/threads/{threadId}/star", async (FirestoreDb db, string threadId, StarDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.UserId)) return Results.BadRequest(new { error = "userId required" });
+                var threadRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+                if (dto.Starred)
+                    await threadRef.UpdateAsync("starredBy", FieldValue.ArrayUnion(dto.UserId.Trim()));
+                else
+                    await threadRef.UpdateAsync("starredBy", FieldValue.ArrayRemove(dto.UserId.Trim()));
+                return Results.NoContent();
+            });
+
             // POST /messages/threads/{threadId}/star  { userId, starred }
             app.MapPost("/messages/threads/{threadId}/star", async (FirestoreDb db, string threadId, StarDto dto) =>
             {
@@ -940,12 +1059,13 @@ namespace HippoExchange
 
                 var u = doc.ConvertTo<UserAuth>();
                 u.Id = doc.Id;
-                return Results.Ok(new { 
-                    id = u.Id, 
-                    email = u.Email, 
-                    firstName = u.FirstName, 
+                return Results.Ok(new
+                {
+                    id = u.Id,
+                    email = u.Email,
+                    firstName = u.FirstName,
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim() 
+                    name = $"{u.FirstName} {u.LastName}".Trim()
                 });
             });
 
@@ -1108,7 +1228,7 @@ namespace HippoExchange
     // ---------------- DTOs ----------------
     public record AuthRegisterDto(string Email, string Phone, string FirstName, string LastName, string Password);
     public record AuthLoginDto(string Email, string Password);
-    
+
 
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
     public record UpdateExchangeApprovalDto(bool Approved);

@@ -68,16 +68,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function displayUserInfo(user) {
     const nameElement = document.getElementById('acct-name');
     const rankElement = document.getElementById('acct-rank');
-    const balanceElement = document.getElementById('acct-balance');
-
     if (nameElement) {
-      nameElement.textContent = user.name || user.username || user.email || 'User';
+      // show the user's email as the primary account label
+      nameElement.textContent = user.email || user.username || user.name || 'User';
     }
     if (rankElement) {
-      rankElement.textContent = user.rank || 'Member';
-    }
-    if (balanceElement) {
-      balanceElement.textContent = `${user.balance || 10} HXB`;
+      // always show the literal 'Member' as requested
+      rankElement.textContent = 'Member';
     }
   }
 
@@ -118,15 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const replyTextEl = document.getElementById('reply-text');
   const sendReplyBtn = document.getElementById('send-reply');
 
-  // Compose modal
-  const composeModal = document.getElementById('compose-modal');
-  const composeBtn = document.getElementById('compose-btn');
-  const closeComposeBtn = document.getElementById('close-compose');
-  const cancelComposeBtn = document.getElementById('cancel-compose');
-  const sendComposeBtn = document.getElementById('send-compose');
-  const composeToEl = document.getElementById('compose-to');        // recipient email
-  const composeSubjectEl = document.getElementById('compose-subject');
-  const composeMessageEl = document.getElementById('compose-message');
+  // Compose modal removed: direct compose is disabled; messages are created via listings
 
   // Message header bits
   const senderAvatarEl = document.getElementById('sender-avatar');
@@ -264,15 +253,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Backend calls ----
 
   async function loadThreads() {
-    const data = await api(`/inbox/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     await renderThreads();
   }
 
   async function loadMessages(threadId) {
     if (messagesCache.has(threadId)) return messagesCache.get(threadId);
-    // Server returns { thread, messages } for GET /inbox/threads/{threadId}
-    const resp = await api(`/inbox/threads/${encodeURIComponent(threadId)}`);
+    // Server exposes GET /messages/threads/{threadId}/messages which returns an array of messages
+    const resp = await api(`/messages/threads/${encodeURIComponent(threadId)}/messages`);
     let msgs = [];
     if (!resp) msgs = [];
     else if (Array.isArray(resp)) msgs = resp;
@@ -282,7 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function markThreadRead(threadId) {
-    await api(`/inbox/threads/${encodeURIComponent(threadId)}/read`, {
+    await api(`/messages/threads/${encodeURIComponent(threadId)}/read`, {
       method: 'POST',
       body: { userId: me.id }
     });
@@ -294,7 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function toggleStar(thread, wantStar) {
-    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/star`, {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/star`, {
       method: 'POST',
       body: { userId: me.id, starred: wantStar }
     });
@@ -308,7 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function sendReply(thread, text) {
-    await api(`/inbox/threads/${encodeURIComponent(thread.id)}/messages`, {
+    await api(`/messages/threads/${encodeURIComponent(thread.id)}/messages`, {
       method: 'POST',
       body: { senderId: me.id, body: text }
     });
@@ -317,28 +306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadThreads();             // refresh list (preview/time)
   }
 
-  async function composeNew(toEmail, subject, body) {
-    // resolve recipient by email -> userId
-    const to = await api(`/users/by-email?email=${encodeURIComponent(toEmail)}`);
-    const partIds = [me.id, to.id];
-
-    // find or create thread
-    const thread = await api('/inbox/threads', {
-      method: 'POST',
-      body: { participantIds: partIds, subject }
-    });
-
-    const threadId = thread.id || thread.Id;
-    await api(`/inbox/threads/${encodeURIComponent(threadId)}/messages`, {
-      method: 'POST',
-      body: { senderId: me.id, body }
-    });
-
-    messagesCache.delete(threadId);
-    await loadThreads();
-    const t = threads.find(x => (x.id || x.Id) === threadId) || { id: threadId, ...thread };
-    await openThread(t);
-  }
+  // composeNew removed — direct compose disabled
 
   // ---- Rendering ----
   async function filterThreadsLocal(list) {
@@ -519,7 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   markAllBtn.addEventListener('click', async () => {
     await Promise.all(threads.map(t =>
-      api(`/inbox/threads/${encodeURIComponent(t.id)}/read`, {
+      api(`/messages/threads/${encodeURIComponent(t.id)}/read`, {
         method: 'POST',
         body: { userId: me.id }
       }).catch(() => null)
@@ -541,19 +509,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     alert('Delete conversation is not implemented yet.');
   });
 
-  // Compose modal helpers
-  function openCompose() {
-    composeModal.classList.remove('hidden');
-    composeModal.classList.add('flex');
-    composeToEl.focus();
-  }
-  function closeCompose() {
-    composeModal.classList.add('hidden');
-    composeModal.classList.remove('flex');
-    composeToEl.value = '';
-    composeSubjectEl.value = '';
-    composeMessageEl.value = '';
-  }
 
   // Send a quick reply in the currently selected thread
   if (sendReplyBtn) {
@@ -569,36 +524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Wire compose modal buttons
-  if (composeBtn) composeBtn.addEventListener('click', openCompose);
-  if (closeComposeBtn) closeComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
-  if (cancelComposeBtn) cancelComposeBtn.addEventListener('click', (e) => { e.preventDefault(); closeCompose(); });
-
-  if (sendComposeBtn) {
-    sendComposeBtn.addEventListener('click', async () => {
-      const to = (composeToEl.value || '').trim();
-      const subject = (composeSubjectEl.value || '').trim();
-      const body = (composeMessageEl.value || '').trim();
-      if (!to || !body) {
-        alert('Please provide a recipient and message body.');
-        return;
-      }
-      try {
-        await composeNew(to, subject, body);
-        closeCompose();
-      } catch (e) {
-        alert(e.message || 'Failed to send message.');
-      }
-    });
-  }
-
-  // If linked from a notification with ?email=... you can pre-open a compose
-  const url = new URL(location.href);
-  const preEmail = url.searchParams.get('email');
-  if (preEmail) {
-    openCompose();
-    composeToEl.value = preEmail;
-  }
+  // Compose-related handlers removed
 
   // ---- Sign out functionality ----
   const signOutLink = document.querySelector('a[href="./Login.html"]');

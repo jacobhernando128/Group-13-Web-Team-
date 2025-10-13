@@ -3,9 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Create listing page loaded, starting authentication check...');
     // Check authentication and load user data
     checkAuthAndLoadUser();
-    
+
     // ===== CONFIGURATION =====
-    const API_BASE_URL = 'http://localhost:5000';
+    const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 
     const form = document.getElementById('create-form');
     const message = document.getElementById('message');
@@ -479,124 +479,124 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-  console.log('Checking authentication...');
-  const token = localStorage.getItem('hippo_token');
-  const userData = localStorage.getItem('hippo_user');
-  
-  console.log('Token exists:', !!token);
-  console.log('User data exists:', !!userData);
-  
-  if (!token || !userData) {
-    console.log('No token or user data, redirecting to login');
-    // No token or user data, redirect to login
-    window.location.href = './Login.html';
-    return;
-  }
-  
-  // First, try to display user info from localStorage as a fallback
-  try {
-    const storedUser = JSON.parse(userData);
-    console.log('Stored user data:', storedUser);
-    displayUserInfo(storedUser);
-  } catch (error) {
-    console.error('Error parsing stored user data:', error);
-  }
-  
-  try {
-    console.log('Verifying token with /auth/me...');
-    // Verify token is still valid by calling /auth/me
-    const response = await fetch('/auth/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('Auth response status:', response.status);
-    
-    if (!response.ok) {
-      console.log('Token invalid, but keeping stored user data for now');
-      // Don't redirect immediately, keep the stored user data
-      return;
+    console.log('Checking authentication...');
+    const token = localStorage.getItem('hippo_token');
+    const userData = localStorage.getItem('hippo_user');
+
+    console.log('Token exists:', !!token);
+    console.log('User data exists:', !!userData);
+
+    if (!token || !userData) {
+        console.log('No token or user data, redirecting to login');
+        // No token or user data, redirect to login
+        window.location.href = './Login.html';
+        return;
     }
-    
-    const currentUser = await response.json();
-    console.log('Current user from /auth/me:', currentUser);
-    displayUserInfo(currentUser);
-    
-  } catch (error) {
-    console.error('Auth check failed:', error);
-    // Don't redirect on network errors, keep the stored user data
-    console.log('Network error, keeping stored user data');
-  }
+
+    // First, try to display user info from localStorage as a fallback
+    try {
+        const storedUser = JSON.parse(userData);
+        console.log('Stored user data:', storedUser);
+        displayUserInfo(storedUser);
+    } catch (error) {
+        console.error('Error parsing stored user data:', error);
+    }
+
+    try {
+        console.log('Verifying token with /auth/me...');
+        // Verify token is still valid by calling /auth/me
+        const response = await fetch('/auth/me', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Auth response status:', response.status);
+
+        if (!response.ok) {
+            console.log('Token invalid, but keeping stored user data for now');
+            // Don't redirect immediately, keep the stored user data
+            return;
+        }
+
+        const currentUser = await response.json();
+        console.log('Current user from /auth/me:', currentUser);
+        displayUserInfo(currentUser);
+
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        // Don't redirect on network errors, keep the stored user data
+        console.log('Network error, keeping stored user data');
+    }
 }
 
 function displayUserInfo(user) {
-  console.log('Displaying user info:', user); // Debug log
-  
-  // Store current user data for use in createListing function
-  currentUser = user;
-  
-  // Check for both uppercase and lowercase property names
-  const firstName = user.FirstName || user.firstName;
-  const lastName = user.LastName || user.lastName;
-  const email = user.Email || user.email;
-  
-  let displayName = 'User';
-  if (firstName && lastName) {
-    displayName = `${firstName} ${lastName}`;
-  } else if (email) {
-    displayName = email;
-  }
-  
-  // Update the account name display in sidebar
-  const accountNameElement = document.getElementById('acct-name');
-  if (accountNameElement) {
-    accountNameElement.textContent = displayName;
-    console.log('Set account name to:', displayName);
-  } else {
-    console.error('Account name element not found!');
-  }
-  
-  // Update the listing owner name
-  const listingOwnerNameElement = document.getElementById('listing-owner-name');
-  if (listingOwnerNameElement) {
-    listingOwnerNameElement.textContent = displayName;
-    console.log('Set listing owner name to:', displayName);
-  }
-  
-  // Update the preview seller name
-  const previewSellerNameElement = document.getElementById('preview-seller-name');
-  if (previewSellerNameElement) {
-    previewSellerNameElement.textContent = displayName;
-    console.log('Set preview seller name to:', displayName);
-  }
+    console.log('Displaying user info:', user); // Debug log
+
+    // Store current user data for use in createListing function
+    currentUser = user;
+
+    // Check for both uppercase and lowercase property names
+    const firstName = user.FirstName || user.firstName;
+    const lastName = user.LastName || user.lastName;
+    const email = user.Email || user.email;
+
+    let displayName = 'User';
+    if (firstName && lastName) {
+        displayName = `${firstName} ${lastName}`;
+    } else if (email) {
+        displayName = email;
+    }
+
+    // Update the account name display in sidebar
+    const accountNameElement = document.getElementById('acct-name');
+    if (accountNameElement) {
+        accountNameElement.textContent = displayName;
+        console.log('Set account name to:', displayName);
+    } else {
+        console.error('Account name element not found!');
+    }
+
+    // Update the listing owner name
+    const listingOwnerNameElement = document.getElementById('listing-owner-name');
+    if (listingOwnerNameElement) {
+        listingOwnerNameElement.textContent = displayName;
+        console.log('Set listing owner name to:', displayName);
+    }
+
+    // Update the preview seller name
+    const previewSellerNameElement = document.getElementById('preview-seller-name');
+    if (previewSellerNameElement) {
+        previewSellerNameElement.textContent = displayName;
+        console.log('Set preview seller name to:', displayName);
+    }
 }
 
 function clearAuthData() {
-  localStorage.removeItem('hippo_user');
-  localStorage.removeItem('hippo_token');
-  localStorage.removeItem('userToken');
-  localStorage.removeItem('userData');
-  sessionStorage.removeItem('userToken');
-  sessionStorage.removeItem('userData');
-  
-  document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-  document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    localStorage.removeItem('hippo_user');
+    localStorage.removeItem('hippo_token');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+    sessionStorage.removeItem('userToken');
+    sessionStorage.removeItem('userData');
+
+    document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 }
 
 // Signout functionality
 document.addEventListener('DOMContentLoaded', () => {
-  const signoutButton = document.querySelector('a[href="./Login.html"]');
-  if (signoutButton) {
-    signoutButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      signOut();
-    });
-  }
+    const signoutButton = document.querySelector('a[href="./Login.html"]');
+    if (signoutButton) {
+        signoutButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            signOut();
+        });
+    }
 });
 
 function signOut() {
-  clearAuthData();
-  window.location.href = './Login.html';
+    clearAuthData();
+    window.location.href = './Login.html';
 }
