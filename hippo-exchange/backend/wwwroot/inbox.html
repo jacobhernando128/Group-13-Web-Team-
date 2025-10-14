@@ -68,7 +68,7 @@
           </li>
           <li><a href="./notifications.html" class="nav-link"><span
                 class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Messaging</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
             <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
@@ -103,9 +103,9 @@
     <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
       <header class="glass p-4 mb-6">
         <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-slate-800">Inbox</h2>
+          <h2 class="text-2xl font-bold text-slate-800">Messaging</h2>
           <div class="flex gap-2">
-            <button id="mark-all-read" class="btn-primary">Mark all read</button>
+            <button id="mark-all-read" class="btn-primary">Mark All as Read</button>
           </div>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -211,11 +211,10 @@
                   rows="3"></textarea>
                 <div class="flex flex-col gap-2">
                   <button id="send-reply" class="btn-primary px-4 py-2">Send</button>
-                  <button id="attach-file" class="btn-ghost px-4 py-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
                   </button>
                 </div>
               </div>
