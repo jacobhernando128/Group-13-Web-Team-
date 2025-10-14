@@ -44,7 +44,10 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
+            
+
             builder.Services.AddSingleton(StorageClient.Create());
+
 
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
