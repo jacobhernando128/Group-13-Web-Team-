@@ -101,9 +101,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let uploadedPhotos = [];
     let uploadedPhotoFiles = [];
+    let uploadedVideoFiles = [];
     let uploadedVideos = [];
     let maintenanceList = [];
     let currentStep = 1;
+    let currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
+
+    // Convert frequency string to days (integer)
+    function convertFrequencyToDays(frequency) {
+        const frequencyMap = {
+            'daily': 1,
+            'weekly': 7,
+            'monthly': 30,
+            'quarterly': 90,
+            'yearly': 365,
+            'as-needed': null
+        };
+        return frequencyMap[frequency] || null;
+    }
+
+    // Convert days back to user-friendly frequency text
+    function convertDaysToFrequencyText(days) {
+        const daysMap = {
+            1: 'Daily',
+            7: 'Weekly',
+            30: 'Monthly',
+            90: 'Quarterly',
+            365: 'Yearly'
+        };
+        return daysMap[days] || `${days} days`;
+    }
 
     function showMessage(text, type) {
         const styles = {
@@ -180,24 +207,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         sortedMaintenance.forEach((maintenance, index) => {
             const entry = document.createElement('div');
 
-            const frequencyColors = {
+            const categoryColors = {
                 cleaning: 'border-green-500',
                 repair: 'border-red-500',
                 inspection: 'border-yellow-500',
                 upgrade: 'border-purple-500',
-                maintenance: 'border-blue-500'
+                'general-maintenance': 'border-blue-500'
             };
 
-            entry.className = `glass p-3 rounded-lg border-l-4 ${frequencyColors[maintenance.frequency] || 'border-blue-500'}`;
+            entry.className = `glass p-3 rounded-lg border-l-4 ${categoryColors[maintenance.category] || 'border-blue-500'}`;
+
+            const typeBadge = maintenance.type === 'required' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
+            const typeText = maintenance.type === 'required' ? 'Required' : 'History';
 
             entry.innerHTML = `
                 <div class="flex items-start justify-between">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
-                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                ${maintenance.frequency.charAt(0).toUpperCase() + maintenance.frequency.slice(1)}
+                            <span class="px-2 py-1 ${typeBadge} rounded-full text-xs font-medium">
+                                ${typeText}
                             </span>
-                            <span class="text-sm text-slate-600">Frequency</span>
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                ${maintenance.category.charAt(0).toUpperCase() + maintenance.category.slice(1).replace('-', ' ')}
+                            </span>
+                            ${maintenance.frequency ? `<span class="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                                ${convertDaysToFrequencyText(maintenance.frequency)}
+                            </span>` : ''}
+                            ${maintenance.receipts && maintenance.receipts.length > 0 ? `<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                📄 ${maintenance.receipts.length} receipt${maintenance.receipts.length > 1 ? 's' : ''}
+                            </span>` : ''}
                         </div>
                         <p class="text-slate-700 text-sm">${maintenance.description}</p>
                     </div>
@@ -229,15 +267,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     function closeMaintenanceModal() {
         maintenanceModal.classList.remove('active');
         maintenanceForm.reset();
+        currentMaintenanceReceipts = [];
+        document.getElementById('receipt-preview').innerHTML = '';
     }
 
     function handleMaintenanceSubmit(e) {
         e.preventDefault();
 
+        // Get form data
+        const maintenanceType = document.querySelector('input[name="maintenance-type"]:checked')?.value;
+        const category = document.getElementById('maintenance-category-input').value;
+        const frequency = document.getElementById('maintenance-frequency-input').value;
+        const description = document.getElementById('maintenance-description-input').value;
+
+        // Validate required fields
+        if (!maintenanceType) {
+            showMessage('Please select a maintenance type.', 'error');
+            return;
+        }
+
+        if (!category) {
+            showMessage('Please select a maintenance category.', 'error');
+            return;
+        }
+
+        if (maintenanceType === 'required' && !frequency) {
+            showMessage('Please select a frequency for required maintenance.', 'error');
+            return;
+        }
+
+        if (!description.trim()) {
+            showMessage('Please provide a description.', 'error');
+            return;
+        }
+
+        // Convert frequency string to days (integer) - only for required maintenance
+        const frequencyInDays = maintenanceType === 'required' ? convertFrequencyToDays(frequency) : null;
+
         const formData = {
             itemId: 'temp_' + Date.now(), // Will be updated with actual item ID after creation
-            description: document.getElementById('maintenance-description-input').value,
-            frequency: document.getElementById('maintenance-type-input').value // Using type as frequency
+            type: maintenanceType,
+            category: category,
+            frequency: frequencyInDays,
+            description: description,
+            receipts: currentMaintenanceReceipts // Store receipt files
         };
 
         maintenanceList.push(formData);
@@ -260,10 +333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Build comprehensive description (keep original description clean)
             let fullDescription = descriptionInput.value.trim() || '';
 
-            // Add photo information to description
-            if (uploadedPhotoFiles.length > 0) {
-                fullDescription += `\n\n📸 ${uploadedPhotoFiles.length} photo${uploadedPhotoFiles.length > 1 ? 's' : ''} uploaded`;
-            }
+            // Photo information is handled separately via media upload, not in description
 
             // Note: Maintenance entries will be sent separately to /maintenance endpoint
 
@@ -286,9 +356,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 categories: categoryInput.value ? [categoryInput.value] : [], // Changed from category to categories array
                 // Additional fields for our app
                 available: true,
-                ships: true,
-                images: uploadedPhotos
-                // Note: maintenance entries will be sent separately
+                ships: true
+                // Note: images will be uploaded separately after item creation
             };
 
             if (!data.title) {
@@ -325,6 +394,82 @@ document.addEventListener('DOMContentLoaded', async () => {
             const created = await res.json();
             console.log('✅ Created item:', created);
 
+            // Upload images if any
+            if (uploadedPhotoFiles && uploadedPhotoFiles.length > 0) {
+                console.log('📸 Uploading photos:', uploadedPhotoFiles.length);
+                for (const photoFile of uploadedPhotoFiles) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', photoFile);
+                        formData.append('userId', userId);
+                        formData.append('itemId', created.id || created.Id);
+                        formData.append('target', 'pictures');
+
+                        const uploadRes = await fetch(`${API_BASE_URL}/media/uploadAndAttach`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!uploadRes.ok) {
+                            console.warn('⚠️ Failed to upload photo:', photoFile.name, 'Status:', uploadRes.status);
+                            // Try to get more details about the error
+                            try {
+                                const errorData = await uploadRes.text();
+                                console.warn('⚠️ Upload error details:', errorData);
+                            } catch (e) {
+                                console.warn('⚠️ Could not read error response');
+                            }
+                        } else {
+                            const uploadResult = await uploadRes.json();
+                            console.log('✅ Photo uploaded:', uploadResult.url);
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ Error uploading photo:', err);
+                        if (err.message.includes('404')) {
+                            console.warn('⚠️ The /media/uploadAndAttach endpoint is not available. The backend may need to be restarted.');
+                        }
+                    }
+                }
+            }
+
+            // Upload videos if any
+            if (uploadedVideoFiles && uploadedVideoFiles.length > 0) {
+                console.log('🎥 Uploading videos:', uploadedVideoFiles.length);
+                for (const videoFile of uploadedVideoFiles) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', videoFile);
+                        formData.append('userId', userId);
+                        formData.append('itemId', created.id || created.Id);
+                        formData.append('target', 'videos');
+
+                        const uploadRes = await fetch(`${API_BASE_URL}/media/uploadAndAttach`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!uploadRes.ok) {
+                            console.warn('⚠️ Failed to upload video:', videoFile.name, 'Status:', uploadRes.status);
+                            // Try to get more details about the error
+                            try {
+                                const errorData = await uploadRes.text();
+                                console.warn('⚠️ Upload error details:', errorData);
+                            } catch (e) {
+                                console.warn('⚠️ Could not read error response');
+                            }
+                        } else {
+                            const uploadResult = await uploadRes.json();
+                            console.log('✅ Video uploaded:', uploadResult.url);
+                        }
+                    } catch (err) {
+                        console.warn('⚠️ Error uploading video:', err);
+                        if (err.message.includes('404')) {
+                            console.warn('⚠️ The /media/uploadAndAttach endpoint is not available. The backend may need to be restarted.');
+                        }
+                    }
+                }
+            }
+
             // Send maintenance entries separately if any exist
             if (maintenanceList.length > 0) {
                 try {
@@ -333,9 +478,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     for (const maintenance of maintenanceList) {
                         const maintenanceData = {
-                            itemId: itemId,
-                            description: maintenance.description,
-                            frequency: maintenance.frequency
+                            ItemId: itemId,
+                            Type: maintenance.type,
+                            Category: maintenance.category,
+                            Frequency: maintenance.frequency, // This is now an integer (days) or null
+                            Description: maintenance.description
                         };
 
                         const maintenanceRes = await fetch(`${API_BASE_URL}/maintenance`, {
@@ -350,7 +497,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!maintenanceRes.ok) {
                             console.warn('⚠️ Failed to create maintenance entry:', maintenanceRes.status);
                         } else {
-                            console.log('✅ Created maintenance entry:', await maintenanceRes.json());
+                            const createdMaintenance = await maintenanceRes.json();
+                            console.log('✅ Created maintenance entry:', createdMaintenance);
+
+                            // Upload receipts if any exist
+                            if (maintenance.receipts && maintenance.receipts.length > 0) {
+                                console.log('📄 Uploading receipts for maintenance:', maintenance.receipts.length);
+                                
+                                for (const receiptFile of maintenance.receipts) {
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('file', receiptFile);
+                                        formData.append('maintenanceId', createdMaintenance.id || createdMaintenance.Id);
+                                        formData.append('Description', `Receipt for ${maintenance.description}`);
+
+                                        const receiptRes = await fetch(`${API_BASE_URL}/documents`, {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+
+                                        if (!receiptRes.ok) {
+                                            console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
+                                        } else {
+                                            console.log('✅ Uploaded receipt:', receiptFile.name);
+                                        }
+                                    } catch (err) {
+                                        console.warn('⚠️ Error uploading receipt:', err);
+                                    }
+                                }
+                            }
                         }
                     }
                 } catch (maintenanceErr) {
@@ -407,6 +582,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         updatePreview();
 
         showMessage(`✅ ${files.length} photo${files.length > 1 ? 's' : ''} uploaded`, 'success');
+        
+        // Prevent focus from moving to other fields
+        e.target.blur();
     });
 
     videoUpload.addEventListener('change', (e) => {
@@ -425,12 +603,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        uploadedVideoFiles = files;
         uploadedVideos = files.map(file => URL.createObjectURL(file));
         videoCount.textContent = uploadedVideos.length;
 
         if (files.length > 0) {
             showMessage('✅ Video uploaded', 'success');
         }
+        
+        // Prevent focus from moving to other fields
+        e.target.blur();
     });
 
     // Live preview updates
@@ -464,6 +646,102 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeMaintenanceBtn?.addEventListener('click', closeMaintenanceModal);
     cancelMaintenanceBtn?.addEventListener('click', closeMaintenanceModal);
     maintenanceForm?.addEventListener('submit', handleMaintenanceSubmit);
+
+    // Handle maintenance type change to show/hide frequency field and receipt section
+    const maintenanceTypeRadios = document.querySelectorAll('input[name="maintenance-type"]');
+    maintenanceTypeRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const frequencySection = document.getElementById('frequency-section');
+            const frequencyInput = document.getElementById('maintenance-frequency-input');
+            const receiptSection = document.getElementById('receipt-section');
+            
+            if (e.target.value === 'required') {
+                frequencySection.style.display = 'block';
+                frequencyInput.required = true;
+                receiptSection.style.display = 'none';
+            } else {
+                frequencySection.style.display = 'none';
+                frequencyInput.required = false;
+                frequencyInput.value = '';
+                receiptSection.style.display = 'block';
+            }
+        });
+    });
+
+    // Initialize frequency field visibility based on default selection
+    const defaultRequiredRadio = document.querySelector('input[name="maintenance-type"][value="required"]');
+    if (defaultRequiredRadio && defaultRequiredRadio.checked) {
+        const frequencySection = document.getElementById('frequency-section');
+        const frequencyInput = document.getElementById('maintenance-frequency-input');
+        frequencySection.style.display = 'block';
+        frequencyInput.required = true;
+    }
+
+    // Receipt upload functionality
+    const receiptUploadBtn = document.getElementById('receipt-upload-btn');
+    const receiptUploadInput = document.getElementById('maintenance-receipt-upload');
+    const receiptPreview = document.getElementById('receipt-preview');
+
+    receiptUploadBtn?.addEventListener('click', () => {
+        receiptUploadInput.click();
+    });
+
+    receiptUploadInput?.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files);
+        
+        // Validate files
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        
+        const validFiles = files.filter(file => {
+            if (file.size > MAX_SIZE) {
+                showMessage(`File ${file.name} is too large (max 5MB)`, 'error');
+                return false;
+            }
+            if (!ALLOWED_TYPES.includes(file.type)) {
+                showMessage(`File ${file.name} is not a valid image format`, 'error');
+                return false;
+            }
+            return true;
+        });
+
+        // Store valid files
+        currentMaintenanceReceipts = validFiles;
+        
+        // Update preview
+        updateReceiptPreview();
+    });
+
+    function updateReceiptPreview() {
+        receiptPreview.innerHTML = '';
+        
+        currentMaintenanceReceipts.forEach((file, index) => {
+            const preview = document.createElement('div');
+            preview.className = 'flex items-center gap-2 p-2 bg-slate-700 rounded';
+            
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'w-12 h-12 object-cover rounded';
+            
+            const info = document.createElement('div');
+            info.className = 'flex-1 text-sm text-slate-300';
+            info.textContent = file.name;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'text-red-400 hover:text-red-300';
+            removeBtn.innerHTML = '×';
+            removeBtn.onclick = () => {
+                currentMaintenanceReceipts.splice(index, 1);
+                updateReceiptPreview();
+            };
+            
+            preview.appendChild(img);
+            preview.appendChild(info);
+            preview.appendChild(removeBtn);
+            receiptPreview.appendChild(preview);
+        });
+    }
 
     // Close modal on backdrop click
     maintenanceModal?.addEventListener('click', (e) => {

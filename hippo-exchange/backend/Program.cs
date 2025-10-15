@@ -44,11 +44,6 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
-            
-
-            builder.Services.AddSingleton(StorageClient.Create());
-
-
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
@@ -60,6 +55,9 @@ namespace HippoExchange
                     "or GoogleCloud:CredentialPath to a valid service-account JSON file. " +
                     $"Current value: '{credPath ?? "<empty>"}'");
             }
+
+            // Set the credential path for Google Cloud libraries
+            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credPath);
 
             var googleCred = GoogleCredential.FromFile(credPath);
 
@@ -1040,6 +1038,51 @@ namespace HippoExchange
                 var doc = db.Collection("exchanges").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
+
+                var exchange = snap.ConvertTo<Exchange>();
+                
+                // Get the item details to include in notification
+                var listingDoc = db.Collection("listings").Document(exchange.ItemId);
+                var listingSnap = await listingDoc.GetSnapshotAsync();
+                var listing = listingSnap.Exists ? listingSnap.ConvertTo<Listing>() : null;
+                
+                // Get the actual item using the ItemId from the listing
+                Item? item = null;
+                if (listing != null)
+                {
+                    var itemDoc = db.Collection("items").Document(listing.ItemId);
+                    var itemSnap = await itemDoc.GetSnapshotAsync();
+                    item = itemSnap.Exists ? itemSnap.ConvertTo<Item>() : null;
+                }
+                
+                // Get the borrower details for the notification
+                var borrowerDoc = db.Collection("users").Document(exchange.BorrowerId);
+                var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
+                var borrower = borrowerSnap.Exists ? borrowerSnap.ConvertTo<UserAuth>() : null;
+
+                // Send notification to item owner about cancelled request
+                if (item != null && borrower != null)
+                {
+                    var borrowerName = !string.IsNullOrEmpty(borrower.FirstName) && !string.IsNullOrEmpty(borrower.LastName)
+                        ? $"{borrower.FirstName} {borrower.LastName}"
+                        : borrower.Email;
+
+                    var notification = new Notification
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        CreatedUtc = DateTime.UtcNow,
+                        SenderId = exchange.BorrowerId,
+                        ReceiverId = exchange.OwnerId,
+                        Message = $"{borrowerName} has cancelled their request for your item \"{item.Title}\". The request has been withdrawn.",
+                        Title = "Request Cancelled",
+                        Type = "exchange_cancelled",
+                        ListingId = exchange.ItemId,
+                        SenderAvatar = borrower.ProfilePicture,
+                        Dismissed = false
+                    };
+
+                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+                }
 
                 await doc.DeleteAsync();
                 return Results.NoContent();

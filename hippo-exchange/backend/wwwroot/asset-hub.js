@@ -5,8 +5,10 @@ class AssetHub {
         this.currentUserId = null;
         this.ownedItems = [];
         this.borrowedItems = [];
+        this.requestedItems = []; // Store pending requests for user's items
         this.currentEditingItem = null;
         this.currentDeletingItem = null;
+        this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
 
         this.init();
     }
@@ -119,6 +121,7 @@ class AssetHub {
         // Tab switching
         document.getElementById('owned-tab').addEventListener('click', () => this.showOwnedItems());
         document.getElementById('borrowed-tab').addEventListener('click', () => this.showBorrowedItems());
+        document.getElementById('requested-tab').addEventListener('click', () => this.showRequestedItems());
 
         // Add item button
         document.getElementById('add-item-btn').addEventListener('click', () => {
@@ -139,6 +142,20 @@ class AssetHub {
         document.getElementById('close-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('maintenance-form').addEventListener('submit', (e) => this.handleMaintenanceSubmit(e));
+
+        // Receipt upload functionality
+        const receiptUploadBtn = document.getElementById('receipt-upload-btn');
+        const receiptUploadInput = document.getElementById('maintenance-receipt-upload');
+        
+        if (receiptUploadBtn) {
+            receiptUploadBtn.addEventListener('click', () => {
+                receiptUploadInput.click();
+            });
+        }
+
+        if (receiptUploadInput) {
+            receiptUploadInput.addEventListener('change', (e) => this.handleReceiptUpload(e));
+        }
 
         // Maintenance type radio button listeners
         document.querySelectorAll('input[name="maintenance-type"]').forEach(radio => {
@@ -310,10 +327,14 @@ class AssetHub {
 
             if (ownedResponse.ok) {
                 const allItems = await ownedResponse.json();
+                console.log('📦 Asset Hub - All items from API:', allItems);
+                
                 // Filter items by current user ID
                 this.ownedItems = allItems.items ? allItems.items.filter(item =>
                     item.userId === this.currentUserId || item.ownerId === this.currentUserId
                 ) : [];
+                
+                console.log('📦 Asset Hub - Filtered owned items:', this.ownedItems);
             } else {
                 console.log('Failed to load owned items, using placeholder data');
                 this.ownedItems = this.getPlaceholderOwnedItems();
@@ -324,14 +345,20 @@ class AssetHub {
             this.borrowedItems = await this.getBorrowedItems();
             this.renderBorrowedItems();
 
+            // Load requested items (pending requests for user's items)
+            this.requestedItems = await this.getRequestedItems();
+            this.renderRequestedItems();
+
             this.updateCounts();
         } catch (error) {
             console.error('Error loading user assets:', error);
             // Use placeholder data on error
             this.ownedItems = this.getPlaceholderOwnedItems();
             this.borrowedItems = this.getPlaceholderBorrowedItems();
+            this.requestedItems = [];
             this.renderOwnedItems();
             this.renderBorrowedItems();
+            this.renderRequestedItems();
             this.updateCounts();
         }
     }
@@ -399,6 +426,7 @@ class AssetHub {
                             // Create borrowed item with full details
                             borrowedItems.push({
                                 id: exchange.Id || exchange.id,
+                                exchangeId: exchange.Id || exchange.id, // Store exchange ID for cancellation
                                 itemId: exchange.ItemId || exchange.itemId,
                                 title: item.title || item.Title || 'Untitled Item',
                                 description: item.description || item.Description || 'No description',
@@ -627,6 +655,278 @@ class AssetHub {
         });
     }
 
+    async getRequestedItems() {
+        if (!this.currentUserId) {
+            return [];
+        }
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            console.log('🔍 Fetching requested items for user:', this.currentUserId);
+
+            const response = await fetch(`http://localhost:5000/exchanges/owner/${this.currentUserId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            console.log('📡 Requested items response status:', response.status);
+
+            if (response.ok) {
+                const exchanges = await response.json();
+                console.log('✅ Exchanges received:', exchanges);
+
+                // Filter for pending requests (not approved/declined)
+                const pendingExchanges = exchanges.filter(exchange => 
+                    !exchange.approved && !exchange.Approved
+                );
+
+                console.log('📋 Pending exchanges:', pendingExchanges);
+
+                // Fetch actual item details and borrower names for each exchange
+                const requestedItems = [];
+                for (const exchange of pendingExchanges) {
+                    try {
+                        console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
+                        const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        if (itemResponse.ok) {
+                            const item = await itemResponse.json();
+                            console.log('✅ Item details received:', item);
+
+                            // Fetch borrower details
+                            let borrowerName = 'Unknown Borrower';
+                            let borrowerAvatar = 'hippo-exchange-logo.png';
+                            try {
+                                console.log('🔍 Fetching borrower details for:', exchange.BorrowerId || exchange.borrowerId);
+                                const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`,
+                                        'Accept': 'application/json'
+                                    }
+                                });
+
+                                if (borrowerResponse.ok) {
+                                    const borrower = await borrowerResponse.json();
+                                    console.log('✅ Borrower details received:', borrower);
+                                    borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
+                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || borrowerAvatar;
+                                }
+                            } catch (borrowerError) {
+                                console.warn('⚠️ Could not fetch borrower details:', borrowerError);
+                            }
+
+                            requestedItems.push({
+                                id: exchange.Id || exchange.id,
+                                exchangeId: exchange.Id || exchange.id,
+                                itemId: exchange.ItemId || exchange.itemId,
+                                title: item.title || item.Title || 'Unknown Item',
+                                description: item.description || item.Description || '',
+                                imageUrl: item.imageUrl || item.ImageUrl || (item.pictures && item.pictures[0]) || (item.Pictures && item.Pictures[0]) || (item.images && item.images[0]) || (item.Images && item.Images[0]),
+                                category: item.category || item.Category || 'General',
+                                status: 'pending',
+                                approved: false,
+                                borrowerId: exchange.BorrowerId || exchange.borrowerId,
+                                borrowerName: borrowerName,
+                                borrowerAvatar: borrowerAvatar,
+                                requestCreated: exchange.RequestCreated || exchange.requestCreated,
+                                startDate: exchange.StartDate || exchange.startDate,
+                                endDate: exchange.EndDate || exchange.endDate
+                            });
+                        }
+                    } catch (itemError) {
+                        console.warn('⚠️ Could not fetch item details for exchange:', exchange.Id || exchange.id, itemError);
+                    }
+                }
+
+                console.log('✅ Final requested items:', requestedItems);
+                return requestedItems;
+            } else {
+                console.log('Failed to load requested items');
+                return [];
+            }
+        } catch (error) {
+            console.error('Error loading requested items:', error);
+            return [];
+        }
+    }
+
+    renderRequestedItems() {
+        const grid = document.getElementById('requested-items-grid');
+        const empty = document.getElementById('requested-empty');
+
+        if (this.requestedItems.length === 0) {
+            grid.innerHTML = '';
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        empty.classList.add('hidden');
+        grid.innerHTML = '';
+
+        this.requestedItems.forEach(request => {
+            const requestCard = this.createRequestCard(request);
+            grid.appendChild(requestCard);
+        });
+    }
+
+    createRequestCard(request) {
+        const card = document.createElement('div');
+        card.className = 'glass rounded-lg p-4 border border-slate-200 hover:shadow-md transition-shadow';
+        card.setAttribute('data-request-id', request.id);
+
+        const requestDate = new Date(request.requestCreated).toLocaleDateString();
+        const timeAgo = this.formatTimeAgo(new Date(request.requestCreated));
+
+        card.innerHTML = `
+            <div class="flex items-start gap-4">
+                <!-- Item Image -->
+                <div class="flex-shrink-0">
+                    <img src="${request.imageUrl || 'https://placehold.co/80x80/ffffff/111111?text=' + encodeURIComponent(request.title)}" 
+                         alt="${request.title}" 
+                         class="w-16 h-16 rounded-lg object-cover border border-slate-200"
+                         onerror="this.src='https://placehold.co/80x80/ffffff/111111?text=' + encodeURIComponent('${request.title}')">
+                </div>
+
+                <!-- Request Details -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-semibold text-slate-800 truncate">${request.title}</h4>
+                            <p class="text-sm text-slate-600 line-clamp-2">${request.description}</p>
+                            
+                            <!-- Requester Info -->
+                            <div class="flex items-center gap-2 mt-2">
+                                <a href="./otheruser.html?userId=${request.borrowerId}" class="flex items-center gap-2 hover:bg-slate-50 rounded-lg p-1 -m-1 transition-colors">
+                                    <img src="${request.borrowerAvatar}" 
+                                         alt="${request.borrowerName}" 
+                                         class="w-6 h-6 rounded-full object-cover border border-slate-200"
+                                         onerror="this.src='hippo-exchange-logo.png'">
+                                    <span class="text-sm font-medium text-slate-700">${request.borrowerName}</span>
+                                </a>
+                                <span class="text-xs text-slate-500">wants to borrow</span>
+                            </div>
+
+                            <div class="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                                <span>Requested ${timeAgo}</span>
+                                <span>•</span>
+                                <span>${requestDate}</span>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex gap-2 flex-shrink-0">
+                            <button class="approve-btn px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 transition-colors font-medium"
+                                    data-request-id="${request.id}"
+                                    data-item-id="${request.itemId}"
+                                    data-borrower-id="${request.borrowerId}">
+                                Approve
+                            </button>
+                            <button class="decline-btn px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors font-medium"
+                                    data-request-id="${request.id}"
+                                    data-item-id="${request.itemId}"
+                                    data-borrower-id="${request.borrowerId}">
+                                Decline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add event listeners for approve/decline buttons
+        const approveBtn = card.querySelector('.approve-btn');
+        const declineBtn = card.querySelector('.decline-btn');
+
+        approveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.handleRequestAction(request, true);
+        });
+
+        declineBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.handleRequestAction(request, false);
+        });
+
+        return card;
+    }
+
+    formatTimeAgo(date) {
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        if (hours < 24) return `${hours}h ago`;
+        if (days < 7) return `${days}d ago`;
+        return date.toLocaleDateString();
+    }
+
+    async handleRequestAction(request, isApprove) {
+        const action = isApprove ? 'approve' : 'decline';
+        const confirmed = await this.showConfirmation(
+            `${isApprove ? 'Approve' : 'Decline'} Request`,
+            `Are you sure you want to ${action} ${request.borrowerName}'s request for "${request.title}"?`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            // Update the exchange
+            const approvalBody = isApprove
+                ? {
+                    approved: true,
+                    startDate: new Date().toISOString(),
+                    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                }
+                : { approved: false };
+
+            console.log('📤 Updating exchange:', approvalBody);
+
+            const response = await fetch(`http://localhost:5000/exchanges/${request.exchangeId}/approval`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(approvalBody)
+            });
+
+            if (response.ok) {
+                this.showSuccess(`Request ${action}d successfully!`);
+                
+                // Remove the request from the list
+                this.requestedItems = this.requestedItems.filter(req => req.id !== request.id);
+                this.renderRequestedItems();
+                this.updateCounts();
+                
+                // Refresh borrowed items if approved (item will move to borrowed section)
+                if (isApprove) {
+                    this.borrowedItems = await this.getBorrowedItems();
+                    this.renderBorrowedItems();
+                }
+            } else {
+                const errorText = await response.text();
+                this.showError(`Failed to ${action} request: ${errorText}`);
+            }
+        } catch (error) {
+            console.error(`Error ${action}ing request:`, error);
+            this.showError(`An error occurred while ${action}ing the request`);
+        }
+    }
+
     createItemCard(item, type) {
         const template = document.getElementById('asset-card-template');
         const card = template.content.cloneNode(true);
@@ -634,10 +934,32 @@ class AssetHub {
         const article = card.querySelector('article');
         article.setAttribute('data-id', item.id);
 
-        // Set image
+        // Set image - try multiple possible image fields
         const img = card.querySelector('.card-img');
-        if (item.imageUrl) {
-            img.src = item.imageUrl;
+        
+        // Debug logging for image fields
+        console.log('🖼️ Asset Hub - Item image data:', {
+            id: item.id,
+            title: item.title,
+            imageUrl: item.imageUrl,
+            ImageUrl: item.ImageUrl,
+            pictures: item.pictures,
+            Pictures: item.Pictures,
+            images: item.images,
+            Images: item.Images
+        });
+        
+        const imageUrl = item.imageUrl || 
+                        item.ImageUrl || 
+                        (item.pictures && item.pictures[0]) || 
+                        (item.Pictures && item.Pictures[0]) ||
+                        (item.images && item.images[0]) ||
+                        (item.Images && item.Images[0]);
+        
+        console.log('🖼️ Asset Hub - Final image URL:', imageUrl || 'Using placeholder');
+        
+        if (imageUrl) {
+            img.src = imageUrl;
         } else {
             img.src = 'https://placehold.co/400x300/ffffff/111111?text=' + encodeURIComponent(item.title);
         }
@@ -752,6 +1074,22 @@ class AssetHub {
             if (editBtn) editBtn.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
             if (maintenanceBtn) maintenanceBtn.style.display = 'none';
+            
+            // Show cancel request button for pending borrowed items
+            const cancelRequestBtn = card.querySelector('.cancel-request-btn');
+            if (cancelRequestBtn) {
+                if (!item.approved && (item.status === 'pending' || item.status === 'Pending')) {
+                    cancelRequestBtn.style.display = 'block';
+                    cancelRequestBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.cancelRequest(item);
+                    });
+                } else {
+                    cancelRequestBtn.style.display = 'none';
+                }
+            }
         }
 
         if (viewBtn) {
@@ -769,24 +1107,40 @@ class AssetHub {
     showOwnedItems() {
         document.getElementById('owned-section').classList.remove('hidden');
         document.getElementById('borrowed-section').classList.add('hidden');
+        document.getElementById('requested-section').classList.add('hidden');
 
         // Update tab styles
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
     }
 
     showBorrowedItems() {
         document.getElementById('owned-section').classList.add('hidden');
         document.getElementById('borrowed-section').classList.remove('hidden');
+        document.getElementById('requested-section').classList.add('hidden');
 
         // Update tab styles
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+    }
+
+    showRequestedItems() {
+        document.getElementById('owned-section').classList.add('hidden');
+        document.getElementById('borrowed-section').classList.add('hidden');
+        document.getElementById('requested-section').classList.remove('hidden');
+
+        // Update tab styles
+        document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
+        document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
     }
 
     updateCounts() {
         document.getElementById('owned-count').textContent = this.ownedItems.length;
         document.getElementById('borrowed-count').textContent = this.borrowedItems.length;
+        document.getElementById('requested-count').textContent = this.requestedItems.length;
     }
 
     async openEditModal(item) {
@@ -1020,6 +1374,8 @@ class AssetHub {
     closeMaintenanceModal() {
         document.getElementById('maintenance-modal').classList.remove('active');
         document.getElementById('maintenance-form').reset();
+        this.currentMaintenanceReceipts = [];
+        document.getElementById('receipt-preview').innerHTML = '';
 
         // Restore the "Required" option visibility for next time
         const requiredLabel = document.querySelector('input[name="maintenance-type"][value="required"]')?.closest('label');
@@ -1033,15 +1389,76 @@ class AssetHub {
     toggleFrequencyField(show) {
         const frequencySection = document.getElementById('frequency-section');
         const frequencyInput = document.getElementById('maintenance-frequency-input');
+        const receiptSection = document.getElementById('receipt-section');
 
         if (show) {
             frequencySection.style.display = 'block';
             frequencyInput.required = true;
+            receiptSection.style.display = 'none';
         } else {
             frequencySection.style.display = 'none';
             frequencyInput.required = false;
             frequencyInput.value = ''; // Clear the value when hidden
+            receiptSection.style.display = 'block';
         }
+    }
+
+    handleReceiptUpload(e) {
+        const files = Array.from(e.target.files);
+        
+        // Validate files
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        
+        const validFiles = files.filter(file => {
+            if (file.size > MAX_SIZE) {
+                this.showError(`File ${file.name} is too large (max 5MB)`);
+                return false;
+            }
+            if (!ALLOWED_TYPES.includes(file.type)) {
+                this.showError(`File ${file.name} is not a valid image format`);
+                return false;
+            }
+            return true;
+        });
+
+        // Store valid files
+        this.currentMaintenanceReceipts = validFiles;
+        
+        // Update preview
+        this.updateReceiptPreview();
+    }
+
+    updateReceiptPreview() {
+        const receiptPreview = document.getElementById('receipt-preview');
+        receiptPreview.innerHTML = '';
+        
+        this.currentMaintenanceReceipts.forEach((file, index) => {
+            const preview = document.createElement('div');
+            preview.className = 'flex items-center gap-2 p-2 bg-slate-700 rounded';
+            
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'w-12 h-12 object-cover rounded';
+            
+            const info = document.createElement('div');
+            info.className = 'flex-1 text-sm text-slate-300';
+            info.textContent = file.name;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'text-red-400 hover:text-red-300';
+            removeBtn.innerHTML = '×';
+            removeBtn.onclick = () => {
+                this.currentMaintenanceReceipts.splice(index, 1);
+                this.updateReceiptPreview();
+            };
+            
+            preview.appendChild(img);
+            preview.appendChild(info);
+            preview.appendChild(removeBtn);
+            receiptPreview.appendChild(preview);
+        });
     }
 
     async loadMaintenanceHistory(itemId) {
@@ -1345,6 +1762,36 @@ class AssetHub {
             });
 
             if (response.ok) {
+                const createdMaintenance = await response.json();
+                console.log('✅ Created maintenance entry:', createdMaintenance);
+
+                // Upload receipts if any exist (only for history type)
+                if (maintenanceType === 'history' && this.currentMaintenanceReceipts.length > 0) {
+                    console.log('📄 Uploading receipts for maintenance:', this.currentMaintenanceReceipts.length);
+                    
+                    for (const receiptFile of this.currentMaintenanceReceipts) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', receiptFile);
+                            formData.append('maintenanceId', createdMaintenance.id || createdMaintenance.Id);
+                            formData.append('Description', `Receipt for ${description}`);
+
+                            const receiptRes = await fetch('http://localhost:5000/documents', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (!receiptRes.ok) {
+                                console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
+                            } else {
+                                console.log('✅ Uploaded receipt:', receiptFile.name);
+                            }
+                        } catch (err) {
+                            console.warn('⚠️ Error uploading receipt:', err);
+                        }
+                    }
+                }
+
                 const successMessage = maintenanceType === 'required'
                     ? 'Maintenance requirement added successfully!'
                     : 'Maintenance history entry added successfully!';
@@ -1359,6 +1806,8 @@ class AssetHub {
 
                 // Reset form for next entry
                 document.getElementById('maintenance-form').reset();
+                this.currentMaintenanceReceipts = [];
+                document.getElementById('receipt-preview').innerHTML = '';
 
                 // Check if this is a borrowed item to set appropriate defaults
                 const isBorrowedItem = !this.ownedItems.some(ownedItem => ownedItem.id === this.currentMaintenanceItem.id);
@@ -1410,6 +1859,102 @@ class AssetHub {
         setTimeout(() => {
             notification.remove();
         }, 3000);
+    }
+
+    async cancelRequest(item) {
+        if (!item.exchangeId) {
+            this.showError('Cannot cancel request: Exchange ID not found');
+            return;
+        }
+
+        // Show custom confirmation modal
+        const confirmed = await this.showConfirmation(
+            'Cancel Request',
+            `Are you sure you want to cancel your request for "${item.title}"?`
+        );
+        
+        if (!confirmed) return;
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            const response = await fetch(`http://localhost:5000/exchanges/${item.exchangeId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                this.showSuccess('Request cancelled successfully!');
+                
+                // Remove the item from borrowed items list
+                this.borrowedItems = this.borrowedItems.filter(borrowedItem => borrowedItem.id !== item.id);
+                
+                // Re-render the borrowed items
+                this.renderBorrowedItems();
+                this.updateCounts();
+            } else {
+                const errorText = await response.text();
+                this.showError(`Failed to cancel request: ${errorText}`);
+            }
+        } catch (error) {
+            console.error('Error cancelling request:', error);
+            this.showError('An error occurred while cancelling the request');
+        }
+    }
+
+    showConfirmation(title, message) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('confirmation-modal');
+            const titleElement = document.getElementById('confirmation-title');
+            const messageElement = document.getElementById('confirmation-message');
+            const confirmBtn = document.getElementById('confirmation-confirm');
+            const cancelBtn = document.getElementById('confirmation-cancel');
+            const closeBtn = document.getElementById('close-confirmation');
+
+            // Set content
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+
+            // Show modal
+            modal.classList.add('active');
+
+            // Handle confirm
+            const handleConfirm = () => {
+                modal.classList.remove('active');
+                resolve(true);
+                cleanup();
+            };
+
+            // Handle cancel/close
+            const handleCancel = () => {
+                modal.classList.remove('active');
+                resolve(false);
+                cleanup();
+            };
+
+            // Cleanup event listeners
+            const cleanup = () => {
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+                closeBtn.removeEventListener('click', handleCancel);
+                modal.removeEventListener('click', handleBackdropClick);
+            };
+
+            // Handle backdrop click
+            const handleBackdropClick = (e) => {
+                if (e.target === modal) {
+                    handleCancel();
+                }
+            };
+
+            // Add event listeners
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
+            closeBtn.addEventListener('click', handleCancel);
+            modal.addEventListener('click', handleBackdropClick);
+        });
     }
 
     viewItem(item) {

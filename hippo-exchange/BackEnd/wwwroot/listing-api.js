@@ -110,9 +110,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       // Handle both backend API format and fallback JSON format
-      const images = item.pictures || item.images || [];
-      const videos = item.videos || item.Videos || [];
+      console.log('🔍 Raw item data from API:', item);
+      console.log('🔍 item.Pictures (capital P):', item.Pictures);
+      console.log('🔍 item.pictures (lowercase):', item.pictures);
+      console.log('🔍 item.images:', item.images);
+      console.log('🔍 item.imageUrl:', item.imageUrl);
+      console.log('🔍 item.Videos (capital V):', item.Videos);
+      console.log('🔍 item.videos (lowercase):', item.videos);
+      
+      const images = item.Pictures || item.pictures || item.images || [];
+      const videos = item.Videos || item.videos || [];
       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
+      
+      console.log('🔍 Processed images array:', images);
+      console.log('🔍 Processed videos array:', videos);
+      console.log('🔍 Final imageUrl:', imageUrl);
       const price = item.dollarCost ?? item.price ?? 0;
       const locationLabel = item.location ?? item.locationLabel ?? '';
 
@@ -189,6 +201,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Store listing data globally for maintenance form
     window.currentListing = listing;
 
+    console.log('🖼️ Full listing data for image debugging:', listing);
+    console.log('🖼️ listing.images:', listing.images);
+    console.log('🖼️ listing.imageUrl:', listing.imageUrl);
+    console.log('🖼️ listing.videos:', listing.videos);
+
     $('listing-title').textContent = listing.title;
     $('price').textContent = money(listing.price);
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
@@ -204,6 +221,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const thumbs = $('thumbs');
     const imgs = listing.images && listing.images.length ? listing.images : [listing.imageUrl];
     const videos = listing.videos && listing.videos.length ? listing.videos : [];
+
+    console.log('🖼️ Final imgs array:', imgs);
+    console.log('🖼️ Final videos array:', videos);
 
     // Combine images and videos for display
     const allMedia = [...imgs, ...videos];

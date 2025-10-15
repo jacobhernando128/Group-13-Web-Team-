@@ -172,6 +172,10 @@
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
               Borrowed Items (<span id="borrowed-count">0</span>)
             </button>
+            <button id="requested-tab"
+              class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
+              Requested Items (<span id="requested-count">0</span>)
+            </button>
           </div>
         </div>
       </div>
@@ -217,6 +221,27 @@
             </svg>
             <h4 class="text-lg font-semibold mb-2">No borrowed items</h4>
             <p class="text-sm">Items you're currently borrowing will appear here.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Requested Items Section -->
+      <section id="requested-section" class="mb-8 hidden">
+        <div class="glass p-4 rounded-xl mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-slate-800">Requested Items</h3>
+            <p class="text-sm text-slate-600">Manage requests for your items</p>
+          </div>
+          <div id="requested-items-grid" class="space-y-4">
+            <!-- Requested items will be populated here -->
+          </div>
+          <div id="requested-empty" class="text-center py-12 text-slate-500 hidden">
+            <svg class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <h4 class="text-lg font-semibold mb-2">No pending requests</h4>
+            <p class="text-sm">Requests for your items will appear here.</p>
           </div>
         </div>
       </section>
@@ -268,6 +293,14 @@
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     Maintenance
+                  </button>
+                  <button
+                    class="dropdown-item cancel-request-btn w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel Request
                   </button>
                   <button
                     class="dropdown-item delete-btn w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center">
@@ -466,12 +499,59 @@
                 <textarea id="maintenance-description-input" class="field w-full h-24"
                   placeholder="Describe the maintenance requirement or record..." required></textarea>
               </div>
+
+              <!-- Receipt Upload (only shown for History type) -->
+              <div id="receipt-section" style="display: none;">
+                <label class="block text-sm text-slate-300 mb-2">Receipt/Photo</label>
+                <div class="border-2 border-dashed border-slate-400 rounded-lg p-4 text-center">
+                  <input type="file" id="maintenance-receipt-upload" accept="image/*" class="hidden" multiple>
+                  <button type="button" id="receipt-upload-btn" class="text-slate-300 hover:text-white transition-colors">
+                    <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    <span class="text-sm">Upload Receipt/Photo</span>
+                  </button>
+                  <div id="receipt-preview" class="mt-2 space-y-2"></div>
+                </div>
+              </div>
             </div>
             <div class="flex justify-end pt-4 gap-2">
               <button type="button" id="cancel-maintenance" class="btn-ghost">Cancel</button>
               <button type="submit" class="btn-primary">Add Entry</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Modal -->
+  <div id="confirmation-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmation-title">
+    <div class="modal-card max-w-md">
+      <div class="modal-header">
+        <h3 id="confirmation-title" class="text-xl font-bold">Confirm Action</h3>
+        <button id="close-confirmation" class="text-slate-300 hover:text-white" aria-label="Close">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="flex-shrink-0">
+            <div class="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
+              <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          </div>
+          <div class="flex-1">
+            <p id="confirmation-message" class="text-slate-300">Are you sure you want to perform this action?</p>
+          </div>
+        </div>
+        <div class="flex gap-3 justify-end">
+          <button id="confirmation-cancel" class="btn-ghost">Cancel</button>
+          <button id="confirmation-confirm" class="btn-primary bg-orange-600 hover:bg-orange-700">Confirm</button>
         </div>
       </div>
     </div>
