@@ -276,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadThreads() {
     const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    console.debug('Loaded threads from API for user', me.id, data);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     await renderThreads();
   }
@@ -288,8 +289,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resp) msgs = [];
     else if (Array.isArray(resp)) msgs = resp;
     else msgs = resp.messages || resp.Messages || [];
-    messagesCache.set(threadId, msgs);
-    return msgs;
+    console.debug('Raw messages response for thread', threadId, msgs);
+    // Normalize message objects to predictable lowercase keys the client expects
+    const norm = msgs.map(m => ({
+      id: m.id || m.Id || m.ID || '',
+      senderId: m.senderId || m.SenderId || m.SENDERID || '',
+      body: (m.body || m.Body || '') + '',
+      sentUtc: m.sentUtc || m.SentUtc || m.SENTUTC || ''
+    }));
+    console.debug('Normalized messages for thread', threadId, norm);
+    messagesCache.set(threadId, norm);
+    return norm;
   }
 
   async function markThreadRead(threadId) {
