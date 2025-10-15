@@ -238,38 +238,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // returns a title for the thread (subject or recipient name)
   async function threadTitle(t) {
-      // Prefer 'Requester Name - Item Title' where possible
-      const subjectFromThread = t.subject || '';
-      let listingTitle = '';
-      const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
-      if (match && match[1]) listingTitle = match[1].trim();
+    // Prefer 'Requester Name - Item Title' where possible
+    const subjectFromThread = t.subject || '';
+    let listingTitle = '';
+    const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
+    if (match && match[1]) listingTitle = match[1].trim();
 
-      try {
-        // Try to load earliest message and use its sender as requester
-        const msgs = await loadMessages(t.id);
-        if (Array.isArray(msgs) && msgs.length > 0) {
-          const first = msgs[0];
-          if (first && first.senderId) {
-            const requester = await getUserName(first.senderId);
-            if (requester && listingTitle) return `${requester} - ${listingTitle}`;
-            if (requester) return requester;
-          }
+    try {
+      // Try to load earliest message and use its sender as requester
+      const msgs = await loadMessages(t.id);
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const first = msgs[0];
+        if (first && first.senderId) {
+          const requester = await getUserName(first.senderId);
+          if (requester && listingTitle) return `${requester} - ${listingTitle}`;
+          if (requester) return requester;
         }
-      } catch (e) {
-        // ignore and fall back
       }
+    } catch (e) {
+      // ignore and fall back
+    }
 
-      // Fallback to other participant name
-      const participants = t.participants || t.Participants || [];
-      const otherParticipantId = participants.find(p => p !== me.id);
-      if (otherParticipantId) {
-        const other = await getUserName(otherParticipantId);
-        if (other && listingTitle) return `${other} - ${listingTitle}`;
-        if (other) return other;
-      }
+    // Fallback to other participant name
+    const participants = t.participants || t.Participants || [];
+    const otherParticipantId = participants.find(p => p !== me.id);
+    if (otherParticipantId) {
+      const other = await getUserName(otherParticipantId);
+      if (other && listingTitle) return `${other} - ${listingTitle}`;
+      if (other) return other;
+    }
 
-      if (subjectFromThread) return subjectFromThread;
-      return 'Conversation';
+    if (subjectFromThread) return subjectFromThread;
+    return 'Conversation';
   }
 
   // ---- Backend calls ----

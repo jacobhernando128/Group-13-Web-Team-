@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check authentication and load user data FIRST
   await checkAuthAndLoadUser();
   console.log('Authentication check completed, currentUser:', currentUser);
-  
+
   // Now load and render the listing
   readListing()
     .then(render)
@@ -117,11 +117,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('🔍 item.imageUrl:', item.imageUrl);
       console.log('🔍 item.Videos (capital V):', item.Videos);
       console.log('🔍 item.videos (lowercase):', item.videos);
-      
+
       const images = item.Pictures || item.pictures || item.images || [];
       const videos = item.Videos || item.videos || [];
       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
-      
+
       console.log('🔍 Processed images array:', images);
       console.log('🔍 Processed videos array:', videos);
       console.log('🔍 Final imageUrl:', imageUrl);
@@ -373,17 +373,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('📋 Listing data for maintenance rendering:', listing);
     console.log('👤 Current user:', currentUser);
     console.log('🏠 Listing seller:', listing.seller);
-    
+
     // Get current user ID with multiple fallbacks
     const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
     const sellerId = listing.seller?.id || listing.seller?.Id;
-    
+
     console.log('🔍 Current user ID:', currentUserId);
     console.log('🔍 Seller ID:', sellerId);
-    
+
     const isOwner = currentUserId && sellerId && currentUserId === sellerId;
     console.log('🔍 Is owner check:', isOwner);
-    
+
     if (isOwner) {
       console.log('✅ User is owner, showing maintenance section');
       renderMaintenance(listing.maintenance || []);
@@ -398,17 +398,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function hideMaintenanceSection() {
     console.log('🔒 Hiding maintenance section for non-owners');
-    
+
     // Try multiple selectors to find the maintenance section
     let maintenanceSection = null;
-    
+
     // Method 1: Look for the specific heading
     const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
     if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
       maintenanceSection = maintenanceHeading.closest('.glass');
       console.log('📍 Found maintenance section via heading method');
     }
-    
+
     // Method 2: Look for the maintenance section by its content
     if (!maintenanceSection) {
       const allGlassSections = document.querySelectorAll('.glass');
@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     }
-    
+
     if (maintenanceSection) {
       maintenanceSection.style.display = 'none';
       console.log('✅ Maintenance section hidden for non-owner');
@@ -434,13 +434,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Ensure maintenance section is visible for owners
     let maintenanceSection = null;
-    
+
     // Method 1: Look for the specific heading
     const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
     if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
       maintenanceSection = maintenanceHeading.closest('.glass');
     }
-    
+
     // Method 2: Look for the maintenance section by its content
     if (!maintenanceSection) {
       const allGlassSections = document.querySelectorAll('.glass');
@@ -451,7 +451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     }
-    
+
     if (maintenanceSection) {
       maintenanceSection.style.display = 'block';
       console.log('✅ Maintenance section shown for owner');
@@ -1013,9 +1013,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? `${requester.FirstName} ${requester.LastName}`
         : requester?.email || 'Someone';
 
-      // Prepare thread data
+      // Prepare thread data (include itemId so backend will create the thread)
       const threadData = {
         participantIds: [requester?.Id || requester?.id || requester?.userId, listing.seller.id],
+        itemId: listing.id,
         subject: `Item Request: ${listing.title}`
       };
 
