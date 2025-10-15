@@ -124,7 +124,7 @@ async function loadUserProfile(userId, apiUrl) {
 
         // Update profile picture preview - handle both property names
         const profilePic = user.ProfilePicture || user.profilePicture;
-        updateProfilePicturePreview(profilePic);
+        updateProfilePicturePreview(profilePic, user);
 
         // Store current profile picture URL (not the file)
         currentProfilePicture = profilePic;
@@ -192,8 +192,8 @@ function updateAccountSection(user) {
     }
 
     const profilePic = user.ProfilePicture || user.profilePicture;
-    if (acctAvatar && profilePic) {
-        acctAvatar.src = profilePic;
+    if (acctAvatar) {
+        updateProfilePictureElement(acctAvatar, profilePic, user, 'md');
     }
 }
 
@@ -424,7 +424,7 @@ async function displayReviews(reviews) {
 
         reviewArticle.innerHTML = `
             <div class="avatar ring-2 ring-white/60">
-                <img src="hippo-exchange-logo.png" alt="Reviewer avatar" class="w-full h-full object-cover"/>
+                ${generateProfilePictureHTML(null, {FirstName: reviewerName.split(' ')[0], LastName: reviewerName.split(' ')[1]}, 'lg')}
             </div>
             <div>
                 <div class="flex items-center gap-3 mb-2">
@@ -473,7 +473,9 @@ function formatTimeAgo(date) {
 
 
 
-// Update rating display with large star and numeric rating
+// Use the utility function from profile-utils.js
+
+// Update rating display with same style as otheruser page
 function updateRatingDisplay(reviews) {
     const ratingContainer = document.querySelector('.glass.p-5.rounded-lg:has(#rating-stars)');
 
@@ -481,30 +483,14 @@ function updateRatingDisplay(reviews) {
 
     if (!reviews || reviews.length === 0) {
         ratingContainer.innerHTML = `
-            <h3 class="section-title mb-3 text-center">Your rating</h3>
-            <div class="flex flex-col items-center justify-center py-4">
-                <div class="relative w-36 h-36 mb-3">
-                    <svg viewBox="0 0 120 120" class="w-full h-full" style="filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.15));">
-                        <defs>
-                            <linearGradient id="starGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                                <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                              fill="#ffffff" 
-                              stroke="url(#starGradient)" 
-                              stroke-width="4" 
-                              stroke-linejoin="round"
-                              stroke-linecap="round"
-                              transform="translate(13, 0)"/>
-                    </svg>
-                    <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 10px;">
-                        <span class="text-4xl font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.03em;">0.0</span>
-                    </div>
+            <h3 class="section-title mb-3">Your rating</h3>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1">
+                    ${generateStarRating(0)}
                 </div>
-                <p class="text-slate-600 text-sm font-medium">Based on 0 reviews</p>
+                <span class="text-slate-700 font-semibold">0.0</span>
             </div>
+            <p class="field-help mt-2">Average from all reviews you've received.</p>
         `;
         return;
     }
@@ -513,30 +499,14 @@ function updateRatingDisplay(reviews) {
     const ratingText = avgRating.toFixed(1);
 
     ratingContainer.innerHTML = `
-        <h3 class="section-title mb-3 text-center">Your rating</h3>
-        <div class="flex flex-col items-center justify-center py-4">
-            <div class="relative w-36 h-36 mb-3">
-                <svg viewBox="0 0 120 120" class="w-full h-full" style="filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.15));">
-                    <defs>
-                        <linearGradient id="starGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                          fill="#ffffff" 
-                          stroke="url(#starGradient)" 
-                          stroke-width="4" 
-                          stroke-linejoin="round"
-                          stroke-linecap="round"
-                          transform="translate(13, 0)"/>
-                </svg>
-                <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 10px;">
-                    <span class="text-4xl font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.03em;">${ratingText}</span>
-                </div>
+        <h3 class="section-title mb-3">Your rating</h3>
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1">
+                ${generateStarRating(avgRating)}
             </div>
-            <p class="text-slate-600 text-sm font-medium">Based on ${reviews.length} review${reviews.length !== 1 ? 's' : ''}</p>
+            <span class="text-slate-700 font-semibold">${ratingText}</span>
         </div>
+        <p class="field-help mt-2">Average from ${reviews.length} review${reviews.length !== 1 ? 's' : ''} you've received.</p>
     `;
 }
 
@@ -584,8 +554,11 @@ function updateProfilePicturePreviewWithImage(imageUrl) {
     const preview = document.getElementById('profile-pic-preview');
     if (!preview) return;
 
+    // Use the utility function for consistent profile picture display
+    const profilePictureHTML = generateProfilePictureHTML(imageUrl, null, '2xl');
+    
     preview.innerHTML = `
-        <img src="${imageUrl}" alt="Profile picture">
+        ${profilePictureHTML}
         <div class="upload-overlay">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
@@ -594,34 +567,25 @@ function updateProfilePicturePreviewWithImage(imageUrl) {
     `;
 }
 
-// Update profile picture preview
-function updateProfilePicturePreview(pictureUrl) {
+// Update profile picture preview with first letter fallback
+function updateProfilePicturePreview(pictureUrl, user = null) {
     const preview = document.getElementById('profile-pic-preview');
     if (!preview) return;
 
-    if (pictureUrl) {
-        preview.innerHTML = `
-            <img src="${pictureUrl}" alt="Profile picture">
-            <div class="upload-overlay">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                </svg>
-            </div>
-        `;
-        currentProfilePicture = pictureUrl;
-    } else {
-        preview.innerHTML = `
-            <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+    // Use the utility function for consistent profile picture display
+    const profilePictureHTML = generateProfilePictureHTML(pictureUrl, user, '2xl');
+    
+    // Add the upload overlay to the profile picture
+    preview.innerHTML = `
+        ${profilePictureHTML}
+        <div class="upload-overlay">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
             </svg>
-            <div class="upload-overlay">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                </svg>
-            </div>
-        `;
-        currentProfilePicture = null;
-    }
+        </div>
+    `;
+    
+    currentProfilePicture = pictureUrl;
     console.log('Updated profile picture preview:', pictureUrl || 'none');
 }
 
@@ -754,8 +718,9 @@ function displayUserInfo(user) {
 
     // Update profile picture if available
     const acctAvatar = document.getElementById('acct-avatar');
-    if (acctAvatar && (user.ProfilePicture || user.profilePicture)) {
-        acctAvatar.src = user.ProfilePicture || user.profilePicture;
+    if (acctAvatar) {
+        const profilePic = user.ProfilePicture || user.profilePicture;
+        updateProfilePictureElement(acctAvatar, profilePic, user, 'md');
     }
 }
 

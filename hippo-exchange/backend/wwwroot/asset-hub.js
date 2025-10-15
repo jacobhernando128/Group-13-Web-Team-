@@ -66,6 +66,9 @@ class AssetHub {
                 this.currentUser = user;
                 this.currentUserId = user?.Id || user?.id || user?.userId;
                 this.displayUserInfo(user);
+                
+                // Fetch fresh user data to get updated profile picture
+                await this.fetchFreshUserData(this.currentUserId, token);
             } else {
                 console.log('Token invalid, response status:', response.status);
                 this.clearAuthData();
@@ -105,6 +108,42 @@ class AssetHub {
         }
 
         // Balance display intentionally omitted
+
+        // Update sidebar avatar with profile picture and fallback
+        const acctAvatar = document.getElementById('acct-avatar');
+        const profilePic = user?.ProfilePicture || user?.profilePicture;
+        if (acctAvatar && profilePic && profilePic.trim()) {
+            acctAvatar.src = profilePic;
+            console.log('Updated profile picture:', profilePic);
+        }
+    }
+
+    // Fetch fresh user data from API
+    async fetchFreshUserData(userId, token) {
+        try {
+            console.log('🔄 Fetching fresh user data for:', userId);
+            const response = await fetch(`http://localhost:5000/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const freshUser = await response.json();
+                console.log('✅ Fresh user data received:', freshUser);
+                
+                // Update localStorage with fresh data
+                localStorage.setItem('hippo_user', JSON.stringify(freshUser));
+                
+                // Display updated user info
+                this.displayUserInfo(freshUser);
+            } else {
+                console.warn('⚠️ Failed to fetch fresh user data, using cached data');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching fresh user data:', error);
+        }
     }
 
     clearAuthData() {
@@ -744,7 +783,7 @@ class AssetHub {
 
                             // Fetch borrower details
                             let borrowerName = 'Unknown Borrower';
-                            let borrowerAvatar = 'hippo-exchange-logo.png';
+                            let borrowerAvatar = null;
                             try {
                                 console.log('🔍 Fetching borrower details for:', exchange.BorrowerId || exchange.borrowerId);
                                 const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
@@ -758,7 +797,7 @@ class AssetHub {
                                     const borrower = await borrowerResponse.json();
                                     console.log('✅ Borrower details received:', borrower);
                                     borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
-                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || borrowerAvatar;
+                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
                                 }
                             } catch (borrowerError) {
                                 console.warn('⚠️ Could not fetch borrower details:', borrowerError);
@@ -846,7 +885,7 @@ class AssetHub {
 
                             // Fetch borrower details
                             let borrowerName = 'Unknown Borrower';
-                            let borrowerAvatar = 'hippo-exchange-logo.png';
+                            let borrowerAvatar = null;
                             try {
                                 console.log('🔍 Fetching borrower details for loaned item:', exchange.BorrowerId || exchange.borrowerId);
                                 const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
@@ -860,7 +899,7 @@ class AssetHub {
                                     const borrower = await borrowerResponse.json();
                                     console.log('✅ Borrower details received for loaned item:', borrower);
                                     borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
-                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || borrowerAvatar;
+                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
                                 }
                             } catch (borrowerError) {
                                 console.warn('⚠️ Could not fetch borrower details for loaned item:', borrowerError);
@@ -967,10 +1006,7 @@ class AssetHub {
                             <!-- Requester Info -->
                             <div class="flex items-center gap-2 mt-2">
                                 <a href="./otheruser.html?userId=${request.borrowerId}" class="flex items-center gap-2 hover:bg-slate-50 rounded-lg p-1 -m-1 transition-colors">
-                                    <img src="${request.borrowerAvatar}" 
-                                         alt="${request.borrowerName}" 
-                                         class="w-6 h-6 rounded-full object-cover border border-slate-200"
-                                         onerror="this.src='hippo-exchange-logo.png'">
+                                    ${generateProfilePictureHTML(request.borrowerAvatar, {FirstName: request.borrowerName.split(' ')[0], LastName: request.borrowerName.split(' ')[1]}, 'sm')}
                                     <span class="text-sm font-medium text-slate-700">${request.borrowerName}</span>
                                 </a>
                                 <span class="text-xs text-slate-500">wants to borrow</span>
@@ -1082,9 +1118,10 @@ class AssetHub {
                 // This ensures the status is updated in real-time on the asset hub page
                 this.borrowedItems = await this.getBorrowedItems();
                 console.log('🔄 Refreshed borrowed items:', this.borrowedItems);
+                
                 this.renderBorrowedItems();
                 
-                // If approved, also refresh loaned items to show the newly loaned item
+                // If approved, refresh loaned items and user profile data to update counters
                 if (isApprove) {
                     this.loanedItems = await this.getLoanedItems();
                     console.log('🔄 Refreshed loaned items:', this.loanedItems);
@@ -1349,6 +1386,30 @@ class AssetHub {
         document.getElementById('borrowed-count').textContent = this.borrowedItems.length;
         document.getElementById('requested-count').textContent = this.requestedItems.length;
         document.getElementById('loaned-count').textContent = this.loanedItems.length;
+    }
+
+    async refreshUserProfile() {
+        try {
+            // Refresh the current user's profile data to update counters
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            if (!token) return;
+
+            const response = await fetch('http://localhost:5000/users/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const updatedUser = await response.json();
+                // Update localStorage with fresh user data
+                localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
+                console.log('🔄 Refreshed user profile data:', updatedUser);
+            }
+        } catch (error) {
+            console.error('Error refreshing user profile:', error);
+        }
     }
 
     async openEditModal(item) {

@@ -1,7 +1,8 @@
 // otheruser.js – Load and display complete user profile
 
-const API_BASE_URL = 'http://localhost:5000';
 let grid, itemsCount, noListings;
+let currentUserId, viewingUserId;
+let selectedRating = 0;
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Only run on otheruser.html page
@@ -15,7 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     noListings = document.getElementById('no-listings');
 
     const urlParams = new URLSearchParams(window.location.search);
-    let viewingUserId = urlParams.get('userId');
+    viewingUserId = urlParams.get('userId');
 
     if (!viewingUserId) {
         console.error('No userId provided in URL');
@@ -32,13 +33,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupMobileMenu();
 
     // Load the viewed user's complete profile
-    await loadUserProfile(viewingUserId, API_BASE_URL);
+    await loadUserProfile(viewingUserId);
 
     // Load user's items
-    await loadUserItems(viewingUserId, API_BASE_URL);
+    await loadUserItems(viewingUserId);
 
     // Load user's reviews
-    await loadUserReviews(viewingUserId, API_BASE_URL);
+    await loadUserReviews(viewingUserId);
+
+    // Setup review creation functionality
+    setupReviewCreation();
 });
 
 // Mobile menu setup
@@ -85,8 +89,10 @@ function setupMobileMenu() {
 
 // Check authentication and load current user (for sidebar)
 async function checkAuthAndLoadCurrentUser() {
-    const token = localStorage.getItem('hippo_token');
-    const userData = localStorage.getItem('hippo_user');
+    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+    const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
+
+    console.log('🔐 OtherUser Auth check - Token exists:', !!token, 'UserData exists:', !!userData);
 
     if (!token || !userData) {
         console.log('No authentication found');
@@ -94,10 +100,36 @@ async function checkAuthAndLoadCurrentUser() {
     }
 
     try {
+        // First try to get fresh user data from API
+        console.log('🔐 Making auth request to /auth/me...');
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('🔐 Auth response status:', response.status, response.statusText);
+
+        if (response.ok) {
+            const user = await response.json();
+            console.log('✅ Auth successful, user:', user);
+            currentUserId = user.Id || user.id;
+            updateSidebarAccount(user);
+            return;
+        }
+    } catch (error) {
+        console.error('❌ Auth error:', error);
+    }
+
+    // Fallback to stored user data
+    try {
         const storedUser = JSON.parse(userData);
+        console.log('⚠️ Using stored user data as fallback:', storedUser);
+        currentUserId = storedUser.Id || storedUser.id;
         updateSidebarAccount(storedUser);
     } catch (error) {
-        console.error('Error parsing stored user data:', error);
+        console.error('❌ Error parsing stored user data:', error);
     }
 }
 
@@ -113,8 +145,8 @@ function updateSidebarAccount(user) {
     if (acctName) acctName.textContent = fullName;
 
     const profilePic = user.ProfilePicture || user.profilePicture;
-    if (acctAvatar && profilePic) {
-        acctAvatar.src = profilePic;
+    if (acctAvatar) {
+        acctAvatar.innerHTML = generateProfilePictureHTML(profilePic, user, 'md');
     }
 }
 
@@ -163,9 +195,9 @@ function updateProfileInfo(user) {
     const profileCard = document.querySelector('aside .glass.p-6.rounded-xl.text-center');
     if (profileCard) {
         // Update avatar
-        const avatar = profileCard.querySelector('img');
-        if (avatar && profilePic) {
-            avatar.src = profilePic;
+        const avatarContainer = profileCard.querySelector('.w-20.h-20.mx-auto.rounded-xl.overflow-hidden');
+        if (avatarContainer) {
+            avatarContainer.innerHTML = generateProfilePictureHTML(profilePic, user, '2xl');
         }
 
         // Update name
@@ -208,7 +240,9 @@ function updateProfileInfo(user) {
 // Load user's items/listings
 async function loadUserItems(userId) {
     try {
-        itemsCount.textContent = 'Loading...';
+        if (itemsCount) {
+            itemsCount.textContent = 'Loading...';
+        }
 
         const response = await fetch(`${API_BASE_URL}/users/${userId}/items`, {
             headers: { 'Accept': 'application/json' }
@@ -225,7 +259,9 @@ async function loadUserItems(userId) {
 
     } catch (error) {
         console.error('Error loading user items:', error);
-        itemsCount.textContent = 'Error';
+        if (itemsCount) {
+            itemsCount.textContent = 'Error';
+        }
         renderUserItems([]);
     }
 }
@@ -297,9 +333,9 @@ function createItemCard(item) {
 }
 
 // Load and display user reviews
-async function loadUserReviews(userId, apiUrl) {
+async function loadUserReviews(userId) {
     try {
-        const response = await fetch(`${apiUrl}/reviews/user/${userId}`, {
+        const response = await fetch(`${API_BASE_URL}/reviews/user/${userId}`, {
             headers: { 'Accept': 'application/json' }
         });
 
@@ -323,9 +359,16 @@ async function loadUserReviews(userId, apiUrl) {
 // Display reviews
 async function displayReviews(reviews) {
     const reviewsContainer = document.getElementById('reviews-container');
+    const reviewsCount = document.getElementById('reviews-count');
     if (!reviewsContainer) return;
 
     console.log('Displaying reviews:', reviews);
+
+    // Update reviews count
+    if (reviewsCount) {
+        const count = reviews ? reviews.length : 0;
+        reviewsCount.textContent = count === 0 ? 'No reviews' : `${count} review${count !== 1 ? 's' : ''}`;
+    }
 
     // Clear the container first
     reviewsContainer.innerHTML = '';
@@ -347,8 +390,9 @@ async function displayReviews(reviews) {
         const createdUtc = review.CreatedUtc || review.createdUtc;
         const timeAgo = createdUtc ? formatTimeAgo(new Date(createdUtc)) : 'Recently';
 
-        // Fetch reviewer info
+        // Fetch reviewer info and profile picture
         let reviewerName = 'Marketplace User';
+        let reviewerProfilePic = null;
         if (raterId) {
             try {
                 const response = await fetch(`http://localhost:5000/users/${raterId}`, {
@@ -359,6 +403,7 @@ async function displayReviews(reviews) {
                     const firstName = reviewer.FirstName || reviewer.firstName || '';
                     const lastName = reviewer.LastName || reviewer.lastName || '';
                     reviewerName = `${firstName} ${lastName}`.trim() || 'Marketplace User';
+                    reviewerProfilePic = reviewer.ProfilePicture || reviewer.profilePicture;
                 }
             } catch (error) {
                 console.error('Error fetching reviewer info:', error);
@@ -370,30 +415,13 @@ async function displayReviews(reviews) {
 
         reviewArticle.innerHTML = `
             <div class="avatar ring-2 ring-white/60">
-                <img src="hippo-exchange-logo.png" alt="Reviewer avatar" class="w-full h-full object-cover"/>
+                ${generateProfilePictureHTML(reviewerProfilePic, {FirstName: reviewerName.split(' ')[0], LastName: reviewerName.split(' ')[1]}, 'lg')}
             </div>
             <div>
                 <div class="flex items-center gap-3 mb-2">
                     <p class="font-semibold text-slate-800 text-sm">${escapeHtml(reviewerName)}</p>
-                    <div class="relative w-10 h-10 flex-shrink-0" style="filter: drop-shadow(0 1px 3px rgba(251, 191, 36, 0.1));">
-                        <svg viewBox="0 0 120 120" class="w-full h-full">
-                            <defs>
-                                <linearGradient id="starGradient-${uniqueId}" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                                </linearGradient>
-                            </defs>
-                            <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                                  fill="#ffffff" 
-                                  stroke="url(#starGradient-${uniqueId})" 
-                                  stroke-width="5" 
-                                  stroke-linejoin="round"
-                                  stroke-linecap="round"
-                                  transform="translate(13, 0)"/>
-                        </svg>
-                        <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 2px;">
-                            <span class="text-xs font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.02em;">${ratingText}</span>
-                        </div>
+                    <div class="flex items-center gap-1">
+                        ${generateStarRating(rating)}
                     </div>
                     <span class="text-xs text-slate-500">· ${timeAgo}</span>
                 </div>
@@ -417,6 +445,8 @@ function formatTimeAgo(date) {
     return `${Math.floor(diffInSeconds / 31536000)}y ago`;
 }
 
+// Use the utility function from profile-utils.js
+
 // Update average rating in profile card
 function updateAverageRating(reviews) {
     const profileCard = document.querySelector('aside .glass.p-6.rounded-xl.text-center');
@@ -427,25 +457,11 @@ function updateAverageRating(reviews) {
 
     if (!reviews || reviews.length === 0) {
         ratingContainer.innerHTML = `
-            <div class="relative w-36 h-36" style="filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.15));">
-                <svg viewBox="0 0 120 120" class="w-full h-full">
-                    <defs>
-                        <linearGradient id="starGradient-profile" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                        </linearGradient>
-                    </defs>
-                    <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                          fill="#ffffff" 
-                          stroke="url(#starGradient-profile)" 
-                          stroke-width="4" 
-                          stroke-linejoin="round"
-                          stroke-linecap="round"
-                          transform="translate(13, 0)"/>
-                </svg>
-                <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 10px;">
-                    <span class="text-4xl font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.03em;">0.0</span>
+            <div class="flex items-center justify-center gap-2">
+                <div class="flex items-center gap-1">
+                    ${generateStarRating(0)}
                 </div>
+                <span class="text-slate-700 font-semibold text-sm">0.0</span>
             </div>
         `;
         return;
@@ -455,25 +471,11 @@ function updateAverageRating(reviews) {
     const ratingText = avgRating.toFixed(1);
 
     ratingContainer.innerHTML = `
-        <div class="relative w-36 h-36" style="filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.15));">
-            <svg viewBox="0 0 120 120" class="w-full h-full">
-                <defs>
-                    <linearGradient id="starGradient-profile" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-                <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                      fill="#ffffff" 
-                      stroke="url(#starGradient-profile)" 
-                      stroke-width="4" 
-                      stroke-linejoin="round"
-                      stroke-linecap="round"
-                      transform="translate(13, 0)"/>
-            </svg>
-            <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 10px;">
-                <span class="text-4xl font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.03em;">${ratingText}</span>
+        <div class="flex items-center justify-center gap-2">
+            <div class="flex items-center gap-1">
+                ${generateStarRating(avgRating)}
             </div>
+            <span class="text-slate-700 font-semibold text-sm">${ratingText}</span>
         </div>
     `;
 }
@@ -495,6 +497,222 @@ function showError(message) {
       </div>
     `;
     }
+}
+
+// Setup review creation functionality
+function setupReviewCreation() {
+    const createReviewBtn = document.getElementById('create-review-btn');
+    const reviewModal = document.getElementById('review-modal');
+    const closeReviewBtn = document.getElementById('close-review');
+    const cancelReviewBtn = document.getElementById('cancel-review');
+    const submitReviewBtn = document.getElementById('submit-review');
+    const ratingStars = document.querySelectorAll('.star-rating');
+    const reviewDescription = document.getElementById('review-description');
+
+    console.log('🔍 Setting up review creation...');
+    console.log('🔍 Current user ID:', currentUserId);
+    console.log('🔍 Viewing user ID:', viewingUserId);
+    console.log('🔍 Create review button found:', !!createReviewBtn);
+
+    // Show/hide create review button based on whether user is viewing their own profile
+    if (currentUserId && currentUserId !== viewingUserId) {
+        console.log('✅ Showing write review button - user is viewing someone else\'s profile');
+        createReviewBtn.classList.remove('hidden');
+    } else {
+        console.log('❌ Hiding write review button - reasons:');
+        console.log('  - Current user ID:', currentUserId);
+        console.log('  - Viewing user ID:', viewingUserId);
+        console.log('  - Are they the same?', currentUserId === viewingUserId);
+    }
+
+    // Open review modal
+    if (createReviewBtn) {
+        console.log('🔍 Adding click event listener to create review button');
+        createReviewBtn.addEventListener('click', () => {
+            console.log('🔍 Opening review modal...');
+            reviewModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    } else {
+        console.error('❌ Create review button not found!');
+    }
+
+    // Close review modal
+    const closeModal = () => {
+        console.log('🔍 Closing review modal...');
+        reviewModal.classList.remove('active');
+        document.body.style.overflow = '';
+        resetReviewForm();
+    };
+
+    closeReviewBtn?.addEventListener('click', closeModal);
+    cancelReviewBtn?.addEventListener('click', closeModal);
+
+    // Close modal when clicking outside
+    reviewModal?.addEventListener('click', (e) => {
+        if (e.target === reviewModal) {
+            closeModal();
+        }
+    });
+
+    // Star rating functionality
+    ratingStars.forEach((star, index) => {
+        star.addEventListener('click', () => {
+            selectedRating = index + 1;
+            updateStarDisplay();
+            updateSubmitButton();
+        });
+
+        star.addEventListener('mouseenter', () => {
+            highlightStars(index + 1);
+        });
+    });
+
+    // Reset stars on mouse leave
+    document.getElementById('rating-stars')?.addEventListener('mouseleave', () => {
+        updateStarDisplay();
+    });
+
+    // Update submit button based on form completion
+    reviewDescription?.addEventListener('input', updateSubmitButton);
+
+    // Submit review
+    submitReviewBtn?.addEventListener('click', async () => {
+        if (selectedRating === 0 || !reviewDescription.value.trim()) {
+            return;
+        }
+
+        await submitReview(selectedRating, reviewDescription.value.trim());
+        closeModal();
+    });
+}
+
+// Update star display
+function updateStarDisplay() {
+    const ratingStars = document.querySelectorAll('.star-rating');
+    ratingStars.forEach((star, index) => {
+        const svg = star.querySelector('svg');
+        if (index < selectedRating) {
+            svg.classList.remove('text-slate-400');
+            svg.classList.add('text-blue-500');
+            svg.querySelector('path').setAttribute('fill', 'currentColor');
+        } else {
+            svg.classList.remove('text-blue-500');
+            svg.classList.add('text-slate-400');
+            svg.querySelector('path').removeAttribute('fill');
+        }
+    });
+}
+
+// Highlight stars on hover
+function highlightStars(rating) {
+    const ratingStars = document.querySelectorAll('.star-rating');
+    ratingStars.forEach((star, index) => {
+        const svg = star.querySelector('svg');
+        if (index < rating) {
+            svg.classList.remove('text-slate-400');
+            svg.classList.add('text-blue-500');
+        } else {
+            svg.classList.remove('text-blue-500');
+            svg.classList.add('text-slate-400');
+        }
+    });
+}
+
+// Update submit button state
+function updateSubmitButton() {
+    const submitBtn = document.getElementById('submit-review');
+    const description = document.getElementById('review-description');
+    
+    if (selectedRating > 0 && description.value.trim()) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    } else {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// Reset review form
+function resetReviewForm() {
+    selectedRating = 0;
+    document.getElementById('review-description').value = '';
+    updateStarDisplay();
+    updateSubmitButton();
+}
+
+// Submit review to backend
+async function submitReview(rating, description) {
+    const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+    console.log('🔍 Submitting review with:', { rating, description, currentUserId, viewingUserId, hasToken: !!token });
+    
+    if (!token) {
+        alert('Please log in to submit a review');
+        return;
+    }
+
+    if (!currentUserId) {
+        alert('Unable to identify current user. Please refresh the page and try again.');
+        return;
+    }
+
+    try {
+        const reviewData = {
+            rating: rating,
+            raterId: currentUserId,
+            userId: viewingUserId,
+            description: description
+        };
+        
+        console.log('🔍 Sending review data:', reviewData);
+        
+        const response = await fetch(`${API_BASE_URL}/reviews`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(reviewData)
+        });
+
+        console.log('🔍 Review submission response status:', response.status);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Review submission failed:', errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Review submitted successfully:', result);
+
+        // Reload reviews to show the new one
+        await loadUserReviews(viewingUserId);
+
+        // Show success message
+        showSuccessMessage('Review submitted successfully!');
+
+    } catch (error) {
+        console.error('❌ Error submitting review:', error);
+        alert(`Failed to submit review: ${error.message}`);
+    }
+}
+
+// Show success message
+function showSuccessMessage(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300';
+    successDiv.textContent = message;
+    
+    document.body.appendChild(successDiv);
+    
+    setTimeout(() => {
+        successDiv.style.opacity = '0';
+        successDiv.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            document.body.removeChild(successDiv);
+        }, 300);
+    }, 3000);
 }
 
 // Escape HTML to prevent XSS

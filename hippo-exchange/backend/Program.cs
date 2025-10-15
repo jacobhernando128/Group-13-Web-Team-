@@ -176,6 +176,10 @@ namespace HippoExchange
             defaults.DefaultFileNames.Add("index.html");
             app.UseDefaultFiles(defaults);
 
+            // Authentication and Authorization middleware (must come before static files for API routes)
+            app.UseAuthentication();
+            app.UseAuthorization();
+            
             app.UseStaticFiles();
             app.UseCors();
 
@@ -986,6 +990,7 @@ namespace HippoExchange
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
+                var exchange = snap.ConvertTo<Exchange>();
                 var nowUtc = DateTime.UtcNow;
 
                 var updates = new Dictionary<string, object>
@@ -1008,6 +1013,9 @@ namespace HippoExchange
 
                     updates["startDate"] = startUtc;
                     updates["endDate"] = endUtc;
+
+                    // Update user counters when approving
+                    await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
                 }
                 else
                 {
@@ -1034,6 +1042,41 @@ namespace HippoExchange
                 return op;
             });
 
+
+            // PUT /exchanges/{id}/return — mark exchange as returned
+            app.MapPut("/exchanges/{id}/return", async ([FromServices] FirestoreDb db, string id) =>
+            {
+                var doc = db.Collection("exchanges").Document(id);
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+
+                var exchange = snap.ConvertTo<Exchange>();
+                if (!exchange.Approved)
+                {
+                    return Results.BadRequest(new { error = "Cannot return an unapproved exchange." });
+                }
+
+                // Mark as returned by setting endDate to now
+                var nowUtc = DateTime.UtcNow;
+                await doc.UpdateAsync("endDate", nowUtc);
+
+                // Update user counters when item is returned
+                await UpdateUserCountersOnReturn(db, exchange.OwnerId, exchange.BorrowerId);
+
+                var updated = await doc.GetSnapshotAsync();
+                return Results.Ok(updated.ConvertTo<Exchange>());
+            })
+            .WithName("ReturnExchange")
+            .WithTags("Exchanges")
+            .Produces<Exchange>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Mark an exchange as returned";
+                op.Description = "Marks an approved exchange as returned by updating the endDate to current time.";
+                return op;
+            });
 
             // DELETE /exchanges/{id}  — delete exchange by id
             app.MapDelete("/exchanges/{id}", async (FirestoreDb db, string id) =>
@@ -2019,19 +2062,70 @@ namespace HippoExchange
                 return op;
             });
             
-            app.MapGet("/auth/me", (ClaimsPrincipal user) =>
+            app.MapGet("/auth/me", async (ClaimsPrincipal user, HttpContext context, FirestoreDb db) =>
             {
+                // Debug logging
+                var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
+                Console.WriteLine($"[DEBUG] /auth/me called - Auth header: {authHeader?.Substring(0, Math.Min(20, authHeader?.Length ?? 0))}...");
+                Console.WriteLine($"[DEBUG] User authenticated: {user?.Identity?.IsAuthenticated}");
+                Console.WriteLine($"[DEBUG] User identity name: {user?.Identity?.Name}");
+                
                 if (user?.Identity?.IsAuthenticated != true)
-                    return Results.Unauthorized();
-
-                return Results.Ok(new
                 {
-                    Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                    Email = user.FindFirst(ClaimTypes.Email)?.Value,
-                    FirstName = user.FindFirst(ClaimTypes.GivenName)?.Value,
-                    LastName = user.FindFirst(ClaimTypes.Surname)?.Value,
-                    Phone = user.FindFirst("phone")?.Value
-                });
+                    Console.WriteLine("[DEBUG] User not authenticated, returning 401");
+                    return Results.Unauthorized();
+                }
+
+                var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userId))
+                {
+                    Console.WriteLine("[DEBUG] No user ID found in claims, returning 401");
+                    return Results.Unauthorized();
+                }
+
+                try
+                {
+                    // Fetch complete user data from Firestore
+                    var userDoc = await db.Collection("users").Document(userId).GetSnapshotAsync();
+                    if (!userDoc.Exists)
+                    {
+                        Console.WriteLine($"[DEBUG] User document not found for ID: {userId}");
+                        return Results.NotFound();
+                    }
+
+                    var userData = userDoc.ConvertTo<UserAuth>();
+                    Console.WriteLine($"[DEBUG] Fetched user data from Firestore for: {userData.Email}");
+                    
+                    var result = new
+                    {
+                        Id = userData.Id,
+                        Email = userData.Email,
+                        FirstName = userData.FirstName,
+                        LastName = userData.LastName,
+                        Phone = userData.Phone,
+                        ProfilePicture = userData.ProfilePicture
+                    };
+                    
+                    Console.WriteLine($"[DEBUG] Returning complete user data for: {result.Email}");
+                    return Results.Ok(result);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[DEBUG] Error fetching user data: {ex.Message}");
+                    // Fallback to JWT claims if Firestore fails
+                    var fallbackResult = new
+                    {
+                        Id = user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                        Email = user.FindFirst(ClaimTypes.Email)?.Value,
+                        FirstName = user.FindFirst(ClaimTypes.GivenName)?.Value,
+                        LastName = user.FindFirst(ClaimTypes.Surname)?.Value,
+                        Phone = user.FindFirst("phone")?.Value,
+                        ProfilePicture = (string?)null
+                    };
+                    
+                    Console.WriteLine($"[DEBUG] Returning fallback user data for: {fallbackResult.Email}");
+                    return Results.Ok(fallbackResult);
+                }
             }).RequireAuthorization().WithName("GetCurrentUser");
 
 
@@ -2345,6 +2439,62 @@ namespace HippoExchange
             });
 
             app.Run();
+        }
+
+        // Helper method to update user counters when exchanges are approved
+        private static async Task UpdateUserCounters(FirestoreDb db, string ownerId, string borrowerId, bool isApproved)
+        {
+            try
+            {
+                if (isApproved)
+                {
+                    // Update owner's TotalLended counter
+                    var ownerDoc = db.Collection("users").Document(ownerId);
+                    var ownerSnap = await ownerDoc.GetSnapshotAsync();
+                    if (ownerSnap.Exists)
+                    {
+                        var owner = ownerSnap.ConvertTo<UserAuth>();
+                        if (owner != null)
+                        {
+                            await ownerDoc.UpdateAsync("TotalLended", owner.TotalLended + 1);
+                        }
+                    }
+
+                    // Update borrower's TotalBorrowed counter
+                    var borrowerDoc = db.Collection("users").Document(borrowerId);
+                    var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
+                    if (borrowerSnap.Exists)
+                    {
+                        var borrower = borrowerSnap.ConvertTo<UserAuth>();
+                        if (borrower != null)
+                        {
+                            await borrowerDoc.UpdateAsync("TotalBorrowed", borrower.TotalBorrowed + 1);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the exchange approval
+                Console.WriteLine($"Error updating user counters: {ex.Message}");
+            }
+        }
+
+        // Helper method to update user counters when items are returned
+        private static Task UpdateUserCountersOnReturn(FirestoreDb db, string ownerId, string borrowerId)
+        {
+            try
+            {
+                // Note: We don't decrease counters on return since the exchange still counts as a completed transaction
+                // The counters represent total lifetime exchanges, not current active exchanges
+                // This method is here for future use if we want to track active vs completed exchanges
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the return process
+                Console.WriteLine($"Error updating user counters on return: {ex.Message}");
+            }
+            return Task.CompletedTask;
         }
     }
 

@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         console.log('✅ Authenticated as user:', USER_ID);
+        
+        // Fetch fresh user data to get updated profile picture
+        await fetchFreshUserData(USER_ID, token);
     } catch (err) {
         console.error('❌ Error parsing user data:', err);
         window.location.href = './Login.html';
@@ -149,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Transform backend data to match UI expectations and fetch sender info
             const transformedNotifications = await Promise.all(data.map(async n => {
                 let senderName = 'User';
-                let senderAvatar = 'hippo-exchange-logo.png';
+                let senderAvatar = null;
                 let itemTitle = 'item';
 
                 // Fetch sender info
@@ -160,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (senderRes.ok) {
                             const sender = await senderRes.json();
                             senderName = `${sender.firstName || sender.FirstName || ''} ${sender.lastName || sender.LastName || ''}`.trim() || sender.email || sender.Email || 'User';
-                            senderAvatar = sender.profilePicture || sender.ProfilePicture || senderAvatar;
+                            senderAvatar = sender.profilePicture || sender.ProfilePicture || null;
                         }
                     } catch (err) {
                         console.warn('Could not fetch sender info:', err);
@@ -559,10 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Profile picture - use otheruser.html
         const avatarHtml = `<a href="./otheruser.html?userId=${notification.senderId}" class="profile-link" title="View ${notification.senderName}'s profile">
-        <img src="${notification.senderAvatar}" 
-             alt="${notification.senderName}" 
-             class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm hover:shadow-md transition-shadow"
-             onerror="this.onerror=null; this.src='hippo-exchange-logo.png';">
+        ${generateProfilePictureHTML(notification.senderAvatar, {FirstName: notification.senderName.split(' ')[0], LastName: notification.senderName.split(' ')[1]}, 'lg')}
       </a>`;
 
         li.innerHTML = `
@@ -736,6 +736,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             console.log('✅ Exchange updated (backend will send notification to borrower automatically)');
+
+            // If approved, refresh user profile data to update counters
+            if (isAccept) {
+                await refreshUserProfile();
+            }
 
             // STEP 3: Dismiss the original exchange_request notification
             console.log('🗑️ Dismissing original notification:', notificationId);
@@ -929,3 +934,89 @@ function signOut() {
     // Redirect to login page
     window.location.href = './Login.html';
 }
+
+// Refresh user profile data to update counters
+async function refreshUserProfile() {
+    try {
+        const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:5000/users/me', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const updatedUser = await response.json();
+            localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
+            console.log('🔄 Refreshed user profile data:', updatedUser);
+        }
+    } catch (error) {
+        console.error('Error refreshing user profile:', error);
+    }
+}
+
+// Fetch fresh user data from API
+async function fetchFreshUserData(userId, token) {
+    try {
+        console.log('🔄 Fetching fresh user data for:', userId);
+        const response = await fetch(`http://localhost:5000/users/${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const freshUser = await response.json();
+            console.log('✅ Fresh user data received:', freshUser);
+            
+            // Update localStorage with fresh data
+            localStorage.setItem('hippo_user', JSON.stringify(freshUser));
+            
+            // Display updated user info
+            displayUserInfo(freshUser);
+        } else {
+            console.warn('⚠️ Failed to fetch fresh user data, using cached data');
+            // Fallback to cached data
+            const cachedUser = JSON.parse(localStorage.getItem('hippo_user') || '{}');
+            displayUserInfo(cachedUser);
+        }
+    } catch (error) {
+        console.error('❌ Error fetching fresh user data:', error);
+        // Fallback to cached data
+        const cachedUser = JSON.parse(localStorage.getItem('hippo_user') || '{}');
+        displayUserInfo(cachedUser);
+    }
+}
+
+// Display user info in sidebar
+function displayUserInfo(user) {
+    console.log('Displaying user info:', user);
+    
+    // Update account name
+    const acctName = document.getElementById('acct-name');
+    if (acctName) {
+        const firstName = user.FirstName || user.firstName || '';
+        const lastName = user.LastName || user.lastName || '';
+        const email = user.Email || user.email || '';
+        
+        const fullName = `${firstName} ${lastName}`.trim() || email || 'User';
+        acctName.textContent = fullName;
+    }
+    
+    // Update account rank
+    const acctRank = document.getElementById('acct-rank');
+    if (acctRank) {
+        acctRank.textContent = 'Member';
+    }
+    
+    // Update sidebar avatar with profile picture and fallback
+    const acctAvatar = document.getElementById('acct-avatar');
+    const profilePic = user.ProfilePicture || user.profilePicture;
+    if (acctAvatar && profilePic && profilePic.trim()) {
+        acctAvatar.src = profilePic;
+    }
+  }

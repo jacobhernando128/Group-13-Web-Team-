@@ -1341,16 +1341,21 @@ function displayUserInfo(user) {
     displayName = email;
   }
 
-  console.log('Computed display name:', displayName);
 
   // Update the account name display in sidebar
   const accountNameElement = document.getElementById('acct-name');
-  console.log('Account name element found:', !!accountNameElement);
   if (accountNameElement) {
     accountNameElement.textContent = displayName;
     console.log('Set account name to:', displayName);
   } else {
     console.error('Account name element not found!');
+  }
+
+  const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
   }
 }
 
