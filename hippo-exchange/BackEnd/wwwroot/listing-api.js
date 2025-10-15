@@ -718,6 +718,80 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function requestItem(listing) {
     console.log('Requesting item:', listing.id);
     console.log('Current user at request time:', currentUser);
+    
+    // Show date selection modal instead of directly requesting
+    showDateSelectionModal(listing);
+  }
+
+  // Show Date Selection Modal
+  function showDateSelectionModal(listing) {
+    const modal = document.getElementById('date-selection-modal');
+    const startDateInput = document.getElementById('start-date-input');
+    const endDateInput = document.getElementById('end-date-input');
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    startDateInput.min = today;
+    endDateInput.min = today;
+    
+    // Set default start date to today and end date to 7 days from now
+    startDateInput.value = today;
+    const defaultEndDate = new Date();
+    defaultEndDate.setDate(defaultEndDate.getDate() + 7);
+    endDateInput.value = defaultEndDate.toISOString().split('T')[0];
+    
+    // Update end date minimum when start date changes
+    startDateInput.addEventListener('change', function() {
+      if (this.value) {
+        endDateInput.min = this.value;
+        // If end date is before start date, update it
+        if (endDateInput.value && endDateInput.value < this.value) {
+          endDateInput.value = this.value;
+        }
+      }
+    });
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle confirm button
+    const confirmBtn = document.getElementById('confirm-date-selection');
+    confirmBtn.onclick = () => {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      
+      if (!startDate || !endDate) {
+        alert('Please select both start and end dates.');
+        return;
+      }
+      
+      if (new Date(endDate) <= new Date(startDate)) {
+        alert('End date must be after start date.');
+        return;
+      }
+      
+      // Close modal and proceed with request
+      modal.classList.remove('active');
+      proceedWithRequest(listing, startDate, endDate);
+    };
+    
+    // Handle cancel button
+    const cancelBtn = document.getElementById('cancel-date-selection');
+    const closeBtn = document.getElementById('close-date-selection');
+    
+    const closeModal = () => modal.classList.remove('active');
+    cancelBtn.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+  }
+
+  // Proceed with request after date selection
+  async function proceedWithRequest(listing, startDate, endDate) {
+    console.log('Proceeding with request for dates:', startDate, 'to', endDate);
 
     // Check if user is authenticated
     if (!currentUser) {
@@ -775,7 +849,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const requestData = {
         ownerId: listing.seller.id,
         borrowerId: currentUserId,
-        itemId: listing.id
+        itemId: listing.id,
+        startDate: startDate,
+        endDate: endDate
       };
 
       console.log('Sending request data:', requestData);

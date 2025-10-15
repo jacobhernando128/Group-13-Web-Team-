@@ -98,6 +98,9 @@ namespace HippoExchange
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
+            // Add background service for return date notifications
+            builder.Services.AddHostedService<ReturnDateNotificationService>();
+
             // JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
             var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
@@ -2623,5 +2626,131 @@ namespace HippoExchange
     public record SendMessageDto(string SenderId, string Body);
     public record MarkReadDto(string UserId);
     public record StarDto(string UserId, bool Starred);
+
+    // Background service for return date notifications
+    public class ReturnDateNotificationService : BackgroundService
+    {
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<ReturnDateNotificationService> _logger;
+        private readonly TimeSpan _checkInterval = TimeSpan.FromHours(6); // Check every 6 hours
+
+        public ReturnDateNotificationService(IServiceProvider serviceProvider, ILogger<ReturnDateNotificationService> logger)
+        {
+            _serviceProvider = serviceProvider;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Return Date Notification Service started");
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await CheckForUpcomingReturnDates();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error occurred while checking for upcoming return dates");
+                }
+
+                await Task.Delay(_checkInterval, stoppingToken);
+            }
+        }
+
+        private async Task CheckForUpcomingReturnDates()
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<FirestoreDb>();
+
+            try
+            {
+                // Get all approved exchanges first, then filter by date in memory
+                // This avoids the need for a composite index
+                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
+                var tomorrow = DateTime.UtcNow.AddDays(1);
+
+                var exchangesSnapshot = await db.Collection("exchanges")
+                    .WhereEqualTo("approved", true)
+                    .GetSnapshotAsync();
+
+                // Filter exchanges by date in memory to avoid composite index requirement
+                var upcomingExchanges = exchangesSnapshot
+                    .Where(doc => 
+                    {
+                        var exchange = doc.ConvertTo<Exchange>();
+                        return exchange?.EndDate != null && 
+                               exchange.EndDate >= tomorrow && 
+                               exchange.EndDate <= twoDaysFromNow;
+                    })
+                    .ToList();
+
+                _logger.LogInformation($"Found {upcomingExchanges.Count} exchanges with upcoming return dates");
+
+                foreach (var exchangeDoc in upcomingExchanges)
+                {
+                    var exchange = exchangeDoc.ConvertTo<Exchange>();
+                    if (exchange?.EndDate == null) continue;
+
+                    // Check if we already sent a notification for this exchange
+                    var existingNotification = await db.Collection("notifications")
+                        .WhereEqualTo("receiverID", exchange.BorrowerId)
+                        .WhereEqualTo("type", "return_reminder")
+                        .WhereEqualTo("listingID", exchange.ItemId)
+                        .GetSnapshotAsync();
+
+                    if (existingNotification.Count > 0)
+                    {
+                        // Check if the notification was sent recently (within last 24 hours)
+                        var recentNotification = existingNotification.Documents
+                            .FirstOrDefault(doc => 
+                            {
+                                var notif = doc.ConvertTo<Notification>();
+                                return notif.CreatedUtc > DateTime.UtcNow.AddDays(-1);
+                            });
+
+                        if (recentNotification != null) continue; // Already sent recently
+                    }
+
+                    // Get item details
+                    var itemDoc = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
+                    if (!itemDoc.Exists) continue;
+
+                    var item = itemDoc.ConvertTo<Item>();
+                    if (item == null) continue;
+
+                    // Get borrower details
+                    var borrowerDoc = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
+                    if (!borrowerDoc.Exists) continue;
+
+                    var borrower = borrowerDoc.ConvertTo<UserAuth>();
+                    if (borrower == null) continue;
+
+                    // Create notification
+                    var notification = new Notification
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        CreatedUtc = DateTime.UtcNow,
+                        SenderId = "system",
+                        ReceiverId = exchange.BorrowerId,
+                        Message = $"Your borrowed item '{item.Title}' is due for return on {exchange.EndDate.Value:MMM dd, yyyy}. Please make arrangements to return it.",
+                        Title = "Return Date Reminder",
+                        Type = "return_reminder",
+                        ListingId = exchange.ItemId,
+                        SenderAvatar = "hippo-exchange-logo.png",
+                        Dismissed = false
+                    };
+
+                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+                    _logger.LogInformation($"Sent return reminder notification to user {exchange.BorrowerId} for item {item.Title}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking for upcoming return dates");
+            }
+        }
+    }
 
 }
