@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
 
   // ---- State ----
-  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent'
+  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent' | 'archived'
   let selectedThread = null;       // thread object - currently open thread
   let searchQuery = '';
   let threads = [];                // loaded from backend
@@ -238,44 +238,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // returns a title for the thread (subject or recipient name)
   async function threadTitle(t) {
-      // Prefer 'Requester Name - Item Title' where possible
-      const subjectFromThread = t.subject || '';
-      let listingTitle = '';
-      const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
-      if (match && match[1]) listingTitle = match[1].trim();
+    // Prefer 'Requester Name - Item Title' where possible
+    const subjectFromThread = t.subject || '';
+    let listingTitle = '';
+    const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
+    if (match && match[1]) listingTitle = match[1].trim();
 
-      try {
-        // Try to load earliest message and use its sender as requester
-        const msgs = await loadMessages(t.id);
-        if (Array.isArray(msgs) && msgs.length > 0) {
-          const first = msgs[0];
-          if (first && first.senderId) {
-            const requester = await getUserName(first.senderId);
-            if (requester && listingTitle) return `${requester} - ${listingTitle}`;
-            if (requester) return requester;
-          }
+    try {
+      // Try to load earliest message and use its sender as requester
+      const msgs = await loadMessages(t.id);
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const first = msgs[0];
+        if (first && first.senderId) {
+          const requester = await getUserName(first.senderId);
+          if (requester && listingTitle) return `${requester} - ${listingTitle}`;
+          if (requester) return requester;
         }
-      } catch (e) {
-        // ignore and fall back
       }
+    } catch (e) {
+      // ignore and fall back
+    }
 
-      // Fallback to other participant name
-      const participants = t.participants || t.Participants || [];
-      const otherParticipantId = participants.find(p => p !== me.id);
-      if (otherParticipantId) {
-        const other = await getUserName(otherParticipantId);
-        if (other && listingTitle) return `${other} - ${listingTitle}`;
-        if (other) return other;
-      }
+    // Fallback to other participant name
+    const participants = t.participants || t.Participants || [];
+    const otherParticipantId = participants.find(p => p !== me.id);
+    if (otherParticipantId) {
+      const other = await getUserName(otherParticipantId);
+      if (other && listingTitle) return `${other} - ${listingTitle}`;
+      if (other) return other;
+    }
 
-      if (subjectFromThread) return subjectFromThread;
-      return 'Conversation';
+    if (subjectFromThread) return subjectFromThread;
+    return 'Conversation';
   }
 
   // ---- Backend calls ----
 
   async function loadThreads() {
-    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    // When viewing the archived tab, request archived threads from the server if supported.
+    const serverFilter = activeFilter === 'archived' ? 'archived' : 'all';
+    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=${encodeURIComponent(serverFilter)}`);
+    console.debug('Loaded threads from API for user', me.id, data);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     await renderThreads();
   }
@@ -288,8 +291,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resp) msgs = [];
     else if (Array.isArray(resp)) msgs = resp;
     else msgs = resp.messages || resp.Messages || [];
-    messagesCache.set(threadId, msgs);
-    return msgs;
+    console.debug('Raw messages response for thread', threadId, msgs);
+    // Normalize message objects to predictable lowercase keys the client expects
+    const norm = msgs.map(m => ({
+      id: m.id || m.Id || m.ID || '',
+      senderId: m.senderId || m.SenderId || m.SENDERID || '',
+      body: (m.body || m.Body || '') + '',
+      sentUtc: m.sentUtc || m.SentUtc || m.SENTUTC || ''
+    }));
+    console.debug('Normalized messages for thread', threadId, norm);
+    messagesCache.set(threadId, norm);
+    return norm;
   }
 
   async function markThreadRead(threadId) {
@@ -333,6 +345,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Rendering ----
   async function filterThreadsLocal(list) {
     let arr = [...list];
+    // If we are not in 'archived' view, filter out threads archived by current user
+    if (activeFilter !== 'archived') {
+      arr = arr.filter(t => !(t.archivedBy || t.ArchivedBy || []).includes(me.id));
+    } else {
+      // In archived view, only show threads archived by the current user
+      arr = arr.filter(t => (t.archivedBy || t.ArchivedBy || []).includes(me.id));
+    }
     // Filter type
     if (activeFilter === 'unread') arr = arr.filter(isUnread);
     else if (activeFilter === 'starred') arr = arr.filter(isStarred);
@@ -402,10 +421,48 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${escapeHtml(t.lastMessagePreview || '')}
               </p>
             </div>
+            <div class="flex items-start ml-2">
+              <!-- per-row archive/unarchive button -->
+              <button class="archive-btn text-slate-400 hover:text-slate-600 transition-colors" title="Archive/Unarchive">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10l2 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V9l2-2z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
       li.addEventListener('click', () => openThread(t));
+
+      // add archive/unarchive button handler per-row (use .archive-btn class instead of id)
+      (function (localThread, listItem) {
+        // look for an archive button inside the rendered item
+        const btn = listItem.querySelector('.archive-btn');
+        if (!btn) return;
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          try {
+            const isArchived = (localThread.archivedBy || localThread.ArchivedBy || []).includes(me.id);
+            const wantArchive = !isArchived; // toggle
+            await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
+              method: 'POST',
+              body: { userId: me.id, starred: wantArchive }
+            });
+            // update local thread archivedBy state if present, otherwise remove from list when archiving
+            if (wantArchive) {
+              // archive: remove from current view
+              threads = threads.filter(x => (x.id || x.Id) !== localThread.id);
+            } else {
+              // unarchive: update thread and re-render
+              localThread.archivedBy = (localThread.archivedBy || []).filter(x => x !== me.id);
+            }
+            await renderThreads();
+          } catch (e) {
+            console.error('Failed to toggle archive state for thread', e);
+            alert('Failed to update archive state.');
+          }
+        });
+      })(t, li);
       messagesList.appendChild(li);
     }
   }
@@ -576,8 +633,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   deleteBtn.addEventListener('click', () => {
-    // Delete conversation (not implemented) — keep placeholder for now
-    alert('Delete conversation is not implemented yet.');
+    // Archive the currently selected conversation (per-user). If none selected, show a helpful message.
+    if (!selectedThread) {
+      alert('Select a conversation to archive.');
+      return;
+    }
+
+    // If user is viewing Archived tab, this button should unarchive the selected thread
+    (async () => {
+      try {
+        const isArchived = (selectedThread.archivedBy || selectedThread.ArchivedBy || []).includes(me.id);
+        if (isArchived) {
+          const ok = confirm('Unarchive this conversation? It will return to your main inbox.');
+          if (!ok) return;
+          await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+            method: 'POST',
+            body: { userId: me.id, starred: false }
+          });
+          // update local thread state and re-render
+          selectedThread.archivedBy = (selectedThread.archivedBy || []).filter(x => x !== me.id);
+          await loadThreads();
+          hideMessage();
+        } else {
+          const ok = confirm('Archive this conversation? You can view it later from the Archived view.');
+          if (!ok) return;
+          await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+            method: 'POST',
+            body: { userId: me.id, starred: true }
+          });
+          threads = threads.filter(x => (x.id || x.Id) !== selectedThread.id);
+          hideMessage();
+          await renderThreads();
+        }
+      } catch (e) {
+        console.error('Failed to archive/unarchive conversation', e);
+        alert(e.message || 'Failed to update archive state.');
+      }
+    })();
   });
 
 
