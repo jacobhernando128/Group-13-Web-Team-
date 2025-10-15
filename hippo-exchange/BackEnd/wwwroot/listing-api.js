@@ -207,7 +207,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🖼️ listing.videos:', listing.videos);
 
     $('listing-title').textContent = listing.title;
-    $('price').textContent = money(listing.price);
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
 
     const badge = $('badge');
@@ -718,6 +717,109 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function requestItem(listing) {
     console.log('Requesting item:', listing.id);
     console.log('Current user at request time:', currentUser);
+    
+    // Show date selection modal instead of directly requesting
+    showDateSelectionModal(listing);
+  }
+
+  // Show Date Selection Modal
+  async function showDateSelectionModal(listing) {
+    const modal = document.getElementById('date-selection-modal');
+    const startDateInput = document.getElementById('start-date-input');
+    const endDateInput = document.getElementById('end-date-input');
+    const scheduledPeriodsContainer = document.getElementById('scheduled-periods');
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    startDateInput.min = today;
+    endDateInput.min = today;
+    
+    // Set default start date to today and end date to 7 days from now
+    startDateInput.value = today;
+    const defaultEndDate = new Date();
+    defaultEndDate.setDate(defaultEndDate.getDate() + 7);
+    endDateInput.value = defaultEndDate.toISOString().split('T')[0];
+    
+    // Fetch and display existing scheduled periods
+    try {
+      const response = await fetch(`${API_BASE_URL}/items/${listing.id}/scheduled-periods`);
+      if (response.ok) {
+        const scheduledPeriods = await response.json();
+        if (scheduledPeriods.length > 0) {
+          scheduledPeriodsContainer.innerHTML = `
+            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h4 class="text-sm font-semibold text-yellow-800 mb-2">⚠️ Already Scheduled Periods:</h4>
+              <div class="space-y-1">
+                ${scheduledPeriods.map(period => `
+                  <div class="text-xs text-yellow-700">
+                    ${new Date(period.startDate).toLocaleDateString()} - ${new Date(period.endDate).toLocaleDateString()}
+                  </div>
+                `).join('')}
+              </div>
+              <p class="text-xs text-yellow-600 mt-2">Please choose dates that don't overlap with these periods.</p>
+            </div>
+          `;
+        } else {
+          scheduledPeriodsContainer.innerHTML = '';
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching scheduled periods:', error);
+      scheduledPeriodsContainer.innerHTML = '';
+    }
+    
+    // Update end date minimum when start date changes
+    startDateInput.addEventListener('change', function() {
+      if (this.value) {
+        endDateInput.min = this.value;
+        // If end date is before start date, update it
+        if (endDateInput.value && endDateInput.value < this.value) {
+          endDateInput.value = this.value;
+        }
+      }
+    });
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle confirm button
+    const confirmBtn = document.getElementById('confirm-date-selection');
+    confirmBtn.onclick = () => {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      
+      if (!startDate || !endDate) {
+        alert('Please select both start and end dates.');
+        return;
+      }
+      
+      if (new Date(endDate) <= new Date(startDate)) {
+        alert('End date must be after start date.');
+        return;
+      }
+      
+      // Close modal and proceed with request
+      modal.classList.remove('active');
+      proceedWithRequest(listing, startDate, endDate);
+    };
+    
+    // Handle cancel button
+    const cancelBtn = document.getElementById('cancel-date-selection');
+    const closeBtn = document.getElementById('close-date-selection');
+    
+    const closeModal = () => modal.classList.remove('active');
+    cancelBtn.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+  }
+
+  // Proceed with request after date selection
+  async function proceedWithRequest(listing, startDate, endDate) {
+    console.log('Proceeding with request for dates:', startDate, 'to', endDate);
 
     // Check if user is authenticated
     if (!currentUser) {
@@ -775,7 +877,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const requestData = {
         ownerId: listing.seller.id,
         borrowerId: currentUserId,
-        itemId: listing.id
+        itemId: listing.id,
+        startDate: startDate,
+        endDate: endDate
       };
 
       console.log('Sending request data:', requestData);
@@ -1266,16 +1370,21 @@ function displayUserInfo(user) {
     displayName = email;
   }
 
-  console.log('Computed display name:', displayName);
 
   // Update the account name display in sidebar
   const accountNameElement = document.getElementById('acct-name');
-  console.log('Account name element found:', !!accountNameElement);
   if (accountNameElement) {
     accountNameElement.textContent = displayName;
     console.log('Set account name to:', displayName);
   } else {
     console.error('Account name element not found!');
+  }
+
+  const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
   }
 }
 

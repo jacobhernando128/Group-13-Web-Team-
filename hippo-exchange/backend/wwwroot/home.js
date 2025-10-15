@@ -1,5 +1,10 @@
 // home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
+  // Only run on Home.html page
+  if (!window.location.pathname.includes('Home.html')) {
+    return;
+  }
+  
   console.log('Home page loaded, starting authentication check...');
   // Check authentication and load user data
   checkAuthAndLoadUser();
@@ -217,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="badge absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded-full">Just listed</span>
         </div>
         <div class="p-4">
-          <h3 class="price text-lg font-semibold text-slate-900"></h3>
           <p class="title text-slate-700 text-sm"></p>
           <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
         </div>`;
@@ -225,7 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     el.dataset.id = min.id;
     const img = el.querySelector('.card-img');
-    const price = el.querySelector('.price');
     const title = el.querySelector('.title');
     const loc = el.querySelector('[data-field="location"]');
     const badge = el.querySelector('.badge');
@@ -233,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = min.imageUrl || PLACEHOLDER_IMG;
     img.alt = min.title ? `${min.title} photo` : 'Listing image';
 
-    price.textContent = formatPrice(min.price);
     title.textContent = min.title;
     loc.textContent = min.locationLabel || (min.ships ? 'Ships to you' : '');
 
@@ -248,6 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(items) {
+    // Check if grid exists before proceeding
+    if (!grid) {
+      console.error('Grid element not found');
+      return;
+    }
+    
     // Clear all item cards but preserve load more button
     const loadMoreBtn = document.getElementById('load-more-btn');
     const children = Array.from(grid.children);
@@ -393,7 +401,9 @@ document.addEventListener('DOMContentLoaded', () => {
   async function load(loadMore = false) {
     try {
       if (!loadMore) {
-        grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        if (grid) {
+          grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        }
         allListings = [];
         paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
       }
@@ -435,19 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.error('Failed to load listings from API:', err);
 
-      try {
-        const res = await fetch('listings.json');
-        if (res.ok) {
-          const data = await res.json();
-          allListings = Array.isArray(data) ? data : (data.items || []);
-          console.log('Using fallback listings.json');
-          render(allListings);
-          updateLoadMoreButton();
-          return;
-        }
-      } catch (fallbackErr) {
-        console.error('Fallback failed:', fallbackErr);
-      }
+      // No fallback file available
+      console.log('No fallback data available');
 
       allListings = [{
         id: 'sample1',
@@ -554,6 +553,13 @@ function displayUserInfo(user) {
     }
   } else {
     console.error('Account name element not found!');
+  }
+
+  const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
   }
 }
 

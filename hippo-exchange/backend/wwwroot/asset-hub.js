@@ -6,6 +6,7 @@ class AssetHub {
         this.ownedItems = [];
         this.borrowedItems = [];
         this.requestedItems = []; // Store pending requests for user's items
+        this.loanedItems = []; // Store items that have been approved and loaned out
         this.currentEditingItem = null;
         this.currentDeletingItem = null;
         this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
@@ -18,11 +19,51 @@ class AssetHub {
         await this.checkAuthAndLoadUser();
         this.setupEventListeners();
         this.loadUserAssets();
+        
+        // Check for due maintenance notifications
+        this.checkDueMaintenance();
+        
+        // Add visibility change listener to refresh data when user returns to the page
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                // Page became visible again, refresh the data to ensure status is up to date
+                this.loadUserAssets();
+                // Also check for due maintenance when user returns
+                this.checkDueMaintenance();
+            }
+        });
     }
 
     getCurrentUserId() {
         // Return the authenticated user ID
         return this.currentUserId;
+    }
+
+    async checkDueMaintenance() {
+        try {
+            const response = await fetch('http://localhost:5000/maintenance/check-due', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('🔔 Maintenance check result:', result);
+                
+                if (result.notificationsCreated > 0) {
+                    // Trigger global notification refresh if notifications were created
+                    if (window.GlobalNotifications) {
+                        window.GlobalNotifications.triggerGlobalRefresh();
+                    }
+                }
+            } else {
+                console.warn('⚠️ Failed to check due maintenance:', response.status);
+            }
+        } catch (error) {
+            console.error('❌ Error checking due maintenance:', error);
+        }
     }
 
     async checkAuthAndLoadUser() {
@@ -57,6 +98,9 @@ class AssetHub {
                 this.currentUser = user;
                 this.currentUserId = user?.Id || user?.id || user?.userId;
                 this.displayUserInfo(user);
+                
+                // Fetch fresh user data to get updated profile picture
+                await this.fetchFreshUserData(this.currentUserId, token);
             } else {
                 console.log('Token invalid, response status:', response.status);
                 this.clearAuthData();
@@ -96,6 +140,42 @@ class AssetHub {
         }
 
         // Balance display intentionally omitted
+
+        // Update sidebar avatar with profile picture and fallback
+        const acctAvatar = document.getElementById('acct-avatar');
+        const profilePic = user?.ProfilePicture || user?.profilePicture;
+        if (acctAvatar && profilePic && profilePic.trim()) {
+            acctAvatar.src = profilePic;
+            console.log('Updated profile picture:', profilePic);
+        }
+    }
+
+    // Fetch fresh user data from API
+    async fetchFreshUserData(userId, token) {
+        try {
+            console.log('🔄 Fetching fresh user data for:', userId);
+            const response = await fetch(`http://localhost:5000/users/${userId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const freshUser = await response.json();
+                console.log('✅ Fresh user data received:', freshUser);
+                
+                // Update localStorage with fresh data
+                localStorage.setItem('hippo_user', JSON.stringify(freshUser));
+                
+                // Display updated user info
+                this.displayUserInfo(freshUser);
+            } else {
+                console.warn('⚠️ Failed to fetch fresh user data, using cached data');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching fresh user data:', error);
+        }
     }
 
     clearAuthData() {
@@ -122,6 +202,7 @@ class AssetHub {
         document.getElementById('owned-tab').addEventListener('click', () => this.showOwnedItems());
         document.getElementById('borrowed-tab').addEventListener('click', () => this.showBorrowedItems());
         document.getElementById('requested-tab').addEventListener('click', () => this.showRequestedItems());
+        document.getElementById('loaned-tab').addEventListener('click', () => this.showLoanedItems());
 
         // Add item button
         document.getElementById('add-item-btn').addEventListener('click', () => {
@@ -140,6 +221,20 @@ class AssetHub {
 
         // Maintenance modal
         document.getElementById('close-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
+        
+        // ===== CROSS-PAGE SYNC =====
+        // Listen for global refresh events from other pages
+        window.addEventListener('notificationsUpdated', (event) => {
+            console.log('🔄 Asset Hub received notifications update event');
+            // Refresh all data when notifications are updated
+            this.loadUserAssets();
+        });
+        
+        window.addEventListener('assetHubRefresh', (event) => {
+            console.log('🔄 Asset Hub received asset hub refresh event');
+            // Refresh all data when asset hub is updated from another page
+            this.loadUserAssets();
+        });
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('maintenance-form').addEventListener('submit', (e) => this.handleMaintenanceSubmit(e));
 
@@ -217,6 +312,7 @@ class AssetHub {
         let currentSearchQuery = '';
         let originalOwnedItems = [];
         let originalBorrowedItems = [];
+        let originalLoanedItems = [];
 
         function performSearch(query) {
             currentSearchQuery = query.trim();
@@ -225,11 +321,12 @@ class AssetHub {
                 // Show all items when search is empty
                 this.renderOwnedItems();
                 this.renderBorrowedItems();
+                this.renderLoanedItems();
                 this.updateCounts();
                 return;
             }
 
-            // Filter both owned and borrowed items
+            // Filter owned, borrowed, and loaned items
             const filteredOwnedItems = originalOwnedItems.filter(item => {
                 const searchTerm = currentSearchQuery.toLowerCase();
                 const title = (item.title || '').toLowerCase();
@@ -256,13 +353,26 @@ class AssetHub {
                     borrowedFrom.includes(searchTerm);
             });
 
+            const filteredLoanedItems = originalLoanedItems.filter(item => {
+                const searchTerm = currentSearchQuery.toLowerCase();
+                const title = (item.title || '').toLowerCase();
+                const description = (item.description || '').toLowerCase();
+                const borrowerName = (item.borrowerName || '').toLowerCase();
+
+                return title.includes(searchTerm) ||
+                    description.includes(searchTerm) ||
+                    borrowerName.includes(searchTerm);
+            });
+
             // Temporarily update the displayed items
             this.ownedItems = filteredOwnedItems;
             this.borrowedItems = filteredBorrowedItems;
+            this.loanedItems = filteredLoanedItems;
 
             // Re-render the items
             this.renderOwnedItems();
             this.renderBorrowedItems();
+            this.renderLoanedItems();
             this.updateCounts();
         }
 
@@ -300,6 +410,7 @@ class AssetHub {
             // Store original data for search
             originalOwnedItems = [...this.ownedItems];
             originalBorrowedItems = [...this.borrowedItems];
+            originalLoanedItems = [...this.loanedItems];
         };
     }
 
@@ -349,6 +460,10 @@ class AssetHub {
             this.requestedItems = await this.getRequestedItems();
             this.renderRequestedItems();
 
+            // Load loaned out items (approved items that are currently borrowed)
+            this.loanedItems = await this.getLoanedItems();
+            this.renderLoanedItems();
+
             this.updateCounts();
         } catch (error) {
             console.error('Error loading user assets:', error);
@@ -356,9 +471,11 @@ class AssetHub {
             this.ownedItems = this.getPlaceholderOwnedItems();
             this.borrowedItems = this.getPlaceholderBorrowedItems();
             this.requestedItems = [];
+            this.loanedItems = [];
             this.renderOwnedItems();
             this.renderBorrowedItems();
             this.renderRequestedItems();
+            this.renderLoanedItems();
             this.updateCounts();
         }
     }
@@ -424,7 +541,7 @@ class AssetHub {
                             }
 
                             // Create borrowed item with full details
-                            borrowedItems.push({
+                            const borrowedItem = {
                                 id: exchange.Id || exchange.id,
                                 exchangeId: exchange.Id || exchange.id, // Store exchange ID for cancellation
                                 itemId: exchange.ItemId || exchange.itemId,
@@ -436,11 +553,22 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: exchange.Approved ? 'Approved' : 'Pending',
+                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || false
+                                approved: exchange.Approved || exchange.approved || false
+                            };
+                            
+                            console.log('🔍 Creating borrowed item:', {
+                                title: borrowedItem.title,
+                                approved: borrowedItem.approved,
+                                status: borrowedItem.status,
+                                exchangeApproved: exchange.Approved,
+                                exchangeApprovedLower: exchange.approved,
+                                exchangeId: exchange.Id || exchange.id
                             });
+                            
+                            borrowedItems.push(borrowedItem);
                         } else {
                             console.warn('⚠️ Failed to fetch item details for:', exchange.ItemId || exchange.itemId);
 
@@ -476,10 +604,10 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: exchange.Approved ? 'Approved' : 'Pending',
+                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || false
+                                approved: exchange.Approved || exchange.approved || false
                             });
                         }
                     } catch (itemError) {
@@ -520,7 +648,7 @@ class AssetHub {
                             status: exchange.Approved ? 'Approved' : 'Pending',
                             startDate: exchange.StartDate || exchange.startDate,
                             endDate: exchange.EndDate || exchange.endDate,
-                            approved: exchange.Approved || false
+                            approved: exchange.Approved || exchange.approved || false
                         });
                     }
                 }
@@ -702,7 +830,7 @@ class AssetHub {
 
                             // Fetch borrower details
                             let borrowerName = 'Unknown Borrower';
-                            let borrowerAvatar = 'hippo-exchange-logo.png';
+                            let borrowerAvatar = null;
                             try {
                                 console.log('🔍 Fetching borrower details for:', exchange.BorrowerId || exchange.borrowerId);
                                 const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
@@ -716,7 +844,7 @@ class AssetHub {
                                     const borrower = await borrowerResponse.json();
                                     console.log('✅ Borrower details received:', borrower);
                                     borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
-                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || borrowerAvatar;
+                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
                                 }
                             } catch (borrowerError) {
                                 console.warn('⚠️ Could not fetch borrower details:', borrowerError);
@@ -757,6 +885,108 @@ class AssetHub {
         }
     }
 
+    async getLoanedItems() {
+        if (!this.currentUserId) {
+            return [];
+        }
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            console.log('🔍 Fetching loaned out items for user:', this.currentUserId);
+
+            const response = await fetch(`http://localhost:5000/exchanges/owner/${this.currentUserId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            console.log('📡 Loaned out items response status:', response.status);
+
+            if (response.ok) {
+                const exchanges = await response.json();
+                console.log('✅ Exchanges received for loaned items:', exchanges);
+
+                // Filter for approved exchanges (loaned out items)
+                const approvedExchanges = exchanges.filter(exchange => 
+                    (exchange.approved === true || exchange.Approved === true)
+                );
+
+                console.log('📋 Approved exchanges (loaned out):', approvedExchanges);
+
+                // Fetch actual item details and borrower names for each exchange
+                const loanedItems = [];
+                for (const exchange of approvedExchanges) {
+                    try {
+                        console.log('🔍 Fetching item details for loaned exchange:', exchange.ItemId || exchange.itemId);
+                        const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        if (itemResponse.ok) {
+                            const item = await itemResponse.json();
+                            console.log('✅ Item details received for loaned item:', item);
+
+                            // Fetch borrower details
+                            let borrowerName = 'Unknown Borrower';
+                            let borrowerAvatar = null;
+                            try {
+                                console.log('🔍 Fetching borrower details for loaned item:', exchange.BorrowerId || exchange.borrowerId);
+                                const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`,
+                                        'Accept': 'application/json'
+                                    }
+                                });
+
+                                if (borrowerResponse.ok) {
+                                    const borrower = await borrowerResponse.json();
+                                    console.log('✅ Borrower details received for loaned item:', borrower);
+                                    borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
+                                    borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
+                                }
+                            } catch (borrowerError) {
+                                console.warn('⚠️ Could not fetch borrower details for loaned item:', borrowerError);
+                            }
+
+                            loanedItems.push({
+                                id: exchange.Id || exchange.id,
+                                exchangeId: exchange.Id || exchange.id,
+                                itemId: exchange.ItemId || exchange.itemId,
+                                title: item.title || item.Title || 'Unknown Item',
+                                description: item.description || item.Description || '',
+                                imageUrl: item.imageUrl || item.ImageUrl || (item.pictures && item.pictures[0]) || (item.Pictures && item.Pictures[0]) || (item.images && item.images[0]) || (item.Images && item.Images[0]),
+                                category: item.category || item.Category || 'General',
+                                status: 'loaned',
+                                approved: true,
+                                borrowerId: exchange.BorrowerId || exchange.borrowerId,
+                                borrowerName: borrowerName,
+                                borrowerAvatar: borrowerAvatar,
+                                startDate: exchange.StartDate || exchange.startDate,
+                                endDate: exchange.EndDate || exchange.endDate,
+                                requestCreated: exchange.RequestCreated || exchange.requestCreated
+                            });
+                        }
+                    } catch (itemError) {
+                        console.warn('⚠️ Could not fetch item details for loaned exchange:', exchange.Id || exchange.id, itemError);
+                    }
+                }
+
+                console.log('✅ Final loaned out items:', loanedItems);
+                return loanedItems;
+            } else {
+                console.log('Failed to load loaned out items');
+                return [];
+            }
+        } catch (error) {
+            console.error('Error loading loaned out items:', error);
+            return [];
+        }
+    }
+
     renderRequestedItems() {
         const grid = document.getElementById('requested-items-grid');
         const empty = document.getElementById('requested-empty');
@@ -773,6 +1003,25 @@ class AssetHub {
         this.requestedItems.forEach(request => {
             const requestCard = this.createRequestCard(request);
             grid.appendChild(requestCard);
+        });
+    }
+
+    renderLoanedItems() {
+        const grid = document.getElementById('loaned-items-grid');
+        const empty = document.getElementById('loaned-empty');
+
+        if (this.loanedItems.length === 0) {
+            grid.innerHTML = '';
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        empty.classList.add('hidden');
+        grid.innerHTML = '';
+
+        this.loanedItems.forEach(item => {
+            const card = this.createItemCard(item, 'loaned');
+            grid.appendChild(card);
         });
     }
 
@@ -804,10 +1053,7 @@ class AssetHub {
                             <!-- Requester Info -->
                             <div class="flex items-center gap-2 mt-2">
                                 <a href="./otheruser.html?userId=${request.borrowerId}" class="flex items-center gap-2 hover:bg-slate-50 rounded-lg p-1 -m-1 transition-colors">
-                                    <img src="${request.borrowerAvatar}" 
-                                         alt="${request.borrowerName}" 
-                                         class="w-6 h-6 rounded-full object-cover border border-slate-200"
-                                         onerror="this.src='hippo-exchange-logo.png'">
+                                    ${generateProfilePictureHTML(request.borrowerAvatar, {FirstName: request.borrowerName.split(' ')[0], LastName: request.borrowerName.split(' ')[1]}, 'sm')}
                                     <span class="text-sm font-medium text-slate-700">${request.borrowerName}</span>
                                 </a>
                                 <span class="text-xs text-slate-500">wants to borrow</span>
@@ -886,11 +1132,11 @@ class AssetHub {
             // Update the exchange
             const approvalBody = isApprove
                 ? {
-                    approved: true,
-                    startDate: new Date().toISOString(),
-                    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                    Approved: true,
+                    StartDate: request.startDate ? new Date(request.startDate).toISOString() : new Date().toISOString(),
+                    EndDate: request.endDate ? new Date(request.endDate).toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
                 }
-                : { approved: false };
+                : { Approved: false };
 
             console.log('📤 Updating exchange:', approvalBody);
 
@@ -905,18 +1151,37 @@ class AssetHub {
             });
 
             if (response.ok) {
+                const updatedExchange = await response.json();
+                console.log('✅ Exchange updated successfully:', updatedExchange);
+                console.log('✅ Approval status:', updatedExchange.approved || updatedExchange.Approved);
+                
                 this.showSuccess(`Request ${action}d successfully!`);
                 
                 // Remove the request from the list
                 this.requestedItems = this.requestedItems.filter(req => req.id !== request.id);
                 this.renderRequestedItems();
+                
+                // Always refresh borrowed items to update status for both approved and denied items
+                // This ensures the status is updated in real-time on the asset hub page
+                this.borrowedItems = await this.getBorrowedItems();
+                console.log('🔄 Refreshed borrowed items:', this.borrowedItems);
+                
+                this.renderBorrowedItems();
+                
+                // If approved, refresh loaned items and user profile data to update counters
+                if (isApprove) {
+                    this.loanedItems = await this.getLoanedItems();
+                    console.log('🔄 Refreshed loaned items:', this.loanedItems);
+                    this.renderLoanedItems();
+                }
+                
                 this.updateCounts();
                 
-                // Refresh borrowed items if approved (item will move to borrowed section)
-                if (isApprove) {
-                    this.borrowedItems = await this.getBorrowedItems();
-                    this.renderBorrowedItems();
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
                 }
+                
             } else {
                 const errorText = await response.text();
                 this.showError(`Failed to ${action} request: ${errorText}`);
@@ -971,8 +1236,14 @@ class AssetHub {
             // For borrowed items, show borrowing details
             const description = item.description || 'No description provided';
             const ownerInfo = item.ownerName ? ` • From: ${item.ownerName}` : (item.ownerId ? ` • From: ${item.ownerId}` : '');
-            const statusInfo = item.approved ? ' • Approved' : ' • Pending';
+            const statusInfo = item.approved === true ? ' • Approved' : (item.approved === false ? ' • Denied' : ' • Pending');
             card.querySelector('.description').textContent = `${description}${ownerInfo}${statusInfo}`;
+        } else if (type === 'loaned') {
+            // For loaned items, show who is borrowing
+            const description = item.description || 'No description provided';
+            const borrowerInfo = item.borrowerName ? ` • Loaned to: ${item.borrowerName}` : (item.borrowerId ? ` • Loaned to: ${item.borrowerId}` : '');
+            const statusInfo = ' • Loaned Out';
+            card.querySelector('.description').textContent = `${description}${borrowerInfo}${statusInfo}`;
         } else {
             card.querySelector('.description').textContent = item.description || 'No description provided';
         }
@@ -985,9 +1256,12 @@ class AssetHub {
         const statusBadge = card.querySelector('.status-badge');
         if (type === 'borrowed') {
             // For borrowed items, show borrowing status
-            if (item.approved) {
+            if (item.approved === true) {
                 statusBadge.textContent = 'Approved';
                 statusBadge.className = 'badge status-badge bg-green-500';
+            } else if (item.approved === false) {
+                statusBadge.textContent = 'Denied';
+                statusBadge.className = 'badge status-badge bg-red-500';
             } else if (item.status === 'pending' || item.status === 'Pending') {
                 statusBadge.textContent = 'Pending';
                 statusBadge.className = 'badge status-badge bg-yellow-500';
@@ -998,6 +1272,10 @@ class AssetHub {
                 statusBadge.textContent = item.status || 'Borrowed';
                 statusBadge.className = 'badge status-badge bg-purple-500';
             }
+        } else if (type === 'loaned') {
+            // For loaned items, show loaned out status
+            statusBadge.textContent = 'Loaned Out';
+            statusBadge.className = 'badge status-badge bg-blue-500';
         } else {
             // For owned items, show availability
             if (item.available) {
@@ -1043,6 +1321,12 @@ class AssetHub {
         }
 
         if (type === 'owned') {
+            // Hide cancel request button for owned items
+            const cancelRequestBtn = card.querySelector('.cancel-request-btn');
+            if (cancelRequestBtn) {
+                cancelRequestBtn.style.display = 'none';
+            }
+            
             if (editBtn) {
                 editBtn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -1108,39 +1392,83 @@ class AssetHub {
         document.getElementById('owned-section').classList.remove('hidden');
         document.getElementById('borrowed-section').classList.add('hidden');
         document.getElementById('requested-section').classList.add('hidden');
+        document.getElementById('loaned-section').classList.add('hidden');
 
         // Update tab styles
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
         document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('loaned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
     }
 
     showBorrowedItems() {
         document.getElementById('owned-section').classList.add('hidden');
         document.getElementById('borrowed-section').classList.remove('hidden');
         document.getElementById('requested-section').classList.add('hidden');
+        document.getElementById('loaned-section').classList.add('hidden');
 
         // Update tab styles
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
         document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('loaned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
     }
 
     showRequestedItems() {
         document.getElementById('owned-section').classList.add('hidden');
         document.getElementById('borrowed-section').classList.add('hidden');
         document.getElementById('requested-section').classList.remove('hidden');
+        document.getElementById('loaned-section').classList.add('hidden');
 
         // Update tab styles
         document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
         document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
         document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('loaned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+    }
+
+    showLoanedItems() {
+        document.getElementById('owned-section').classList.add('hidden');
+        document.getElementById('borrowed-section').classList.add('hidden');
+        document.getElementById('requested-section').classList.add('hidden');
+        document.getElementById('loaned-section').classList.remove('hidden');
+
+        // Update tab styles
+        document.getElementById('loaned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md';
+        document.getElementById('owned-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('borrowed-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
+        document.getElementById('requested-tab').className = 'px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60';
     }
 
     updateCounts() {
         document.getElementById('owned-count').textContent = this.ownedItems.length;
         document.getElementById('borrowed-count').textContent = this.borrowedItems.length;
         document.getElementById('requested-count').textContent = this.requestedItems.length;
+        document.getElementById('loaned-count').textContent = this.loanedItems.length;
+    }
+
+    async refreshUserProfile() {
+        try {
+            // Refresh the current user's profile data to update counters
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            if (!token) return;
+
+            const response = await fetch('http://localhost:5000/users/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const updatedUser = await response.json();
+                // Update localStorage with fresh user data
+                localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
+                console.log('🔄 Refreshed user profile data:', updatedUser);
+            }
+        } catch (error) {
+            console.error('Error refreshing user profile:', error);
+        }
     }
 
     async openEditModal(item) {
@@ -1728,8 +2056,8 @@ class AssetHub {
             return;
         }
 
-        if (maintenanceType === 'required' && !frequency) {
-            this.showError('Please select a frequency for required maintenance.');
+        if (maintenanceType === 'required' && (!frequency || frequency === '' || isNaN(parseInt(frequency)))) {
+            this.showError('Please select a valid frequency for required maintenance.');
             return;
         }
 
@@ -1740,11 +2068,10 @@ class AssetHub {
 
         const formData = {
             ItemId: this.currentMaintenanceItem.id,
-            Type: maintenanceType,
-            Category: category,
-            Frequency: maintenanceType === 'required' ? frequency : "",
-            Description: description,
-            Date: new Date().toISOString().split('T')[0] // Auto-set to today's date
+            Type: maintenanceType || null,
+            Category: category || null,
+            Frequency: maintenanceType === 'required' ? parseInt(frequency) || null : null,
+            Description: description
         };
 
         console.log('🔧 Sending maintenance data to backend:', formData);
@@ -1766,6 +2093,7 @@ class AssetHub {
                 console.log('✅ Created maintenance entry:', createdMaintenance);
 
                 // Upload receipts if any exist (only for history type)
+                let receiptUploadResults = [];
                 if (maintenanceType === 'history' && this.currentMaintenanceReceipts.length > 0) {
                     console.log('📄 Uploading receipts for maintenance:', this.currentMaintenanceReceipts.length);
                     
@@ -1783,18 +2111,36 @@ class AssetHub {
 
                             if (!receiptRes.ok) {
                                 console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
+                                receiptUploadResults.push({ file: receiptFile.name, success: false });
                             } else {
                                 console.log('✅ Uploaded receipt:', receiptFile.name);
+                                receiptUploadResults.push({ file: receiptFile.name, success: true });
                             }
                         } catch (err) {
                             console.warn('⚠️ Error uploading receipt:', err);
+                            receiptUploadResults.push({ file: receiptFile.name, success: false });
                         }
                     }
                 }
 
-                const successMessage = maintenanceType === 'required'
+                // Create success message with receipt upload status
+                let successMessage = maintenanceType === 'required'
                     ? 'Maintenance requirement added successfully!'
                     : 'Maintenance history entry added successfully!';
+                
+                if (receiptUploadResults.length > 0) {
+                    const successfulUploads = receiptUploadResults.filter(r => r.success).length;
+                    const failedUploads = receiptUploadResults.filter(r => !r.success).length;
+                    
+                    if (successfulUploads > 0 && failedUploads === 0) {
+                        successMessage += ` ${successfulUploads} receipt(s) uploaded successfully!`;
+                    } else if (successfulUploads > 0 && failedUploads > 0) {
+                        successMessage += ` ${successfulUploads} receipt(s) uploaded, ${failedUploads} failed.`;
+                    } else if (failedUploads > 0) {
+                        successMessage += ` Warning: ${failedUploads} receipt upload(s) failed.`;
+                    }
+                }
+                
                 this.showSuccess(successMessage);
 
                 // Maintenance history section removed - no longer reloading history
@@ -1829,7 +2175,13 @@ class AssetHub {
                 }
             } else {
                 const errorText = await response.text();
-                this.showError(`Failed to add maintenance entry: ${errorText}`);
+                console.error('❌ Maintenance submission failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorText: errorText,
+                    formData: formData
+                });
+                this.showError(`Failed to add maintenance entry (${response.status}): ${errorText}`);
             }
         } catch (error) {
             console.error('Error adding maintenance entry:', error);
