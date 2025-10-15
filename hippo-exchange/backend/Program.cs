@@ -28,9 +28,9 @@ namespace HippoExchange
             var builder = WebApplication.CreateBuilder(args);
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(5000); 
-                                         
-                                        
+                options.ListenAnyIP(5000);
+
+
             });
 
             // -------- Config --------
@@ -65,7 +65,7 @@ namespace HippoExchange
             static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
             {
                 if (user == null) throw new ArgumentNullException(nameof(user));
-                
+
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var key = Encoding.UTF8.GetBytes(jwtKey);
                 var tokenDescriptor = new SecurityTokenDescriptor
@@ -94,7 +94,7 @@ namespace HippoExchange
                 DatabaseId = databaseId,
                 Credential = googleCred
             }.Build());
-            
+
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
@@ -476,7 +476,8 @@ namespace HippoExchange
                 var countSnaps = await countQuery.GetSnapshotAsync();
                 var totalCount = countSnaps.Count;
 
-                return Results.Ok(new {
+                return Results.Ok(new
+                {
                     items = items,
                     totalCount = totalCount,
                     limit = limit,
@@ -901,7 +902,7 @@ namespace HippoExchange
                 op.Summary = "Delete a user account";
                 op.Description = "Deletes a user if they have no active exchanges (between start and end dates). Also removes auth record.";
                 return op;
-            });    
+            });
 
 
             // -------- Exchanges --------
@@ -1040,12 +1041,12 @@ namespace HippoExchange
                 if (!snap.Exists) return Results.NotFound();
 
                 var exchange = snap.ConvertTo<Exchange>();
-                
+
                 // Get the item details to include in notification
                 var listingDoc = db.Collection("listings").Document(exchange.ItemId);
                 var listingSnap = await listingDoc.GetSnapshotAsync();
                 var listing = listingSnap.Exists ? listingSnap.ConvertTo<Listing>() : null;
-                
+
                 // Get the actual item using the ItemId from the listing
                 Item? item = null;
                 if (listing != null)
@@ -1054,7 +1055,7 @@ namespace HippoExchange
                     var itemSnap = await itemDoc.GetSnapshotAsync();
                     item = itemSnap.Exists ? itemSnap.ConvertTo<Item>() : null;
                 }
-                
+
                 // Get the borrower details for the notification
                 var borrowerDoc = db.Collection("users").Document(exchange.BorrowerId);
                 var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
@@ -1320,15 +1321,15 @@ namespace HippoExchange
 
                 var m = new Maintenance
                 {
-                    Id                  = Guid.NewGuid().ToString("n"),
-                    ItemId              = dto.ItemId.Trim(),
-                    Description         = dto.Description.Trim(),
-                    Frequency           = dto.Frequency,       // int? (days)
-                    CreatedUtc          = DateTime.UtcNow,
-                    MaintenanceHistory  = new List<DateTime>(),
+                    Id = Guid.NewGuid().ToString("n"),
+                    ItemId = dto.ItemId.Trim(),
+                    Description = dto.Description.Trim(),
+                    Frequency = dto.Frequency,       // int? (days)
+                    CreatedUtc = DateTime.UtcNow,
+                    MaintenanceHistory = new List<DateTime>(),
                     LastMaintenanceDate = null,
-                    Type                = type,
-                    Category            = category
+                    Type = type,
+                    Category = category
                 };
 
                 var docRef = db.Collection("maintenance").Document(m.Id);
@@ -1347,12 +1348,13 @@ namespace HippoExchange
                 op.Summary = "Create a maintenance record";
                 op.Description = "Creates a new maintenance document. Optional fields: frequency (days), type, category. Server sets CreatedUtc.";
                 // Example body in Swagger
-                op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject {
-                    ["itemId"]    = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
-                    ["description"]= new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
+                op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
+                {
+                    ["itemId"] = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
+                    ["description"] = new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
                     ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(90),
-                    ["type"]      = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
-                    ["category"]  = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
+                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
+                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
                 };
                 return op;
             });
@@ -1427,9 +1429,10 @@ namespace HippoExchange
                 op.Summary = "Update a maintenance record (partial)";
                 op.Description = "Allows partial updates to description, frequency (days), type (string), category (string), maintenanceHistory (array of DateTime), and lastMaintenanceDate.";
                 // Example body in Swagger
-                op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject {
-                    ["type"]      = new Microsoft.OpenApi.Any.OpenApiString("Service"),
-                    ["category"]  = new Microsoft.OpenApi.Any.OpenApiString("Corrective"),
+                op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
+                {
+                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Service"),
+                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Corrective"),
                     ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(30)
                 };
                 return op;
@@ -1926,15 +1929,15 @@ namespace HippoExchange
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
-                    
+
                     // Generate JWT token for new user
                     var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
                     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
                     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
                     var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-                    
+
                     var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
-                    
+
                     return Results.Created($"/users/{user.Id}", new
                     {
                         user.Id,
@@ -2015,7 +2018,7 @@ namespace HippoExchange
                 op.Description = "Verifies credentials against stored password hash and returns basic user info on success.";
                 return op;
             });
-            
+
             app.MapGet("/auth/me", (ClaimsPrincipal user) =>
             {
                 if (user?.Identity?.IsAuthenticated != true)
@@ -2042,7 +2045,8 @@ namespace HippoExchange
                 // Get all threads and filter in memory to avoid index requirements
                 var q = db.Collection("messageThreads").Limit(100);
                 var snaps = await q.GetSnapshotAsync();
-                var allThreads = snaps.Select(s => {
+                var allThreads = snaps.Select(s =>
+                {
                     var t = s.ConvertTo<MessageThread>();
                     t.Id = s.Id;       // ensure Id is populated for clients
                     return t;
@@ -2164,14 +2168,14 @@ namespace HippoExchange
                 // Create new
                 var thread = new MessageThread
                 {
-                    Participants       = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
-                    CanonicalKey       = canon,
-                    Subject            = dto.Subject?.Trim(),
-                    UpdatedUtc         = DateTime.UtcNow,
+                    Participants = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
+                    CanonicalKey = canon,
+                    Subject = dto.Subject?.Trim(),
+                    UpdatedUtc = DateTime.UtcNow,
                     LastMessagePreview = null,
-                    LastReadBy         = new(),
-                    StarredBy          = new(),
-                    ItemId             = dto.ItemId.Trim()
+                    LastReadBy = new(),
+                    StarredBy = new(),
+                    ItemId = dto.ItemId.Trim()
                 };
 
                 var added = await db.Collection("messageThreads").AddAsync(thread);
@@ -2199,7 +2203,7 @@ namespace HippoExchange
                             new OpenApiString("user_123"),
                             new OpenApiString("user_456")
                         },
-                        ["itemId"]  = new OpenApiString("item_abc123"),
+                        ["itemId"] = new OpenApiString("item_abc123"),
                         ["subject"] = new OpenApiString("Questions about your drill press")
                     }
                 };
@@ -2280,6 +2284,34 @@ namespace HippoExchange
                 return op;
             });
 
+            // POST /messages/threads/{threadId}/archive  { userId, archived }
+            app.MapPost("/messages/threads/{threadId}/archive", async (FirestoreDb db, string threadId, StarDto dto) =>
+            {
+                if (string.IsNullOrWhiteSpace(dto.UserId)) return Results.BadRequest(new { error = "userId required" });
+
+                var threadRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await threadRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound();
+
+                if (dto.Starred)
+                    await threadRef.UpdateAsync("archivedBy", FieldValue.ArrayUnion(dto.UserId));
+                else
+                    await threadRef.UpdateAsync("archivedBy", FieldValue.ArrayRemove(dto.UserId));
+
+                return Results.NoContent();
+            })
+            .WithName("ArchiveThread")
+            .WithTags("Messaging")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Archive or unarchive a thread for a user";
+                op.Description = "Adds or removes the userId from the archivedBy array on the thread.";
+                return op;
+            });
+
 
 
             // POST /messages/threads/{threadId}/star  { userId, starred }
@@ -2321,12 +2353,13 @@ namespace HippoExchange
 
                 var u = doc.ConvertTo<UserAuth>();
                 u.Id = doc.Id;
-                return Results.Ok(new { 
-                    id = u.Id, 
-                    email = u.Email, 
-                    firstName = u.FirstName, 
+                return Results.Ok(new
+                {
+                    id = u.Id,
+                    email = u.Email,
+                    firstName = u.FirstName,
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim() 
+                    name = $"{u.FirstName} {u.LastName}".Trim()
                 });
             })
             .WithName("GetUserById")
@@ -2346,7 +2379,7 @@ namespace HippoExchange
     }
 
     // ---------------- Models ----------------
-    
+
     [FirestoreData]
     public class Item
     {
@@ -2517,6 +2550,7 @@ namespace HippoExchange
         [FirestoreProperty("starredBy")] public List<string> StarredBy { get; set; } = new();
 
         [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+        [FirestoreProperty("archivedBy")] public List<string> ArchivedBy { get; set; } = new();
     }
 
 
@@ -2562,7 +2596,7 @@ namespace HippoExchange
         [FromForm] public string? PhoneNumber { get; set; }                       // optional
         [FromForm] public string? Description { get; set; }                       // optional
     }
-    
+
     // ---- Exchange DTOs ----
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
     public sealed class UpdateExchangeApprovalDto
@@ -2600,14 +2634,14 @@ namespace HippoExchange
         DateTime? LastMaintenanceDate,
         bool LastMaintenanceDateExplicitlyNull = false,
         string? Category = null
-    );  
+    );
 
 
 
     // ---- DocumentEntry DTOs ----
     public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
     public record UpdateDocumentDto(string? Description, string? Document);
-    
+
 
     // ---- Review DTOs ----
     public record CreateReviewDto(int Rating, string RaterId, string UserId, string Description);
