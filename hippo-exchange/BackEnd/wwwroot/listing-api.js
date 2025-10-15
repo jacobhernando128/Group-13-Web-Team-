@@ -207,7 +207,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🖼️ listing.videos:', listing.videos);
 
     $('listing-title').textContent = listing.title;
-    $('price').textContent = money(listing.price);
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
 
     const badge = $('badge');
@@ -724,10 +723,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Show Date Selection Modal
-  function showDateSelectionModal(listing) {
+  async function showDateSelectionModal(listing) {
     const modal = document.getElementById('date-selection-modal');
     const startDateInput = document.getElementById('start-date-input');
     const endDateInput = document.getElementById('end-date-input');
+    const scheduledPeriodsContainer = document.getElementById('scheduled-periods');
     
     // Set minimum date to today
     const today = new Date().toISOString().split('T')[0];
@@ -739,6 +739,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     const defaultEndDate = new Date();
     defaultEndDate.setDate(defaultEndDate.getDate() + 7);
     endDateInput.value = defaultEndDate.toISOString().split('T')[0];
+    
+    // Fetch and display existing scheduled periods
+    try {
+      const response = await fetch(`${API_BASE_URL}/items/${listing.id}/scheduled-periods`);
+      if (response.ok) {
+        const scheduledPeriods = await response.json();
+        if (scheduledPeriods.length > 0) {
+          scheduledPeriodsContainer.innerHTML = `
+            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h4 class="text-sm font-semibold text-yellow-800 mb-2">⚠️ Already Scheduled Periods:</h4>
+              <div class="space-y-1">
+                ${scheduledPeriods.map(period => `
+                  <div class="text-xs text-yellow-700">
+                    ${new Date(period.startDate).toLocaleDateString()} - ${new Date(period.endDate).toLocaleDateString()}
+                  </div>
+                `).join('')}
+              </div>
+              <p class="text-xs text-yellow-600 mt-2">Please choose dates that don't overlap with these periods.</p>
+            </div>
+          `;
+        } else {
+          scheduledPeriodsContainer.innerHTML = '';
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching scheduled periods:', error);
+      scheduledPeriodsContainer.innerHTML = '';
+    }
     
     // Update end date minimum when start date changes
     startDateInput.addEventListener('change', function() {

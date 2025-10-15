@@ -174,7 +174,7 @@
             </button>
             <button id="requested-tab"
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
-              Requested Items (<span id="requested-count">0</span>)
+              Pending Requests (<span id="requested-count">0</span>)
             </button>
             <button id="loaned-tab"
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
@@ -233,8 +233,8 @@
       <section id="requested-section" class="mb-8 hidden">
         <div class="glass p-4 rounded-xl mb-4">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-xl font-semibold text-slate-800">Requested Items</h3>
-            <p class="text-sm text-slate-600">Manage requests for your items</p>
+            <h3 class="text-xl font-semibold text-slate-800">Pending Requested</h3>
+            <p class="text-sm text-slate-600">Manage pending requests for your items</p>
           </div>
           <div id="requested-items-grid" class="space-y-4">
             <!-- Requested items will be populated here -->
@@ -317,7 +317,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Maintenance
+                    Add Maintenance
                   </button>
                   <button
                     class="dropdown-item cancel-request-btn w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center">
@@ -510,12 +510,12 @@
                 <label class="block text-sm text-slate-300 mb-2">Frequency</label>
                 <select id="maintenance-frequency-input" class="field w-full">
                   <option value="">Select frequency</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                  <option value="as-needed">As Needed</option>
+                  <option value="1">Daily</option>
+                  <option value="7">Weekly</option>
+                  <option value="30">Monthly</option>
+                  <option value="90">Quarterly</option>
+                  <option value="365">Yearly</option>
+                  <option value="0">As Needed</option>
                 </select>
               </div>
 
@@ -582,6 +582,8 @@
     </div>
   </div>
 
+  <!-- Global Notifications -->
+  <script defer src="./global-notifications.js"></script>
   <!-- Asset Hub JS -->
   <script defer src="./profile-utils.js"></script>
   <script defer src="./asset-hub.js"></script>

@@ -20,11 +20,16 @@ class AssetHub {
         this.setupEventListeners();
         this.loadUserAssets();
         
+        // Check for due maintenance notifications
+        this.checkDueMaintenance();
+        
         // Add visibility change listener to refresh data when user returns to the page
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 // Page became visible again, refresh the data to ensure status is up to date
                 this.loadUserAssets();
+                // Also check for due maintenance when user returns
+                this.checkDueMaintenance();
             }
         });
     }
@@ -32,6 +37,33 @@ class AssetHub {
     getCurrentUserId() {
         // Return the authenticated user ID
         return this.currentUserId;
+    }
+
+    async checkDueMaintenance() {
+        try {
+            const response = await fetch('http://localhost:5000/maintenance/check-due', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('🔔 Maintenance check result:', result);
+                
+                if (result.notificationsCreated > 0) {
+                    // Trigger global notification refresh if notifications were created
+                    if (window.GlobalNotifications) {
+                        window.GlobalNotifications.triggerGlobalRefresh();
+                    }
+                }
+            } else {
+                console.warn('⚠️ Failed to check due maintenance:', response.status);
+            }
+        } catch (error) {
+            console.error('❌ Error checking due maintenance:', error);
+        }
     }
 
     async checkAuthAndLoadUser() {
@@ -189,6 +221,20 @@ class AssetHub {
 
         // Maintenance modal
         document.getElementById('close-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
+        
+        // ===== CROSS-PAGE SYNC =====
+        // Listen for global refresh events from other pages
+        window.addEventListener('notificationsUpdated', (event) => {
+            console.log('🔄 Asset Hub received notifications update event');
+            // Refresh all data when notifications are updated
+            this.loadUserAssets();
+        });
+        
+        window.addEventListener('assetHubRefresh', (event) => {
+            console.log('🔄 Asset Hub received asset hub refresh event');
+            // Refresh all data when asset hub is updated from another page
+            this.loadUserAssets();
+        });
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('maintenance-form').addEventListener('submit', (e) => this.handleMaintenanceSubmit(e));
 
@@ -507,10 +553,10 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: exchange.Approved === true ? 'Approved' : (exchange.Approved === false ? 'Denied' : 'Pending'),
+                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || false
+                                approved: exchange.Approved || exchange.approved || false
                             };
                             
                             console.log('🔍 Creating borrowed item:', {
@@ -518,6 +564,7 @@ class AssetHub {
                                 approved: borrowedItem.approved,
                                 status: borrowedItem.status,
                                 exchangeApproved: exchange.Approved,
+                                exchangeApprovedLower: exchange.approved,
                                 exchangeId: exchange.Id || exchange.id
                             });
                             
@@ -557,10 +604,10 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: exchange.Approved === true ? 'Approved' : (exchange.Approved === false ? 'Denied' : 'Pending'),
+                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || false
+                                approved: exchange.Approved || exchange.approved || false
                             });
                         }
                     } catch (itemError) {
@@ -601,7 +648,7 @@ class AssetHub {
                             status: exchange.Approved ? 'Approved' : 'Pending',
                             startDate: exchange.StartDate || exchange.startDate,
                             endDate: exchange.EndDate || exchange.endDate,
-                            approved: exchange.Approved || false
+                            approved: exchange.Approved || exchange.approved || false
                         });
                     }
                 }
@@ -862,7 +909,7 @@ class AssetHub {
 
                 // Filter for approved exchanges (loaned out items)
                 const approvedExchanges = exchanges.filter(exchange => 
-                    exchange.approved === true || exchange.Approved === true
+                    (exchange.approved === true || exchange.Approved === true)
                 );
 
                 console.log('📋 Approved exchanges (loaned out):', approvedExchanges);
@@ -1086,8 +1133,8 @@ class AssetHub {
             const approvalBody = isApprove
                 ? {
                     Approved: true,
-                    StartDate: new Date().toISOString(),
-                    EndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                    StartDate: request.startDate ? new Date(request.startDate).toISOString() : new Date().toISOString(),
+                    EndDate: request.endDate ? new Date(request.endDate).toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
                 }
                 : { Approved: false };
 
@@ -1129,6 +1176,12 @@ class AssetHub {
                 }
                 
                 this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
             } else {
                 const errorText = await response.text();
                 this.showError(`Failed to ${action} request: ${errorText}`);
@@ -1268,6 +1321,12 @@ class AssetHub {
         }
 
         if (type === 'owned') {
+            // Hide cancel request button for owned items
+            const cancelRequestBtn = card.querySelector('.cancel-request-btn');
+            if (cancelRequestBtn) {
+                cancelRequestBtn.style.display = 'none';
+            }
+            
             if (editBtn) {
                 editBtn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -1997,8 +2056,8 @@ class AssetHub {
             return;
         }
 
-        if (maintenanceType === 'required' && !frequency) {
-            this.showError('Please select a frequency for required maintenance.');
+        if (maintenanceType === 'required' && (!frequency || frequency === '' || isNaN(parseInt(frequency)))) {
+            this.showError('Please select a valid frequency for required maintenance.');
             return;
         }
 
@@ -2009,11 +2068,10 @@ class AssetHub {
 
         const formData = {
             ItemId: this.currentMaintenanceItem.id,
-            Type: maintenanceType,
-            Category: category,
-            Frequency: maintenanceType === 'required' ? frequency : "",
-            Description: description,
-            Date: new Date().toISOString().split('T')[0] // Auto-set to today's date
+            Type: maintenanceType || null,
+            Category: category || null,
+            Frequency: maintenanceType === 'required' ? parseInt(frequency) || null : null,
+            Description: description
         };
 
         console.log('🔧 Sending maintenance data to backend:', formData);
@@ -2035,6 +2093,7 @@ class AssetHub {
                 console.log('✅ Created maintenance entry:', createdMaintenance);
 
                 // Upload receipts if any exist (only for history type)
+                let receiptUploadResults = [];
                 if (maintenanceType === 'history' && this.currentMaintenanceReceipts.length > 0) {
                     console.log('📄 Uploading receipts for maintenance:', this.currentMaintenanceReceipts.length);
                     
@@ -2052,18 +2111,36 @@ class AssetHub {
 
                             if (!receiptRes.ok) {
                                 console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
+                                receiptUploadResults.push({ file: receiptFile.name, success: false });
                             } else {
                                 console.log('✅ Uploaded receipt:', receiptFile.name);
+                                receiptUploadResults.push({ file: receiptFile.name, success: true });
                             }
                         } catch (err) {
                             console.warn('⚠️ Error uploading receipt:', err);
+                            receiptUploadResults.push({ file: receiptFile.name, success: false });
                         }
                     }
                 }
 
-                const successMessage = maintenanceType === 'required'
+                // Create success message with receipt upload status
+                let successMessage = maintenanceType === 'required'
                     ? 'Maintenance requirement added successfully!'
                     : 'Maintenance history entry added successfully!';
+                
+                if (receiptUploadResults.length > 0) {
+                    const successfulUploads = receiptUploadResults.filter(r => r.success).length;
+                    const failedUploads = receiptUploadResults.filter(r => !r.success).length;
+                    
+                    if (successfulUploads > 0 && failedUploads === 0) {
+                        successMessage += ` ${successfulUploads} receipt(s) uploaded successfully!`;
+                    } else if (successfulUploads > 0 && failedUploads > 0) {
+                        successMessage += ` ${successfulUploads} receipt(s) uploaded, ${failedUploads} failed.`;
+                    } else if (failedUploads > 0) {
+                        successMessage += ` Warning: ${failedUploads} receipt upload(s) failed.`;
+                    }
+                }
+                
                 this.showSuccess(successMessage);
 
                 // Maintenance history section removed - no longer reloading history
@@ -2098,7 +2175,13 @@ class AssetHub {
                 }
             } else {
                 const errorText = await response.text();
-                this.showError(`Failed to add maintenance entry: ${errorText}`);
+                console.error('❌ Maintenance submission failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorText: errorText,
+                    formData: formData
+                });
+                this.showError(`Failed to add maintenance entry (${response.status}): ${errorText}`);
             }
         } catch (error) {
             console.error('Error adding maintenance entry:', error);
