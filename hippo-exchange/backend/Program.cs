@@ -29,8 +29,7 @@ namespace HippoExchange
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenAnyIP(5000); 
-                                         
-                                        
+                                                             
             });
 
             // -------- Config --------
@@ -44,6 +43,8 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
+            builder.Services.AddSingleton(StorageClient.Create());
+
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
@@ -55,9 +56,6 @@ namespace HippoExchange
                     "or GoogleCloud:CredentialPath to a valid service-account JSON file. " +
                     $"Current value: '{credPath ?? "<empty>"}'");
             }
-
-            // Set the credential path for Google Cloud libraries
-            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credPath);
 
             var googleCred = GoogleCredential.FromFile(credPath);
 
@@ -853,7 +851,7 @@ namespace HippoExchange
                 var activeAsOwner = ownerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return exchange.Approved
+                    return exchange.Approved == true
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -871,7 +869,7 @@ namespace HippoExchange
                 var activeAsBorrower = borrowerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return exchange.Approved
+                    return exchange.Approved == true
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -953,7 +951,7 @@ namespace HippoExchange
                     OwnerId = dto.OwnerId.Trim(),
                     BorrowerId = dto.BorrowerId.Trim(),
                     ItemId = dto.ItemId.Trim(),
-                    Approved = false,                    // defaults false per your model
+                    Approved = null,                    // defaults false per your model
                     RequestCreated = DateTime.UtcNow,    // auto timestamp (UTC)
                     StartDate = null,
                     EndDate = null,
@@ -976,41 +974,46 @@ namespace HippoExchange
             });
 
 
-            // PUT /exchanges/{id}/approval — approve/decline with server-side invariants
+            // PUT /exchanges/{id}/approval — approve/decline with server-side invariants (Approved must be true/false here)
             app.MapPut("/exchanges/{id}/approval", async ([FromServices] FirestoreDb db, string id, [FromBody] UpdateExchangeApprovalDto dto) =>
             {
-                var doc = db.Collection("exchanges").Document(id);
+                var doc  = db.Collection("exchanges").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                var nowUtc = DateTime.UtcNow;
+                // Require an explicit decision (true/false). Creation defaults to approved = null.
+                if (dto.Approved is null)
+                    return Results.BadRequest(new { error = "approved is required (true or false)." });
+
+                var nowUtc   = DateTime.UtcNow;
+                var approved = dto.Approved.Value;
 
                 var updates = new Dictionary<string, object>
                 {
-                    ["approved"] = dto.Approved,
+                    ["approved"]       = approved,
                     ["requestHandled"] = nowUtc
                 };
 
-                if (dto.Approved)
+                if (approved)
                 {
-                    // Validate dates
+                    // Validate and set dates on approval
                     if (dto.StartDate is null || dto.EndDate is null)
                         return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
 
                     var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
-                    var endUtc = DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc);
+                    var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
 
                     if (endUtc <= startUtc)
                         return Results.BadRequest(new { error = "endDate must be after startDate." });
 
                     updates["startDate"] = startUtc;
-                    updates["endDate"] = endUtc;
+                    updates["endDate"]   = endUtc;
                 }
                 else
                 {
-                    // Declined: ensure dates are not set
+                    // Declined: ensure any dates are cleared
                     updates["startDate"] = FieldValue.Delete;
-                    updates["endDate"] = FieldValue.Delete;
+                    updates["endDate"]   = FieldValue.Delete;
                 }
 
                 await doc.UpdateAsync(updates);
@@ -1027,7 +1030,7 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Approve or decline an exchange";
-                op.Description = "Sets approved flag and requestHandled timestamp. If approved, requires and sets startDate/endDate. If declined, clears any dates.";
+                op.Description = "Sets 'approved' (true/false) and 'requestHandled'. If approved, requires startDate/endDate; if declined, clears dates. New exchanges default to approved = null.";
                 return op;
             });
 
@@ -1038,51 +1041,6 @@ namespace HippoExchange
                 var doc = db.Collection("exchanges").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
-
-                var exchange = snap.ConvertTo<Exchange>();
-                
-                // Get the item details to include in notification
-                var listingDoc = db.Collection("listings").Document(exchange.ItemId);
-                var listingSnap = await listingDoc.GetSnapshotAsync();
-                var listing = listingSnap.Exists ? listingSnap.ConvertTo<Listing>() : null;
-                
-                // Get the actual item using the ItemId from the listing
-                Item? item = null;
-                if (listing != null)
-                {
-                    var itemDoc = db.Collection("items").Document(listing.ItemId);
-                    var itemSnap = await itemDoc.GetSnapshotAsync();
-                    item = itemSnap.Exists ? itemSnap.ConvertTo<Item>() : null;
-                }
-                
-                // Get the borrower details for the notification
-                var borrowerDoc = db.Collection("users").Document(exchange.BorrowerId);
-                var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
-                var borrower = borrowerSnap.Exists ? borrowerSnap.ConvertTo<UserAuth>() : null;
-
-                // Send notification to item owner about cancelled request
-                if (item != null && borrower != null)
-                {
-                    var borrowerName = !string.IsNullOrEmpty(borrower.FirstName) && !string.IsNullOrEmpty(borrower.LastName)
-                        ? $"{borrower.FirstName} {borrower.LastName}"
-                        : borrower.Email;
-
-                    var notification = new Notification
-                    {
-                        Id = Guid.NewGuid().ToString("n"),
-                        CreatedUtc = DateTime.UtcNow,
-                        SenderId = exchange.BorrowerId,
-                        ReceiverId = exchange.OwnerId,
-                        Message = $"{borrowerName} has cancelled their request for your item \"{item.Title}\". The request has been withdrawn.",
-                        Title = "Request Cancelled",
-                        Type = "exchange_cancelled",
-                        ListingId = exchange.ItemId,
-                        SenderAvatar = borrower.ProfilePicture,
-                        Dismissed = false
-                    };
-
-                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
-                }
 
                 await doc.DeleteAsync();
                 return Results.NoContent();
@@ -1472,7 +1430,10 @@ namespace HippoExchange
                                     .WhereEqualTo("userID", userId)
                                     .GetSnapshotAsync();
 
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Review>()));
+                var reviews = snaps.Select(s => s.ConvertTo<Review>())
+                       .OrderByDescending(r => r.CreatedUtc);  
+
+                return Results.Ok(reviews);
             })
             .WithName("GetReviewsByUserId")
             .WithTags("Reviews")
@@ -1502,7 +1463,8 @@ namespace HippoExchange
                     Rating = rating,
                     RaterId = rater,
                     UserId = user,
-                    Description = desc
+                    Description = desc,
+                    CreatedUtc  = DateTime.UtcNow
                 };
 
                 await db.Collection("review").Document(review.Id).SetAsync(review);
@@ -2031,10 +1993,9 @@ namespace HippoExchange
                 });
             }).RequireAuthorization().WithName("GetCurrentUser");
 
-
             // -------- Messaging --------
 
-            // GET /messages/threads?userId=...&filter=all|unread|starred[&itemId=...]
+            // GET /messages/threads?userId=...&filter=all|unread|starred|archived|active[&itemId=...]
             app.MapGet("/messages/threads", async (FirestoreDb db, string userId, string? filter, string? itemId) =>
             {
                 if (string.IsNullOrWhiteSpace(userId)) return Results.BadRequest(new { error = "userId required" });
@@ -2063,6 +2024,10 @@ namespace HippoExchange
                     threads = threads.Where(t => t.StarredBy?.Contains(userId) == true).ToList();
                 else if (filter == "unread")
                     threads = threads.Where(t => !t.LastReadBy.TryGetValue(userId, out var last) || t.UpdatedUtc > last).ToList();
+                else if (filter == "archived")
+                    threads = threads.Where(t => t.ArchivedParticipants?.Contains(userId) == true).ToList(); 
+                else if (filter == "active")
+                    threads = threads.Where(t => !(t.ArchivedParticipants?.Contains(userId) == true)).ToList(); 
 
                 return Results.Ok(threads);
             })
@@ -2073,10 +2038,9 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "List message threads for a user";
-                op.Description = "Returns up to 100 threads for the user. Optional query: filter=(all|unread|starred), itemId (to restrict to a specific item). Sorting & filtering are done in-memory.";
+                op.Description = "Returns up to 100 threads for the user. filter=(all|unread|starred|archived|active), itemId (restrict to a specific item). Sorting & filtering are done in-memory.";
                 return op;
             });
-
 
 
             // GET /messages/threads/{threadId}/messages
@@ -2106,6 +2070,7 @@ namespace HippoExchange
             });
 
 
+            // GET /users/by-email
             app.MapGet("/users/by-email", async (FirestoreDb db, string email) =>
             {
                 if (string.IsNullOrWhiteSpace(email)) return Results.BadRequest(new { error = "email required" });
@@ -2164,14 +2129,15 @@ namespace HippoExchange
                 // Create new
                 var thread = new MessageThread
                 {
-                    Participants       = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
-                    CanonicalKey       = canon,
-                    Subject            = dto.Subject?.Trim(),
-                    UpdatedUtc         = DateTime.UtcNow,
+                    Participants = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
+                    CanonicalKey = canon,
+                    Subject = dto.Subject?.Trim(),
+                    UpdatedUtc = DateTime.UtcNow,
                     LastMessagePreview = null,
-                    LastReadBy         = new(),
-                    StarredBy          = new(),
-                    ItemId             = dto.ItemId.Trim()
+                    LastReadBy = new(),
+                    StarredBy = new(),
+                    ArchivedParticipants = new(),
+                    ItemId = dto.ItemId.Trim()
                 };
 
                 var added = await db.Collection("messageThreads").AddAsync(thread);
@@ -2281,7 +2247,6 @@ namespace HippoExchange
             });
 
 
-
             // POST /messages/threads/{threadId}/star  { userId, starred }
             app.MapPost("/messages/threads/{threadId}/star", async (FirestoreDb db, string threadId, StarDto dto) =>
             {
@@ -2321,12 +2286,13 @@ namespace HippoExchange
 
                 var u = doc.ConvertTo<UserAuth>();
                 u.Id = doc.Id;
-                return Results.Ok(new { 
-                    id = u.Id, 
-                    email = u.Email, 
-                    firstName = u.FirstName, 
+                return Results.Ok(new
+                {
+                    id = u.Id,
+                    email = u.Email,
+                    firstName = u.FirstName,
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim() 
+                    name = $"{u.FirstName} {u.LastName}".Trim()
                 });
             })
             .WithName("GetUserById")
@@ -2338,6 +2304,76 @@ namespace HippoExchange
             {
                 op.Summary = "Find a user by id";
                 op.Description = "Returns a minimal user record (id, email, firstName, lastName, name) for the given id.";
+                return op;
+            });
+
+
+            // PUT /messages/threads/{threadId}/archive   { "userId": "..." }
+            app.MapPut("/messages/threads/{threadId}/archive", async (FirestoreDb db, string threadId, [FromBody] ArchiveParticipantDto dto) =>
+            {
+                if (dto is null || string.IsNullOrWhiteSpace(dto.UserId))
+                    return Results.BadRequest(new { error = "userId required" });
+
+                var docRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await docRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "thread not found" });
+
+                // Idempotent add; do NOT touch updatedUtc
+                await docRef.UpdateAsync("archivedParticipants", FieldValue.ArrayUnion(dto.UserId));
+
+                return Results.NoContent();
+            })
+            .WithName("ArchiveThreadForUser")
+            .WithTags("Messaging")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi(op =>
+            {
+                op.OperationId = "ArchiveThreadForUser";
+                op.Summary = "Archive a thread for a specific user";
+                op.Description = "Adds userId to archivedParticipants using FieldValue.ArrayUnion (per-user archive).";
+                op.RequestBody ??= new Microsoft.OpenApi.Models.OpenApiRequestBody();
+                op.RequestBody.Content ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiMediaType>();
+                op.RequestBody.Content["application/json"] = new Microsoft.OpenApi.Models.OpenApiMediaType
+                {
+                    Example = new OpenApiObject { ["userId"] = new OpenApiString("user_123") }
+                };
+                return op;
+            });
+
+
+            // DELETE /messages/threads/{threadId}/archive   { "userId": "..." }
+            app.MapDelete("/messages/threads/{threadId}/archive", async (FirestoreDb db, string threadId, [FromBody] ArchiveParticipantDto dto) =>
+            {
+                if (dto is null || string.IsNullOrWhiteSpace(dto.UserId))
+                    return Results.BadRequest(new { error = "userId required" });
+
+                var docRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await docRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "thread not found" });
+
+                // Idempotent remove; do NOT touch updatedUtc
+                await docRef.UpdateAsync("archivedParticipants", FieldValue.ArrayRemove(dto.UserId));
+
+                return Results.NoContent();
+            })
+            .WithName("UnarchiveThreadForUser")
+            .WithTags("Messaging")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi(op =>
+            {
+                op.OperationId = "UnarchiveThreadForUser";
+                op.Summary = "Unarchive a thread for a specific user";
+                op.Description = "Removes userId from archivedParticipants using FieldValue.ArrayRemove (per-user archive).";
+                op.RequestBody ??= new Microsoft.OpenApi.Models.OpenApiRequestBody();
+                op.RequestBody.Content ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiMediaType>();
+                op.RequestBody.Content["application/json"] = new Microsoft.OpenApi.Models.OpenApiMediaType
+                {
+                    Example = new OpenApiObject { ["userId"] = new OpenApiString("user_123") }
+                };
                 return op;
             });
 
@@ -2388,7 +2424,7 @@ namespace HippoExchange
     {
         [FirestoreDocumentId] public string? Id { get; set; }
 
-        [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
+        [FirestoreProperty("approved")] public bool? Approved { get; set; } = null;
 
         [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
 
@@ -2479,6 +2515,7 @@ namespace HippoExchange
         [FirestoreProperty("Document")] public string DocumentContent { get; set; } = default!;
 
         [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
+
     }
 
 
@@ -2494,6 +2531,8 @@ namespace HippoExchange
         [FirestoreProperty("description")] public string Description { get; set; } = default!;
 
         [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
     }
 
 
@@ -2517,6 +2556,8 @@ namespace HippoExchange
         [FirestoreProperty("starredBy")] public List<string> StarredBy { get; set; } = new();
 
         [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
+
+        [FirestoreProperty("archivedParticipants")] public List<string> ArchivedParticipants { get; set; } = new();
     }
 
 
@@ -2567,7 +2608,7 @@ namespace HippoExchange
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId);
     public sealed class UpdateExchangeApprovalDto
     {
-        public bool Approved { get; set; }
+        public bool? Approved { get; set; }
         public DateTime? StartDate { get; set; }  // allow null when declining
         public DateTime? EndDate { get; set; }    // allow null when declining
     }
@@ -2591,6 +2632,7 @@ namespace HippoExchange
         string? Category
     );
 
+
     public record UpdateMaintenanceDto
     (
         string? Description,
@@ -2601,7 +2643,6 @@ namespace HippoExchange
         bool LastMaintenanceDateExplicitlyNull = false,
         string? Category = null
     );  
-
 
 
     // ---- DocumentEntry DTOs ----
@@ -2623,5 +2664,6 @@ namespace HippoExchange
     public record SendMessageDto(string SenderId, string Body);
     public record MarkReadDto(string UserId);
     public record StarDto(string UserId, bool Starred);
+    public record ArchiveParticipantDto(string UserId);
 
 }
