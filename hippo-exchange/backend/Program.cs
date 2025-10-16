@@ -993,9 +993,9 @@ namespace HippoExchange
                 var scheduledPeriods = exchanges.Documents
                     .Select(doc => doc.ConvertTo<Exchange>())
                     .Where(ex => ex.StartDate.HasValue && ex.EndDate.HasValue)
-                    .Select(ex => new { 
-                        startDate = ex.StartDate.Value, 
-                        endDate = ex.EndDate.Value,
+                    .Select(ex => new {
+                        startDate  = ex.StartDate.GetValueOrDefault(),  // ✅ removes CS8629
+                        endDate    = ex.EndDate.GetValueOrDefault(),    // ✅ removes CS8629
                         borrowerId = ex.BorrowerId
                     })
                     .OrderBy(p => p.startDate)
@@ -1004,112 +1004,96 @@ namespace HippoExchange
                 return Results.Ok(scheduledPeriods);
             });
 
-            // GET /items/{itemId}/scheduled-periods — get approved exchange periods for an item
-            app.MapGet("/items/{itemId}/scheduled-periods", async ([FromServices] FirestoreDb db, string itemId) =>
-            {
-                var exchanges = await db.Collection("exchanges")
-                    .WhereEqualTo("itemID", itemId)
-                    .WhereEqualTo("approved", true)
-                    .GetSnapshotAsync();
 
-                var scheduledPeriods = exchanges.Documents
-                    .Select(doc => doc.ConvertTo<Exchange>())
-                    .Where(ex => ex.StartDate.HasValue && ex.EndDate.HasValue)
-                    .Select(ex => new { 
-                        startDate = ex.StartDate.Value, 
-                        endDate = ex.EndDate.Value,
-                        borrowerId = ex.BorrowerId
-                    })
-                    .OrderBy(p => p.startDate)
-                    .ToList();
 
-                return Results.Ok(scheduledPeriods);
-            });
-
-            // PUT /exchanges/{id}/approval — approve/decline with server-side invariants (Approved must be true/false here)
-            app.MapPut("/exchanges/{id}/approval", async ([FromServices] FirestoreDb db, string id, [FromBody] UpdateExchangeApprovalDto dto) =>
+            // PUT /exchanges/{id}/approval — approve/decline with server-side invariants
+            app.MapPut("/exchanges/{id}/approval", async (
+                [FromServices] FirestoreDb db,
+                string id,
+                [FromBody] UpdateExchangeApprovalDto dto) =>
             {
                 try
-            {
-                var doc  = db.Collection("exchanges").Document(id);
-                var snap = await doc.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
-
-                // Require an explicit decision (true/false). Creation defaults to approved = null.
-                if (dto.Approved is null)
-                    return Results.BadRequest(new { error = "approved is required (true or false)." });
-
-                var nowUtc   = DateTime.UtcNow;
-                var approved = dto.Approved.Value;
-
-                var updates = new Dictionary<string, object>
                 {
-                    ["approved"]       = approved,
-                    ["requestHandled"] = nowUtc
-                };
+                    var doc  = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                if (approved)
-                {
-                    // Validate and set dates on approval
-                    if (dto.StartDate is null || dto.EndDate is null)
-                        return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+                    // Convert once so we can safely use properties below
+                    var exchange = snap.ConvertTo<Exchange>();
+                    if (exchange is null)
+                        return Results.BadRequest(new { error = "Invalid exchange payload." });
 
-                    var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
-                    var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
+                    // Require explicit decision
+                    if (dto.Approved is null)
+                        return Results.BadRequest(new { error = "approved is required (true or false)." });
 
-                    if (endUtc <= startUtc)
-                        return Results.BadRequest(new { error = "endDate must be after startDate." });
+                    var nowUtc   = DateTime.UtcNow;
+                    var approved = dto.Approved.Value;
 
-                    // Check for scheduling conflicts with other approved exchanges for the same item
-                    // Simplified query to avoid index requirements
-                    var allExchanges = await db.Collection("exchanges")
-                        .WhereEqualTo("itemID", exchange.ItemId)
-                        .GetSnapshotAsync();
-                        
-                    var existingExchanges = allExchanges.Documents
-                        .Select(doc => doc.ConvertTo<Exchange>())
-                        .Where(ex => (ex.Approved ?? false) && ex.Id != id);
-
-                    foreach (var existingExchange in existingExchanges)
+                    var updates = new Dictionary<string, object>
                     {
-                        if (existingExchange.StartDate.HasValue && existingExchange.EndDate.HasValue)
+                        ["approved"]       = approved,
+                        ["requestHandled"] = nowUtc
+                    };
+
+                    if (approved)
+                    {
+                        // Validate and set dates on approval
+                        if (dto.StartDate is null || dto.EndDate is null)
+                            return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+
+                        var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+                        var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
+
+                        if (endUtc <= startUtc)
+                            return Results.BadRequest(new { error = "endDate must be after startDate." });
+
+                        // Check scheduling conflicts for this item (simple in-memory filter)
+                        var allExchanges = await db.Collection("exchanges")
+                            .WhereEqualTo("itemID", exchange.ItemId)
+                            .GetSnapshotAsync();
+
+                        var conflict = allExchanges.Documents
+                            .Select(d => d.ConvertTo<Exchange>())
+                            .Where(ex => (ex.Approved ?? false) && ex.Id != id)
+                            .FirstOrDefault(ex =>
+                                ex.StartDate.HasValue && ex.EndDate.HasValue &&
+                                startUtc < ex.EndDate.Value && endUtc > ex.StartDate.Value);
+
+                        if (conflict != null)
                         {
-                            // Check for date overlap
-                            if ((startUtc < existingExchange.EndDate.Value && endUtc > existingExchange.StartDate.Value))
+                            return Results.BadRequest(new
                             {
-                                return Results.BadRequest(new { 
-                                    error = $"This item is already scheduled for the period {existingExchange.StartDate.Value:yyyy-MM-dd} to {existingExchange.EndDate.Value:yyyy-MM-dd}. Please choose a different time period." 
-                                });
-                            }
+                                error = $"This item is already scheduled for the period " +
+                                        $"{conflict.StartDate!.Value:yyyy-MM-dd} to {conflict.EndDate!.Value:yyyy-MM-dd}. " +
+                                        "Please choose a different time period."
+                            });
                         }
+
+                        updates["startDate"] = startUtc;
+                        updates["endDate"]   = endUtc;
+
+                        // Update user counters on approval
+                        await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
+                    }
+                    else
+                    {
+                        // Declined: clear dates
+                        updates["startDate"] = FieldValue.Delete;
+                        updates["endDate"]   = FieldValue.Delete;
                     }
 
-                    updates["startDate"] = startUtc;
-                    updates["endDate"]   = endUtc;
-                    updates["endDate"] = endUtc;
+                    await doc.UpdateAsync(updates);
 
-                    // Update user counters when approving
-                    await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
-                }
-                else
-                {
-                    // Declined: ensure any dates are cleared
-                    updates["startDate"] = FieldValue.Delete;
-                    updates["endDate"]   = FieldValue.Delete;
-                }
-
-                await doc.UpdateAsync(updates);
-
-                var updated = await doc.GetSnapshotAsync();
-                try
-                {
-                return Results.Ok(updated.ConvertTo<Exchange>());
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error converting updated exchange: {ex.Message}");
-                    return Results.Ok(new { message = "Exchange updated successfully", id = id });
-                }
+                    var updatedSnap = await doc.GetSnapshotAsync();
+                    try
+                    {
+                        return Results.Ok(updatedSnap.ConvertTo<Exchange>());
+                    }
+                    catch
+                    {
+                        return Results.Ok(new { message = "Exchange updated successfully", id });
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1130,52 +1114,51 @@ namespace HippoExchange
                 return op;
             });
 
-            // PUT /exchanges/{id}/early-return — approve early return request
-            app.MapPut("/exchanges/{id}/early-return", async ([FromServices] FirestoreDb db, string id, [FromBody] EarlyReturnApprovalDto dto) =>
+
+            // PUT /exchanges/{id}/early-return — approve/decline early return request
+            app.MapPut("/exchanges/{id}/early-return", async (
+                [FromServices] FirestoreDb db,
+                string id,
+                [FromBody] EarlyReturnApprovalDto dto) =>
             {
                 try
                 {
-                    var doc = db.Collection("exchanges").Document(id);
+                    var doc  = db.Collection("exchanges").Document(id);
                     var snap = await doc.GetSnapshotAsync();
                     if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                    Exchange exchange;
-                    try
-                    {
-                        exchange = snap.ConvertTo<Exchange>();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
-                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
-                    }
+                    var exchange = snap.ConvertTo<Exchange>();
+                    if (exchange is null)
+                        return Results.BadRequest(new { error = "Invalid exchange payload." });
 
                     var nowUtc = DateTime.UtcNow;
 
+                    // Minimal updates for early return
                     var updates = new Dictionary<string, object>
                     {
-                        ["endDate"] = nowUtc, // Set end date to now for early return
-                        ["requestHandled"] = nowUtc,
+                        ["endDate"]             = nowUtc,     // early return ends now
+                        ["requestHandled"]      = nowUtc,     // mark handled
                         ["earlyReturnApproved"] = dto.Approved
                     };
 
                     if (dto.Approved)
                     {
-                        // Update user counters when approving early return
+                        // Update user counters only when approved
                         await UpdateUserCountersOnReturn(db, exchange.OwnerId, exchange.BorrowerId);
                     }
 
                     await doc.UpdateAsync(updates);
 
-                    var updated = await doc.GetSnapshotAsync();
+                    // Try to return the updated model; if conversion fails, return a simple OK message
+                    var updatedSnap = await doc.GetSnapshotAsync();
                     try
                     {
-                        return Results.Ok(updated.ConvertTo<Exchange>());
+                        var updatedExchange = updatedSnap.ConvertTo<Exchange>();
+                        return Results.Ok(updatedExchange);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        Console.WriteLine($"Error converting updated exchange: {ex.Message}");
-                        return Results.Ok(new { message = "Early return request processed successfully", id = id });
+                        return Results.Ok(new { message = "Early return request processed successfully", id });
                     }
                 }
                 catch (Exception ex)
@@ -1193,9 +1176,11 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Approve or decline an early return request";
-                op.Description = "Processes an early return request by updating the end date and user counters.";
+                op.Description = "Processes an early return by moving endDate to now; updates user counters when approved.";
                 return op;
             });
+
+
 
             // POST /exchanges/{id}/request-early-return — borrower requests early return
             app.MapPost("/exchanges/{id}/request-early-return", async ([FromServices] FirestoreDb db, string id) =>
@@ -2736,10 +2721,6 @@ namespace HippoExchange
                     CanonicalKey = canon,
                     Subject = dto.Subject?.Trim(),
                     UpdatedUtc = DateTime.UtcNow,
-                    Participants = dto.ParticipantIds.Distinct(StringComparer.Ordinal).ToList(),
-                    CanonicalKey = canon,
-                    Subject = dto.Subject?.Trim(),
-                    UpdatedUtc = DateTime.UtcNow,
                     LastMessagePreview = null,
                     LastReadBy = new(),
                     StarredBy = new(),
@@ -3425,34 +3406,32 @@ namespace HippoExchange
 
             try
             {
-                // Get all approved exchanges first, then filter by date in memory
-                // This avoids the need for a composite index
-                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
+                // Query approved exchanges, then filter by date range in-memory (no composite index required)
                 var tomorrow = DateTime.UtcNow.AddDays(1);
+                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
 
                 var exchangesSnapshot = await db.Collection("exchanges")
                     .WhereEqualTo("approved", true)
                     .GetSnapshotAsync();
 
-                // Filter exchanges by date in memory to avoid composite index requirement
                 var upcomingExchanges = exchangesSnapshot
-                    .Where(doc => 
+                    .Where(doc =>
                     {
                         var exchange = doc.ConvertTo<Exchange>();
-                        return exchange?.EndDate != null && 
-                               exchange.EndDate >= tomorrow && 
-                               exchange.EndDate <= twoDaysFromNow;
+                        return exchange?.EndDate != null &&
+                            exchange.EndDate >= tomorrow &&
+                            exchange.EndDate <= twoDaysFromNow;
                     })
                     .ToList();
 
-                _logger.LogInformation($"Found {upcomingExchanges.Count} exchanges with upcoming return dates");
+                _logger.LogInformation("Found {Count} exchanges with upcoming return dates", upcomingExchanges.Count);
 
                 foreach (var exchangeDoc in upcomingExchanges)
                 {
                     var exchange = exchangeDoc.ConvertTo<Exchange>();
                     if (exchange?.EndDate == null) continue;
 
-                    // Check if we already sent a notification for this exchange
+                    // Rate-limit: skip if a recent reminder was sent in last 24h
                     var existingNotification = await db.Collection("notifications")
                         .WhereEqualTo("receiverID", exchange.BorrowerId)
                         .WhereEqualTo("type", "return_reminder")
@@ -3461,32 +3440,22 @@ namespace HippoExchange
 
                     if (existingNotification.Count > 0)
                     {
-                        // Check if the notification was sent recently (within last 24 hours)
-                        var recentNotification = existingNotification.Documents
-                            .FirstOrDefault(doc => 
-                            {
-                                var notif = doc.ConvertTo<Notification>();
-                                return notif.CreatedUtc > DateTime.UtcNow.AddDays(-1);
-                            });
-
-                        if (recentNotification != null) continue; // Already sent recently
+                        var recent = existingNotification.Documents.FirstOrDefault(d =>
+                        {
+                            var n = d.ConvertTo<Notification>();
+                            return n.CreatedUtc > DateTime.UtcNow.AddDays(-1);
+                        });
+                        if (recent != null) continue;
                     }
 
-                    // Get item details
+                    // Fetch item for a nice message
                     var itemDoc = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
                     if (!itemDoc.Exists) continue;
 
                     var item = itemDoc.ConvertTo<Item>();
                     if (item == null) continue;
 
-                    // Get borrower details
-                    var borrowerDoc = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
-                    if (!borrowerDoc.Exists) continue;
-
-                    var borrower = borrowerDoc.ConvertTo<UserAuth>();
-                    if (borrower == null) continue;
-
-                    // Create notification
+                    // Create and store the notification
                     var notification = new Notification
                     {
                         Id = Guid.NewGuid().ToString("n"),
@@ -3502,7 +3471,8 @@ namespace HippoExchange
                     };
 
                     await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
-                    _logger.LogInformation($"Sent return reminder notification to user {exchange.BorrowerId} for item {item.Title}");
+                    _logger.LogInformation("Sent return reminder notification to user {UserId} for item {ItemTitle}",
+                        exchange.BorrowerId, item.Title);
                 }
             }
             catch (Exception ex)
@@ -3512,130 +3482,8 @@ namespace HippoExchange
         }
     }
 
-    // Background service for return date notifications
-    public class ReturnDateNotificationService : BackgroundService
-    {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly ILogger<ReturnDateNotificationService> _logger;
-        private readonly TimeSpan _checkInterval = TimeSpan.FromHours(6); // Check every 6 hours
-
-        public ReturnDateNotificationService(IServiceProvider serviceProvider, ILogger<ReturnDateNotificationService> logger)
-        {
-            _serviceProvider = serviceProvider;
-            _logger = logger;
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("Return Date Notification Service started");
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await CheckForUpcomingReturnDates();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error occurred while checking for upcoming return dates");
-                }
-
-                await Task.Delay(_checkInterval, stoppingToken);
-            }
-        }
-
-        private async Task CheckForUpcomingReturnDates()
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<FirestoreDb>();
-
-            try
-            {
-                // Get all approved exchanges first, then filter by date in memory
-                // This avoids the need for a composite index
-                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
-                var tomorrow = DateTime.UtcNow.AddDays(1);
-
-                var exchangesSnapshot = await db.Collection("exchanges")
-                    .WhereEqualTo("approved", true)
-                    .GetSnapshotAsync();
-
-                // Filter exchanges by date in memory to avoid composite index requirement
-                var upcomingExchanges = exchangesSnapshot
-                    .Where(doc => 
-                    {
-                        var exchange = doc.ConvertTo<Exchange>();
-                        return exchange?.EndDate != null && 
-                               exchange.EndDate >= tomorrow && 
-                               exchange.EndDate <= twoDaysFromNow;
-                    })
-                    .ToList();
-
-                _logger.LogInformation($"Found {upcomingExchanges.Count} exchanges with upcoming return dates");
-
-                foreach (var exchangeDoc in upcomingExchanges)
-                {
-                    var exchange = exchangeDoc.ConvertTo<Exchange>();
-                    if (exchange?.EndDate == null) continue;
-
-                    // Check if we already sent a notification for this exchange
-                    var existingNotification = await db.Collection("notifications")
-                        .WhereEqualTo("receiverID", exchange.BorrowerId)
-                        .WhereEqualTo("type", "return_reminder")
-                        .WhereEqualTo("listingID", exchange.ItemId)
-                        .GetSnapshotAsync();
-
-                    if (existingNotification.Count > 0)
-                    {
-                        // Check if the notification was sent recently (within last 24 hours)
-                        var recentNotification = existingNotification.Documents
-                            .FirstOrDefault(doc => 
-                            {
-                                var notif = doc.ConvertTo<Notification>();
-                                return notif.CreatedUtc > DateTime.UtcNow.AddDays(-1);
-                            });
-
-                        if (recentNotification != null) continue; // Already sent recently
-                    }
-
-                    // Get item details
-                    var itemDoc = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
-                    if (!itemDoc.Exists) continue;
-
-                    var item = itemDoc.ConvertTo<Item>();
-                    if (item == null) continue;
-
-                    // Get borrower details
-                    var borrowerDoc = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
-                    if (!borrowerDoc.Exists) continue;
-
-                    var borrower = borrowerDoc.ConvertTo<UserAuth>();
-                    if (borrower == null) continue;
-
-                    // Create notification
-                    var notification = new Notification
-                    {
-                        Id = Guid.NewGuid().ToString("n"),
-                        CreatedUtc = DateTime.UtcNow,
-                        SenderId = "system",
-                        ReceiverId = exchange.BorrowerId,
-                        Message = $"Your borrowed item '{item.Title}' is due for return on {exchange.EndDate.Value:MMM dd, yyyy}. Please make arrangements to return it.",
-                        Title = "Return Date Reminder",
-                        Type = "return_reminder",
-                        ListingId = exchange.ItemId,
-                        SenderAvatar = "hippo-exchange-logo.png",
-                        Dismissed = false
-                    };
-
-                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
-                    _logger.LogInformation($"Sent return reminder notification to user {exchange.BorrowerId} for item {item.Title}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking for upcoming return dates");
-            }
-        }
-    }
+    
+        
+    
 
 }
