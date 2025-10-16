@@ -69,8 +69,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nameElement = document.getElementById('acct-name');
     const rankElement = document.getElementById('acct-rank');
     if (nameElement) {
-      // show the user's email as the primary account label
-      nameElement.textContent = user.email || user.username || user.name || 'User';
+      // Prefer first/last name over email
+      let displayName = 'User';
+      
+      // Try computed name first
+      if (user.name && String(user.name).trim()) {
+        displayName = String(user.name).trim();
+      } else {
+        // Try to compose from first/last name
+        const fn = (user.firstName || user.FirstName || '') || '';
+        const ln = (user.lastName || user.LastName || '') || '';
+        const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
+        if (parts.length > 0) {
+          displayName = parts.join(' ');
+        } else {
+          // Fall back to email only if no name is available
+          displayName = user.email || user.username || 'User';
+        }
+      }
+      
+      nameElement.textContent = displayName;
     }
     if (rankElement) {
       // always show the literal 'Member' as requested
@@ -150,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('resize', () => { if (window.innerWidth >= 768) closeMobileMenu(); });
 
   // ---- State ----
-  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent'
+  let activeFilter = 'all';        // 'all' | 'unread' | 'starred' | 'sent' | 'archived'
   let selectedThread = null;       // thread object - currently open thread
   let searchQuery = '';
   let threads = [];                // loaded from backend
@@ -190,16 +208,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
+      console.log('🔍 Fetching user name for ID:', userId);
+      
       // Get user info from the users endpoint
       const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
 
       if (response.ok) {
         const user = await response.json();
+        console.log('📋 User data received:', user);
 
         // Prefer explicit display name if provided
         if (user && typeof user === 'object') {
+          // First try the computed name field
           if (user.name && String(user.name).trim()) {
             const n = String(user.name).trim();
+            console.log('✅ Using computed name:', n);
             userNamesCache.set(userId, n);
             return n;
           }
@@ -210,72 +233,81 @@ document.addEventListener('DOMContentLoaded', async () => {
           const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
           if (parts.length > 0) {
             const full = parts.join(' ');
+            console.log('✅ Using first/last name:', full);
             userNamesCache.set(userId, full);
             return full;
           }
 
-          // Fall back to email
+          // Fall back to email only if no name is available
           if (user.email) {
             const e = String(user.email).trim();
+            console.log('⚠️ Falling back to email:', e);
             userNamesCache.set(userId, e);
             return e;
           }
         }
 
         // Final fallback
+        console.log('⚠️ No user data available, using generic name');
         userNamesCache.set(userId, 'User');
         return 'User';
+      } else {
+        console.warn('⚠️ Failed to fetch user data:', response.status, response.statusText);
       }
     } catch (error) {
-      console.log('Could not fetch user name:', error);
+      console.error('❌ Error fetching user name:', error);
     }
 
     // Fallback to showing user ID
     const fallbackName = `User ${userId.substring(0, 8)}...`;
+    console.log('⚠️ Using fallback name:', fallbackName);
     userNamesCache.set(userId, fallbackName);
     return fallbackName;
   }
 
   // returns a title for the thread (subject or recipient name)
   async function threadTitle(t) {
-      // Prefer 'Requester Name - Item Title' where possible
-      const subjectFromThread = t.subject || '';
-      let listingTitle = '';
-      const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
-      if (match && match[1]) listingTitle = match[1].trim();
+    // Prefer 'Requester Name - Item Title' where possible
+    const subjectFromThread = t.subject || '';
+    let listingTitle = '';
+    const match = subjectFromThread.match(/Item Request:\s*(.*)/i) || subjectFromThread.match(/Item Request\s*-\s*(.*)/i);
+    if (match && match[1]) listingTitle = match[1].trim();
 
-      try {
-        // Try to load earliest message and use its sender as requester
-        const msgs = await loadMessages(t.id);
-        if (Array.isArray(msgs) && msgs.length > 0) {
-          const first = msgs[0];
-          if (first && first.senderId) {
-            const requester = await getUserName(first.senderId);
-            if (requester && listingTitle) return `${requester} - ${listingTitle}`;
-            if (requester) return requester;
-          }
+    try {
+      // Try to load earliest message and use its sender as requester
+      const msgs = await loadMessages(t.id);
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        const first = msgs[0];
+        if (first && first.senderId) {
+          const requester = await getUserName(first.senderId);
+          if (requester && listingTitle) return `${requester} - ${listingTitle}`;
+          if (requester) return requester;
         }
-      } catch (e) {
-        // ignore and fall back
       }
+    } catch (e) {
+      // ignore and fall back
+    }
 
-      // Fallback to other participant name
-      const participants = t.participants || t.Participants || [];
-      const otherParticipantId = participants.find(p => p !== me.id);
-      if (otherParticipantId) {
-        const other = await getUserName(otherParticipantId);
-        if (other && listingTitle) return `${other} - ${listingTitle}`;
-        if (other) return other;
-      }
+    // Fallback to other participant name
+    const participants = t.participants || t.Participants || [];
+    const otherParticipantId = participants.find(p => p !== me.id);
+    if (otherParticipantId) {
+      const other = await getUserName(otherParticipantId);
+      if (other && listingTitle) return `${other} - ${listingTitle}`;
+      if (other) return other;
+    }
 
-      if (subjectFromThread) return subjectFromThread;
-      return 'Conversation';
+    if (subjectFromThread) return subjectFromThread;
+    return 'Conversation';
   }
 
   // ---- Backend calls ----
 
   async function loadThreads() {
-    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=all`);
+    // When viewing the archived tab, request archived threads from the server if supported.
+    const serverFilter = activeFilter === 'archived' ? 'archived' : 'all';
+    const data = await api(`/messages/threads?userId=${encodeURIComponent(me.id)}&filter=${encodeURIComponent(serverFilter)}`);
+    console.debug('Loaded threads from API for user', me.id, data);
     threads = data.map(x => ({ id: x.id || x.Id, ...x }));
     await renderThreads();
   }
@@ -288,8 +320,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!resp) msgs = [];
     else if (Array.isArray(resp)) msgs = resp;
     else msgs = resp.messages || resp.Messages || [];
-    messagesCache.set(threadId, msgs);
-    return msgs;
+    console.debug('Raw messages response for thread', threadId, msgs);
+    // Normalize message objects to predictable lowercase keys the client expects
+    const norm = msgs.map(m => ({
+      id: m.id || m.Id || m.ID || '',
+      senderId: m.senderId || m.SenderId || m.SENDERID || '',
+      body: (m.body || m.Body || '') + '',
+      sentUtc: m.sentUtc || m.SentUtc || m.SENTUTC || ''
+    }));
+    console.debug('Normalized messages for thread', threadId, norm);
+    messagesCache.set(threadId, norm);
+    return norm;
   }
 
   async function markThreadRead(threadId) {
@@ -333,6 +374,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Rendering ----
   async function filterThreadsLocal(list) {
     let arr = [...list];
+    // If we are not in 'archived' view, filter out threads archived by current user
+    if (activeFilter !== 'archived') {
+      arr = arr.filter(t => !(t.archivedBy || t.ArchivedBy || []).includes(me.id));
+    } else {
+      // In archived view, only show threads archived by the current user
+      arr = arr.filter(t => (t.archivedBy || t.ArchivedBy || []).includes(me.id));
+    }
     // Filter type
     if (activeFilter === 'unread') arr = arr.filter(isUnread);
     else if (activeFilter === 'starred') arr = arr.filter(isStarred);
@@ -402,10 +450,67 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${escapeHtml(t.lastMessagePreview || '')}
               </p>
             </div>
+            <div class="flex items-start ml-2">
+              <!-- per-row archive/unarchive button -->
+              <button class="archive-btn text-slate-400 hover:text-slate-600 transition-colors" title="Archive/Unarchive">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10l2 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V9l2-2z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
       li.addEventListener('click', () => openThread(t));
+
+      // add archive/unarchive button handler per-row (use .archive-btn class instead of id)
+      (function (localThread, listItem) {
+        // look for an archive button inside the rendered item
+        const btn = listItem.querySelector('.archive-btn');
+        if (!btn) return;
+        btn.addEventListener('click', async (ev) => {
+          ev.stopPropagation();
+          try {
+            const isArchived = (localThread.archivedBy || localThread.ArchivedBy || []).includes(me.id);
+            const wantArchive = !isArchived; // toggle
+            
+            if (wantArchive) {
+              showArchiveModal(
+                'Archive Conversation',
+                'Are you sure you want to archive this conversation? You can view it later from the Archived view.',
+                'Archive',
+                async () => {
+                  await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
+                    method: 'POST',
+                    body: { userId: me.id, starred: wantArchive }
+                  });
+                  // archive: remove from current view
+                  threads = threads.filter(x => (x.id || x.Id) !== localThread.id);
+                  await renderThreads();
+                }
+              );
+            } else {
+              showArchiveModal(
+                'Unarchive Conversation',
+                'Are you sure you want to unarchive this conversation? It will return to your main inbox.',
+                'Unarchive',
+                async () => {
+                  await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
+                    method: 'POST',
+                    body: { userId: me.id, starred: wantArchive }
+                  });
+                  // unarchive: update thread and re-render
+                  localThread.archivedBy = (localThread.archivedBy || []).filter(x => x !== me.id);
+                  await renderThreads();
+                }
+              );
+            }
+          } catch (e) {
+            console.error('Failed to toggle archive state for thread', e);
+            alert('Failed to update archive state.');
+          }
+        });
+      })(t, li);
       messagesList.appendChild(li);
     }
   }
@@ -575,9 +680,108 @@ document.addEventListener('DOMContentLoaded', async () => {
     await toggleStar(selectedThread, !starred);
   });
 
+  // Custom modal functions
+  function showArchiveModal(title, message, confirmText, onConfirm) {
+    const modal = document.getElementById('archive-modal');
+    const modalTitle = document.getElementById('archive-modal-title');
+    const modalMessage = document.getElementById('archive-modal-message');
+    const confirmBtn = document.getElementById('archive-modal-confirm');
+    const cancelBtn = document.getElementById('archive-modal-cancel');
+    
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    confirmBtn.textContent = confirmText;
+    
+    // Remove existing event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    // Add new event listeners
+    newConfirmBtn.addEventListener('click', () => {
+      hideArchiveModal();
+      onConfirm();
+    });
+    
+    newCancelBtn.addEventListener('click', hideArchiveModal);
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
+    
+    // Focus on confirm button for accessibility
+    setTimeout(() => newConfirmBtn.focus(), 100);
+  }
+  
+  function hideArchiveModal() {
+    const modal = document.getElementById('archive-modal');
+    modal.classList.remove('show');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+  }
+  
+  // Close modal when clicking backdrop
+  document.getElementById('archive-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'archive-modal') {
+      hideArchiveModal();
+    }
+  });
+  
+  // Close modal with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('archive-modal').classList.contains('show')) {
+      hideArchiveModal();
+    }
+  });
+
   deleteBtn.addEventListener('click', () => {
-    // Delete conversation (not implemented) — keep placeholder for now
-    alert('Delete conversation is not implemented yet.');
+    // Archive the currently selected conversation (per-user). If none selected, show a helpful message.
+    if (!selectedThread) {
+      alert('Select a conversation to archive.');
+      return;
+    }
+
+    // If user is viewing Archived tab, this button should unarchive the selected thread
+    (async () => {
+      try {
+        const isArchived = (selectedThread.archivedBy || selectedThread.ArchivedBy || []).includes(me.id);
+        if (isArchived) {
+          showArchiveModal(
+            'Unarchive Conversation',
+            'Are you sure you want to unarchive this conversation? It will return to your main inbox.',
+            'Unarchive',
+            async () => {
+              await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+                method: 'POST',
+                body: { userId: me.id, starred: false }
+              });
+              // update local thread state and re-render
+              selectedThread.archivedBy = (selectedThread.archivedBy || []).filter(x => x !== me.id);
+              await loadThreads();
+              hideMessage();
+            }
+          );
+        } else {
+          showArchiveModal(
+            'Archive Conversation',
+            'Are you sure you want to archive this conversation? You can view it later from the Archived view.',
+            'Archive',
+            async () => {
+              await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+                method: 'POST',
+                body: { userId: me.id, starred: true }
+              });
+              threads = threads.filter(x => (x.id || x.Id) !== selectedThread.id);
+              hideMessage();
+              await renderThreads();
+            }
+          );
+        }
+      } catch (e) {
+        console.error('Failed to archive/unarchive conversation', e);
+        alert(e.message || 'Failed to update archive state.');
+      }
+    })();
   });
 
 
@@ -606,6 +810,85 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ---- URL Parameter Handling ----
+  function handleUrlParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUserId = urlParams.get('userId');
+    
+    if (targetUserId) {
+      console.log('🎯 URL parameter found - userId:', targetUserId);
+      // Find and open the conversation with this user
+      setTimeout(async () => {
+        await openConversationWithUser(targetUserId);
+      }, 1000); // Wait for threads to load
+    }
+  }
+  
+  async function openConversationWithUser(userId) {
+    console.log('🔍 Looking for conversation with user:', userId);
+    
+    // Find thread that includes this user
+    const targetThread = threads.find(thread => {
+      const participants = thread.participants || thread.Participants || [];
+      return participants.includes(userId);
+    });
+    
+    if (targetThread) {
+      console.log('✅ Found conversation thread:', targetThread.id);
+      await openThread(targetThread);
+    } else {
+      console.log('⚠️ No existing conversation found with user:', userId);
+      // Could potentially create a new conversation here if needed
+    }
+  }
+
   // ---- Initial load ----
   loadThreads().catch(err => console.error(err));
+  
+  // Handle URL parameters after initial load
+  handleUrlParameters();
+
+  // Auto-refresh functionality (5 seconds)
+  let autoRefreshInterval = null;
+  
+  function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+    }
+    
+    // Set up new interval for 60 seconds (1 minute)
+    autoRefreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing inbox threads...');
+      loadThreads();
+    }, 60000);
+    
+    console.log('✅ Auto-refresh started for inbox (60 seconds)');
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+      console.log('⏹️ Auto-refresh stopped for inbox');
+    }
+  }
+  
+  // Start auto-refresh when page becomes visible
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+    }
+  }
+  
+  // Start auto-refresh initially
+  startAutoRefresh();
+  
+  // Handle page visibility changes
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  // Clean up on page unload
+  window.addEventListener('beforeunload', stopAutoRefresh);
 });

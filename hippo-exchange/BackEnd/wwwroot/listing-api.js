@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check authentication and load user data FIRST
   await checkAuthAndLoadUser();
   console.log('Authentication check completed, currentUser:', currentUser);
-  
+
   // Now load and render the listing
   readListing()
     .then(render)
@@ -117,11 +117,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('🔍 item.imageUrl:', item.imageUrl);
       console.log('🔍 item.Videos (capital V):', item.Videos);
       console.log('🔍 item.videos (lowercase):', item.videos);
-      
+
       const images = item.Pictures || item.pictures || item.images || [];
       const videos = item.Videos || item.videos || [];
       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
-      
+
       console.log('🔍 Processed images array:', images);
       console.log('🔍 Processed videos array:', videos);
       console.log('🔍 Final imageUrl:', imageUrl);
@@ -207,7 +207,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🖼️ listing.videos:', listing.videos);
 
     $('listing-title').textContent = listing.title;
-    $('price').textContent = money(listing.price);
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
 
     const badge = $('badge');
@@ -373,17 +372,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('📋 Listing data for maintenance rendering:', listing);
     console.log('👤 Current user:', currentUser);
     console.log('🏠 Listing seller:', listing.seller);
-    
+
     // Get current user ID with multiple fallbacks
     const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
     const sellerId = listing.seller?.id || listing.seller?.Id;
-    
+
     console.log('🔍 Current user ID:', currentUserId);
     console.log('🔍 Seller ID:', sellerId);
-    
+
     const isOwner = currentUserId && sellerId && currentUserId === sellerId;
     console.log('🔍 Is owner check:', isOwner);
-    
+
     if (isOwner) {
       console.log('✅ User is owner, showing maintenance section');
       renderMaintenance(listing.maintenance || []);
@@ -398,17 +397,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function hideMaintenanceSection() {
     console.log('🔒 Hiding maintenance section for non-owners');
-    
+
     // Try multiple selectors to find the maintenance section
     let maintenanceSection = null;
-    
+
     // Method 1: Look for the specific heading
     const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
     if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
       maintenanceSection = maintenanceHeading.closest('.glass');
       console.log('📍 Found maintenance section via heading method');
     }
-    
+
     // Method 2: Look for the maintenance section by its content
     if (!maintenanceSection) {
       const allGlassSections = document.querySelectorAll('.glass');
@@ -420,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     }
-    
+
     if (maintenanceSection) {
       maintenanceSection.style.display = 'none';
       console.log('✅ Maintenance section hidden for non-owner');
@@ -434,13 +433,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Ensure maintenance section is visible for owners
     let maintenanceSection = null;
-    
+
     // Method 1: Look for the specific heading
     const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
     if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
       maintenanceSection = maintenanceHeading.closest('.glass');
     }
-    
+
     // Method 2: Look for the maintenance section by its content
     if (!maintenanceSection) {
       const allGlassSections = document.querySelectorAll('.glass');
@@ -451,7 +450,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     }
-    
+
     if (maintenanceSection) {
       maintenanceSection.style.display = 'block';
       console.log('✅ Maintenance section shown for owner');
@@ -714,10 +713,362 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Check for existing exchange request
+  async function checkExistingRequest(listing) {
+    if (!currentUser) {
+      console.log('No current user, cannot check existing requests');
+      return null;
+    }
+
+    const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
+    if (!currentUserId) {
+      console.log('No current user ID, cannot check existing requests');
+      return null;
+    }
+
+    try {
+      console.log('🔍 Checking for existing exchange requests for user:', currentUserId, 'and item:', listing.id);
+      
+      const response = await fetch(`${API_BASE_URL}/exchanges/borrower/${currentUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('hippo_token')}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ Failed to fetch user exchanges:', response.status);
+        return null;
+      }
+
+      const exchanges = await response.json();
+      console.log('📋 User exchanges:', exchanges);
+
+      // Find exchange for this specific item
+      const existingExchange = exchanges.find(exchange => 
+        exchange.itemId === listing.id || exchange.ItemId === listing.id
+      );
+
+      if (existingExchange) {
+        console.log('✅ Found existing exchange request:', existingExchange);
+        return existingExchange;
+      } else {
+        console.log('ℹ️ No existing exchange request found for this item');
+        return null;
+      }
+
+    } catch (error) {
+      console.error('❌ Error checking existing requests:', error);
+      return null;
+    }
+  }
+
+  // Update request button UI based on existing request status
+  function updateRequestButtonUI(requestBtn, existingRequest, listing) {
+    if (!requestBtn) return;
+
+    if (!existingRequest) {
+      // No existing request - show normal request button
+      requestBtn.disabled = false;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span class="font-medium">Request Item</span>
+        </div>
+      `;
+      requestBtn.className = 'btn-primary';
+      return;
+    }
+
+    // Determine the status of the existing request
+    const isApproved = existingRequest.approved === true || existingRequest.Approved === true;
+    const isDeclined = existingRequest.approved === false || existingRequest.Approved === false;
+    const isPending = !isApproved && !isDeclined;
+
+    if (isApproved) {
+      // Request was approved
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="font-medium">Request Approved</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-green-500 text-white border-green-500 cursor-not-allowed opacity-75';
+      
+      // Add success info panel
+      addRequestStatusPanel(listing, 'approved', existingRequest);
+      
+    } else if (isDeclined) {
+      // Request was declined
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+          <span class="font-medium">Request Declined</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-red-500 text-white border-red-500 cursor-not-allowed opacity-75';
+      
+      // Add declined info panel
+      addRequestStatusPanel(listing, 'declined', existingRequest);
+      
+    } else if (isPending) {
+      // Request is pending
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="font-medium">Request Pending</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-yellow-500 text-white border-yellow-500 cursor-not-allowed opacity-75';
+      
+      // Add pending info panel
+      addRequestStatusPanel(listing, 'pending', existingRequest);
+    }
+  }
+
+  // Add request status information panel
+  function addRequestStatusPanel(listing, status, exchange) {
+    // Remove existing status panel if any
+    const existingPanel = document.getElementById('request-status-panel');
+    if (existingPanel) {
+      existingPanel.remove();
+    }
+
+    // Create status info panel
+    const statusPanel = document.createElement('div');
+    statusPanel.id = 'request-status-panel';
+    
+    let panelClass, iconClass, iconPath, title, message, additionalInfo;
+    
+    switch (status) {
+      case 'approved':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-green-500 bg-green-50/50';
+        iconClass = 'w-8 h-8 bg-green-100 rounded-full flex items-center justify-center';
+        iconPath = 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
+        title = 'Request Approved!';
+        message = `Your request to borrow "${listing.title}" has been approved by ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-green-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <span>Check your exchanges for pickup details</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>Message the owner to coordinate pickup</span>
+            </div>
+          </div>
+        `;
+        break;
+        
+      case 'declined':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-red-500 bg-red-50/50';
+        iconClass = 'w-8 h-8 bg-red-100 rounded-full flex items-center justify-center';
+        iconPath = 'M6 18L18 6M6 6l12 12';
+        title = 'Request Declined';
+        message = `Your request to borrow "${listing.title}" was declined by ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-red-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>You can browse other similar items</span>
+            </div>
+          </div>
+        `;
+        break;
+        
+      case 'pending':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-yellow-500 bg-yellow-50/50';
+        iconClass = 'w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center';
+        iconPath = 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z';
+        title = 'Request Pending';
+        message = `Your request to borrow "${listing.title}" is pending approval from ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-yellow-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>Check your exchanges for updates</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              <span>You can message the owner to discuss details</span>
+            </div>
+          </div>
+        `;
+        break;
+    }
+
+    statusPanel.className = panelClass;
+    statusPanel.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0">
+          <div class="${iconClass}">
+            <svg class="w-4 h-4 text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"/>
+            </svg>
+          </div>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-semibold text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-800 text-sm mb-1">${title}</h4>
+          <p class="text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-700 text-xs mb-2">${message}</p>
+          ${additionalInfo}
+        </div>
+      </div>
+    `;
+
+    // Add to the user controls section
+    const userControls = document.getElementById('user-controls');
+    if (userControls) {
+      userControls.appendChild(statusPanel);
+
+      // Animate in
+      statusPanel.style.opacity = '0';
+      statusPanel.style.transform = 'translateY(10px)';
+      statusPanel.style.transition = 'all 0.3s ease-out';
+
+      setTimeout(() => {
+        statusPanel.style.opacity = '1';
+        statusPanel.style.transform = 'translateY(0)';
+      }, 100);
+    }
+  }
+
   // Request Item Function
   async function requestItem(listing) {
     console.log('Requesting item:', listing.id);
     console.log('Current user at request time:', currentUser);
+    
+    // Show date selection modal instead of directly requesting
+    showDateSelectionModal(listing);
+  }
+
+  // Show Date Selection Modal
+  async function showDateSelectionModal(listing) {
+    const modal = document.getElementById('date-selection-modal');
+    const startDateInput = document.getElementById('start-date-input');
+    const endDateInput = document.getElementById('end-date-input');
+    const scheduledPeriodsContainer = document.getElementById('scheduled-periods');
+    
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    startDateInput.min = today;
+    endDateInput.min = today;
+    
+    // Set default start date to today and end date to 7 days from now
+    startDateInput.value = today;
+    const defaultEndDate = new Date();
+    defaultEndDate.setDate(defaultEndDate.getDate() + 7);
+    endDateInput.value = defaultEndDate.toISOString().split('T')[0];
+    
+    // Fetch and display existing scheduled periods
+    try {
+      const response = await fetch(`${API_BASE_URL}/items/${listing.id}/scheduled-periods`);
+      if (response.ok) {
+        const scheduledPeriods = await response.json();
+        if (scheduledPeriods.length > 0) {
+          scheduledPeriodsContainer.innerHTML = `
+            <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h4 class="text-sm font-semibold text-yellow-800 mb-2">⚠️ Already Scheduled Periods:</h4>
+              <div class="space-y-1">
+                ${scheduledPeriods.map(period => `
+                  <div class="text-xs text-yellow-700">
+                    ${new Date(period.startDate).toLocaleDateString()} - ${new Date(period.endDate).toLocaleDateString()}
+                  </div>
+                `).join('')}
+              </div>
+              <p class="text-xs text-yellow-600 mt-2">Please choose dates that don't overlap with these periods.</p>
+            </div>
+          `;
+        } else {
+          scheduledPeriodsContainer.innerHTML = '';
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching scheduled periods:', error);
+      scheduledPeriodsContainer.innerHTML = '';
+    }
+    
+    // Update end date minimum when start date changes
+    startDateInput.addEventListener('change', function() {
+      if (this.value) {
+        endDateInput.min = this.value;
+        // If end date is before start date, update it
+        if (endDateInput.value && endDateInput.value < this.value) {
+          endDateInput.value = this.value;
+        }
+      }
+    });
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle confirm button
+    const confirmBtn = document.getElementById('confirm-date-selection');
+    confirmBtn.onclick = () => {
+      const startDate = startDateInput.value;
+      const endDate = endDateInput.value;
+      
+      if (!startDate || !endDate) {
+        alert('Please select both start and end dates.');
+        return;
+      }
+      
+      if (new Date(endDate) <= new Date(startDate)) {
+        alert('End date must be after start date.');
+        return;
+      }
+      
+      // Close modal and proceed with request
+      modal.classList.remove('active');
+      proceedWithRequest(listing, startDate, endDate);
+    };
+    
+    // Handle cancel button
+    const cancelBtn = document.getElementById('cancel-date-selection');
+    const closeBtn = document.getElementById('close-date-selection');
+    
+    const closeModal = () => modal.classList.remove('active');
+    cancelBtn.onclick = closeModal;
+    closeBtn.onclick = closeModal;
+    
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+  }
+
+  // Proceed with request after date selection
+  async function proceedWithRequest(listing, startDate, endDate) {
+    console.log('Proceeding with request for dates:', startDate, 'to', endDate);
+
+    // Check for existing request first
+    const existingRequest = await checkExistingRequest(listing);
+    if (existingRequest) {
+      console.log('⚠️ User already has a request for this item:', existingRequest);
+      showToast('You have already requested this item. Check your exchanges for the status.', 'warning');
+      return;
+    }
 
     // Check if user is authenticated
     if (!currentUser) {
@@ -775,7 +1126,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const requestData = {
         ownerId: listing.seller.id,
         borrowerId: currentUserId,
-        itemId: listing.id
+        itemId: listing.id,
+        startDate: startDate,
+        endDate: endDate
       };
 
       console.log('Sending request data:', requestData);
@@ -1013,9 +1366,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? `${requester.FirstName} ${requester.LastName}`
         : requester?.email || 'Someone';
 
-      // Prepare thread data
+      // Prepare thread data (include itemId so backend will create the thread)
       const threadData = {
         participantIds: [requester?.Id || requester?.id || requester?.userId, listing.seller.id],
+        itemId: listing.id,
         subject: `Item Request: ${listing.title}`
       };
 
@@ -1100,6 +1454,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function addInteractivity(listing) {
     const requestBtn = $('request-item-btn');
+    
+    // Check for existing exchange requests and update UI accordingly
+    checkExistingRequest(listing).then(existingRequest => {
+      updateRequestButtonUI(requestBtn, existingRequest, listing);
+    });
+    
     requestBtn?.addEventListener('click', async () => {
       await requestItem(listing);
     });
@@ -1167,6 +1527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       signOut();
     });
   }
+
 
 });
 
@@ -1265,16 +1626,21 @@ function displayUserInfo(user) {
     displayName = email;
   }
 
-  console.log('Computed display name:', displayName);
 
   // Update the account name display in sidebar
   const accountNameElement = document.getElementById('acct-name');
-  console.log('Account name element found:', !!accountNameElement);
   if (accountNameElement) {
     accountNameElement.textContent = displayName;
     console.log('Set account name to:', displayName);
   } else {
     console.error('Account name element not found!');
+  }
+
+  const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
   }
 }
 

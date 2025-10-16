@@ -1,5 +1,10 @@
 // home.js — Backend API powered grid
 document.addEventListener('DOMContentLoaded', () => {
+  // Only run on Home.html page
+  if (!window.location.pathname.includes('Home.html')) {
+    return;
+  }
+  
   console.log('Home page loaded, starting authentication check...');
   // Check authentication and load user data
   checkAuthAndLoadUser();
@@ -217,7 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="badge absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded-full">Just listed</span>
         </div>
         <div class="p-4">
-          <h3 class="price text-lg font-semibold text-slate-900"></h3>
           <p class="title text-slate-700 text-sm"></p>
           <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
         </div>`;
@@ -225,7 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     el.dataset.id = min.id;
     const img = el.querySelector('.card-img');
-    const price = el.querySelector('.price');
     const title = el.querySelector('.title');
     const loc = el.querySelector('[data-field="location"]');
     const badge = el.querySelector('.badge');
@@ -233,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = min.imageUrl || PLACEHOLDER_IMG;
     img.alt = min.title ? `${min.title} photo` : 'Listing image';
 
-    price.textContent = formatPrice(min.price);
     title.textContent = min.title;
     loc.textContent = min.locationLabel || (min.ships ? 'Ships to you' : '');
 
@@ -248,6 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function render(items) {
+    // Check if grid exists before proceeding
+    if (!grid) {
+      console.error('Grid element not found');
+      return;
+    }
+    
     // Clear all item cards but preserve load more button
     const loadMoreBtn = document.getElementById('load-more-btn');
     const children = Array.from(grid.children);
@@ -390,10 +398,83 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Check if an item is currently loaned out
+  async function isItemLoanedOut(itemId, ownerId) {
+    try {
+      console.log('🔍 Checking if item is loaned out:', itemId, 'for owner:', ownerId);
+      
+      if (!ownerId) {
+        console.log('⚠️ No owner ID provided, assuming item is available');
+        return false;
+      }
+      
+      // Get all exchanges for this item's owner
+      const response = await fetch(`/exchanges/owner/${ownerId}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ Failed to fetch exchanges for owner:', response.status);
+        return false;
+      }
+
+      const exchanges = await response.json();
+      const now = new Date();
+      
+      // Check if there's an approved exchange for this item that's currently active
+      const activeExchange = exchanges.find(exchange => {
+        const isApproved = exchange.approved === true || exchange.Approved === true;
+        const isForThisItem = exchange.itemID === itemId || exchange.itemId === itemId;
+        
+        if (!isApproved || !isForThisItem) {
+          return false;
+        }
+        
+        // Check if the exchange is currently active (between start and end dates)
+        const startDate = new Date(exchange.startDate);
+        const endDate = new Date(exchange.endDate);
+        
+        return now >= startDate && now <= endDate;
+      });
+
+      if (activeExchange) {
+        console.log('🚫 Item is currently loaned out:', itemId, activeExchange);
+        return true;
+      }
+
+      console.log('✅ Item is available:', itemId);
+      return false;
+
+    } catch (error) {
+      console.error('❌ Error checking if item is loaned out:', error);
+      return false; // Default to showing the item if we can't check
+    }
+  }
+
+  // Filter out loaned out items from the listings
+  async function filterLoanedOutItems(items) {
+    console.log('🔍 Filtering out loaned out items from', items.length, 'items');
+    
+    const availableItems = [];
+    
+    for (const item of items) {
+      const ownerId = item.userId || item.ownerId;
+      const isLoanedOut = await isItemLoanedOut(item.id, ownerId);
+      if (!isLoanedOut) {
+        availableItems.push(item);
+      }
+    }
+    
+    console.log(`✅ Filtered to ${availableItems.length} available items (removed ${items.length - availableItems.length} loaned out items)`);
+    return availableItems;
+  }
+
   async function load(loadMore = false) {
     try {
       if (!loadMore) {
-        grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        if (grid) {
+          grid.innerHTML = '<div class="col-span-full text-center text-slate-600 py-8">Loading listings...</div>';
+        }
         allListings = [];
         paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
       }
@@ -409,13 +490,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
       
+      let rawItems = [];
       // Handle new pagination response format
       if (data.items && Array.isArray(data.items)) {
-        if (loadMore) {
-          allListings = [...allListings, ...data.items];
-        } else {
-          allListings = data.items;
-        }
+        rawItems = data.items;
         paginationInfo = {
           totalCount: data.totalCount || 0,
           limit: data.limit || 100,
@@ -424,30 +502,30 @@ document.addEventListener('DOMContentLoaded', () => {
         };
       } else {
         // Fallback for old format
-        allListings = Array.isArray(data) ? data : [];
+        rawItems = Array.isArray(data) ? data : [];
         paginationInfo.hasMore = false;
       }
 
-      console.log(`Loaded ${allListings.length} listings from backend (${paginationInfo.totalCount} total)`);
+      console.log(`Loaded ${rawItems.length} raw listings from backend (${paginationInfo.totalCount} total)`);
+      
+      // Filter out loaned out items
+      const availableItems = await filterLoanedOutItems(rawItems);
+      
+      if (loadMore) {
+        allListings = [...allListings, ...availableItems];
+      } else {
+        allListings = availableItems;
+      }
+
+      console.log(`Final listings after filtering: ${allListings.length} available items`);
       render(allListings);
       updateLoadMoreButton();
 
     } catch (err) {
       console.error('Failed to load listings from API:', err);
 
-      try {
-        const res = await fetch('listings.json');
-        if (res.ok) {
-          const data = await res.json();
-          allListings = Array.isArray(data) ? data : (data.items || []);
-          console.log('Using fallback listings.json');
-          render(allListings);
-          updateLoadMoreButton();
-          return;
-        }
-      } catch (fallbackErr) {
-        console.error('Fallback failed:', fallbackErr);
-      }
+      // No fallback file available
+      console.log('No fallback data available');
 
       allListings = [{
         id: 'sample1',
@@ -475,6 +553,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   load();
+
+  // Auto-refresh functionality (5 seconds)
+  let autoRefreshInterval = null;
+  
+  function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+    }
+    
+    // Set up new interval for 60 seconds (1 minute)
+    autoRefreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing home page listings...');
+      load();
+    }, 60000);
+    
+    console.log('✅ Auto-refresh started for home page (60 seconds)');
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+      console.log('⏹️ Auto-refresh stopped for home page');
+    }
+  }
+  
+  // Start auto-refresh when page becomes visible
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+    }
+  }
+  
+  // Start auto-refresh initially
+  startAutoRefresh();
+  
+  // Handle page visibility changes
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  // Clean up on page unload
+  window.addEventListener('beforeunload', stopAutoRefresh);
 });
 
 // Authentication and user data functions
@@ -554,6 +676,13 @@ function displayUserInfo(user) {
     }
   } else {
     console.error('Account name element not found!');
+  }
+
+  const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
   }
 }
 
