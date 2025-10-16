@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar View - Hippo Exchange</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'hippo-blue': '#3B82F6',
+            'hippo-purple': '#8B5CF6',
+            'hippo-pink': '#EC4899'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .category-filter {
+      @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer;
+    }
+    .category-filter.active {
+      @apply bg-blue-500 text-white shadow-md;
+    }
+    .calendar-day {
+      @apply transition-all duration-300;
+    }
+    .calendar-day.hidden {
+      @apply opacity-30 scale-95;
+    }
+    .event-badge {
+      @apply transition-all duration-200;
+    }
+    .event-badge.hidden {
+      @apply opacity-0 scale-0;
+    }
+  </style>
+</head>
+
+<body class="relative min-h-screen overflow-hidden">
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+
+  <div id="sidebar-backdrop" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-20 hidden md:hidden"></div>
+
+  <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
+    <!-- Mobile hamburger -->
+    <div class="md:hidden fixed top-4 left-4 z-50">
+      <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+        aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar"
+      class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300"
+      aria-label="Primary">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div
+            class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
+          </div>
+          <h1 class="text-lg font-bold">Hippo Exchange</h1>
+        </div>
+        <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="relative">
+        <input id="search-input" type="text" placeholder="Search for items"
+          class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500"
+          aria-label="Search for items">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+      <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
+        <ul class="space-y-2">
+          <li><a href="./Home.html" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a>
+          </li>
+          <li><a href="./notifications.html" class="nav-link"><span
+                class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Messaging</span></a></li>
+          <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
+          <li>
+            <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
+          <li>
+            <a href="./calendar.html" class="btn-primary w-full block text-center">📅 Calendar view</a>
+          </li>
+        </ul>
+      </nav>
+
+      <section class="mt-auto pt-4" aria-label="Account">
+        <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
+        <div class="glass p-3 rounded-lg">
+          <div class="flex items-center gap-3">
+            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar"
+              class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <div class="min-w-0">
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
+            </div>
+          </div>
+          <!-- Balance removed per UX request -->
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <a href="./profile.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign
+              out</a>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-hidden">
+      <div class="h-full flex flex-col">
+        <!-- Header -->
+        <header class="bg-gradient-to-br from-slate-50 to-slate-100 border-b border-slate-200 p-6">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="p-3 bg-white rounded-2xl shadow-lg">
+                <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <div>
+                <h1 class="text-3xl font-bold text-slate-800">Calendar View</h1>
+                <p class="text-slate-600 text-sm mt-1">Track your item returns and maintenance schedules</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <!-- Month Navigation -->
+              <div class="flex items-center gap-2 bg-white rounded-2xl p-2 border border-slate-200 shadow-lg">
+                <button id="prev-month" class="p-3 rounded-xl bg-white hover:bg-slate-50 transition-all duration-200 shadow-sm hover:shadow-md">
+                  <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <h2 id="current-month" class="text-xl font-bold text-slate-800 min-w-[200px] text-center">
+                  January 2024
+                </h2>
+                <button id="next-month" class="p-3 rounded-xl bg-white hover:bg-slate-50 transition-all duration-200 shadow-sm hover:shadow-md">
+                  <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+              <!-- Today Button -->
+              <button id="today-btn" class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Today
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Calendar Content -->
+        <div class="flex-1 overflow-hidden p-6">
+          <div class="h-full flex flex-col">
+            <!-- Filter Section -->
+            <div class="glass p-4 mb-6 rounded-xl">
+              <div class="flex items-center gap-3 mb-4">
+                <h3 class="text-lg font-semibold text-slate-800">Filter by category</h3>
+                <span id="event-count" class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">0 events</span>
+                <button id="refresh-data" class="ml-auto px-3 py-1 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800 transition-all duration-200 flex items-center gap-1 rounded-full text-sm font-medium">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+              
+                <!-- Filter Tags -->
+                <div class="flex flex-wrap gap-3">
+                  <button class="category-filter active px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md flex items-center gap-2" data-filter="all">
+                    <div class="w-3 h-3 rounded-full bg-gradient-to-r from-blue-400 to-purple-400"></div>
+                    All Events
+                  </button>
+                  <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800 flex items-center gap-2" data-filter="borrowed-return">
+                    <div class="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-blue-600"></div>
+                    Borrowed Return
+                  </button>
+                  <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-green-100 hover:text-green-800 flex items-center gap-2" data-filter="loaned-return">
+                    <div class="w-3 h-3 rounded-full bg-gradient-to-r from-green-500 to-green-600"></div>
+                    Loaned Return
+                  </button>
+                  <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800 flex items-center gap-2" data-filter="required-maintenance">
+                    <div class="w-3 h-3 rounded-full bg-gradient-to-r from-orange-500 to-orange-600"></div>
+                    Required Maintenance
+                  </button>
+                </div>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="flex-1 overflow-auto">
+              <div class="calendar-container bg-gradient-to-br from-white via-slate-50 to-blue-50 rounded-3xl p-8 shadow-2xl border border-slate-200 relative backdrop-blur-sm">
+                <!-- Loading State -->
+                <div id="calendar-loading" class="absolute inset-0 bg-gradient-to-br from-white to-slate-50 rounded-2xl flex items-center justify-center z-10">
+                  <div class="text-center">
+                    <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-6"></div>
+                    <p class="text-slate-600 font-semibold text-lg">Loading calendar data...</p>
+                  </div>
+                </div>
+                
+                <!-- Calendar will be generated by JavaScript -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-3 min-h-[500px]">
+                  <!-- Calendar days will be populated here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Event Details Modal -->
+  <div id="event-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-300 scale-95 opacity-0 border border-slate-200" id="event-modal-content">
+      <div class="p-8">
+        <div class="flex items-center justify-between mb-8">
+          <h3 id="event-title" class="text-3xl font-bold text-slate-800 flex items-center gap-4">
+            <div class="p-3 bg-white rounded-2xl shadow-lg">
+              <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            Event Details
+          </h3>
+          <button id="close-event-modal" class="text-slate-400 hover:text-slate-600 transition-all duration-200 p-3 hover:bg-slate-100 rounded-2xl shadow-sm hover:shadow-md">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div id="event-details" class="space-y-6">
+          <!-- Event details will be populated here -->
+        </div>
+        <div class="mt-10 flex justify-end">
+          <button id="close-event-modal-btn" class="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl text-lg font-semibold shadow-xl hover:shadow-2xl transition-all duration-200 hover:scale-105 flex items-center gap-3">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="calendar.js"></script>
+</body>
+
+</html>

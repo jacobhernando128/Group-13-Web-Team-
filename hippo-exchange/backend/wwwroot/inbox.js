@@ -178,7 +178,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---- Utils ----
   function fmtDate(val) {
     const d = new Date(val);
-    return d.toLocaleString();
+    const now = new Date();
+    const diffTime = Math.abs(now - d);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffYears = Math.floor(diffDays / 365);
+    
+    if (diffDays <= 1) {
+      // Show time for today's messages
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffYears >= 1) {
+      // Show year for messages older than a year
+      return d.toLocaleDateString([], { year: 'numeric' });
+    } else {
+      // Show date for messages older than a day but less than a year
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
   }
   function escapeHtml(s = '') {
     return s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

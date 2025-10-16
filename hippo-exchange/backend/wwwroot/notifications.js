@@ -103,7 +103,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // ===== CONFIGURATION =====
-    const API_BASE_URL = 'http://localhost:5000';
+    const API_BASE_URL = 'http://35.209.4.180:5000';
     
     // ===== GLOBAL NOTIFICATIONS INTEGRATION =====
     // Clear notification badge when user visits notifications page

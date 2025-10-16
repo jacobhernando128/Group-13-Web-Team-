@@ -7,7 +7,7 @@ let lastSaveTime = 0; // Cooldown tracking
 const SAVE_COOLDOWN_MS = 5000; // 5 seconds cooldown
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const API_BASE_URL = 'http://localhost:5000';
+    const API_BASE_URL = 'http://35.209.4.180:5000';
 
     console.log('Profile page loaded, starting authentication check...');
 
@@ -474,26 +474,10 @@ async function displayReviews(reviews) {
             <div>
                 <div class="flex items-center gap-3 mb-2">
                     <p class="font-semibold text-slate-800 text-sm">${escapeHtml(reviewerName)}</p>
-                    <div class="relative w-10 h-10 flex-shrink-0" style="filter: drop-shadow(0 1px 3px rgba(251, 191, 36, 0.1));">
-                        <svg viewBox="0 0 120 120" class="w-full h-full">
-                            <defs>
-                                <linearGradient id="starGradient-${uniqueId}" x1="0%" y1="0%" x2="0%" y2="100%">
-                                    <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
-                                    <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
-                                </linearGradient>
-                            </defs>
-                            <path d="M60 15 C60 15 62 20 65 30 C68 40 70 45 75 45 L90 45 C95 45 100 47 100 52 C100 57 95 62 88 68 L78 76 C73 80 72 85 74 92 L78 105 C80 110 78 115 73 115 C68 115 63 112 58 108 L48 100 C45 98 42 98 39 100 L29 108 C24 112 19 115 14 115 C9 115 7 110 9 105 L13 92 C15 85 14 80 9 76 L-1 68 C-8 62 -13 57 -13 52 C-13 47 -8 45 -3 45 L12 45 C17 45 19 40 22 30 C25 20 27 15 27 15 C27 10 32 8 37 8 L50 8 C55 8 60 10 60 15 Z" 
-                                  fill="#ffffff" 
-                                  stroke="url(#starGradient-${uniqueId})" 
-                                  stroke-width="5" 
-                                  stroke-linejoin="round"
-                                  stroke-linecap="round"
-                                  transform="translate(13, 0)"/>
-                        </svg>
-                        <div class="absolute inset-0 flex items-center justify-center" style="padding-top: 2px;">
-                            <span class="text-xs font-bold bg-gradient-to-b from-slate-700 to-slate-900 bg-clip-text text-transparent" style="letter-spacing: -0.02em;">${ratingText}</span>
-                        </div>
+                    <div class="flex items-center gap-1">
+                        ${generateStarRating(rating, 'sm')}
                     </div>
+                    <span class="text-slate-700 font-semibold text-sm">${ratingText}</span>
                     <span class="text-xs text-slate-500">· ${timeAgo}</span>
                 </div>
                 <p class="text-slate-700 text-sm leading-relaxed">${escapeHtml(description)}</p>
