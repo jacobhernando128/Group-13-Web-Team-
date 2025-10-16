@@ -3239,6 +3239,8 @@ namespace HippoExchange
 
         [FirestoreProperty("maintenanceHistory")] public List<DateTime> MaintenanceHistory { get; set; } = new();
 
+        [FirestoreProperty("nextMaintenanceDate")] public DateTime? NextMaintenanceDate { get; set; }
+
         [FirestoreProperty("lastMaintenanceDate")] public DateTime? LastMaintenanceDate { get; set; }
 
         [FirestoreProperty("type")] public string? Type { get; set; }
@@ -3383,7 +3385,8 @@ namespace HippoExchange
         string Description,
         int? Frequency,
         string? Type,
-        string? Category
+        string? Category,
+        DateTime? LastMaintenanceDate = null
     );
 
 
