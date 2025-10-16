@@ -11,6 +11,7 @@ class AssetHub {
         this.currentDeletingItem = null;
         this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
         this.autoRefreshInterval = null; // Auto-refresh interval
+        this.earlyReturnRequestInProgress = false; // Prevent duplicate early return requests
 
         this.init();
     }
@@ -581,6 +582,12 @@ class AssetHub {
                 // Fetch actual item details and owner names for each exchange
                 const borrowedItems = [];
                 for (const exchange of exchanges) {
+                    // Handle null/undefined exchanges
+                    if (!exchange) {
+                        console.warn('⚠️ Skipping null/undefined exchange');
+                        continue;
+                    }
+                    
                     try {
                         console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
                         const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
@@ -629,18 +636,18 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
+                                status: (exchange?.Approved === true || exchange?.approved === true) ? 'Approved' : ((exchange?.Approved === false || exchange?.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || exchange.approved || false
+                                approved: exchange?.Approved || exchange?.approved || false
                             };
                             
                             console.log('🔍 Creating borrowed item:', {
                                 title: borrowedItem.title,
                                 approved: borrowedItem.approved,
                                 status: borrowedItem.status,
-                                exchangeApproved: exchange.Approved,
-                                exchangeApprovedLower: exchange.approved,
+                                exchangeApproved: exchange?.Approved,
+                                exchangeApprovedLower: exchange?.approved,
                                 exchangeId: exchange.Id || exchange.id
                             });
                             
@@ -680,10 +687,10 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
+                                status: (exchange?.Approved === true || exchange?.approved === true) ? 'Approved' : ((exchange?.Approved === false || exchange?.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || exchange.approved || false
+                                approved: exchange?.Approved || exchange?.approved || false
                             });
                         }
                     } catch (itemError) {
@@ -721,10 +728,10 @@ class AssetHub {
                             ownerId: exchange.OwnerId || exchange.ownerId,
                             ownerName: ownerName,
                             borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                            status: exchange.Approved ? 'Approved' : 'Pending',
+                            status: exchange?.Approved ? 'Approved' : 'Pending',
                             startDate: exchange.StartDate || exchange.startDate,
                             endDate: exchange.EndDate || exchange.endDate,
-                            approved: exchange.Approved || exchange.approved || false
+                            approved: exchange?.Approved || exchange?.approved || false
                         });
                     }
                 }
@@ -886,8 +893,8 @@ class AssetHub {
                 exchanges.forEach((exchange, index) => {
                     console.log(`📋 Exchange ${index + 1}:`, {
                         id: exchange.Id || exchange.id,
-                        approved: exchange.Approved,
-                        approved_lower: exchange.approved,
+                        approved: exchange?.Approved,
+                        approved_lower: exchange?.approved,
                         ownerId: exchange.OwnerId || exchange.ownerId,
                         borrowerId: exchange.BorrowerId || exchange.borrowerId,
                         itemId: exchange.ItemId || exchange.itemId
@@ -896,7 +903,7 @@ class AssetHub {
 
                 // Filter for pending requests (not approved/declined)
                 const pendingExchanges = exchanges.filter(exchange => 
-                    !exchange.approved && !exchange.Approved
+                    !exchange?.approved && !exchange?.Approved
                 );
 
                 console.log('📋 Pending exchanges after filtering:', pendingExchanges);
@@ -999,7 +1006,7 @@ class AssetHub {
 
                 // Filter for approved exchanges (loaned out items)
                 const approvedExchanges = exchanges.filter(exchange => 
-                    (exchange.approved === true || exchange.Approved === true)
+                    (exchange?.approved === true || exchange?.Approved === true)
                 );
 
                 console.log('📋 Approved exchanges (loaned out):', approvedExchanges);
@@ -1042,6 +1049,28 @@ class AssetHub {
                                 console.warn('⚠️ Could not fetch borrower details for loaned item:', borrowerError);
                             }
 
+                            // Check for early return request notifications
+                            let hasEarlyReturnRequest = false;
+                            try {
+                                const notificationsResponse = await fetch(`http://35.209.4.180:5000/notifications/user/${this.currentUserId}`, {
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`,
+                                        'Accept': 'application/json'
+                                    }
+                                });
+
+                                if (notificationsResponse.ok) {
+                                    const notifications = await notificationsResponse.json();
+                                    hasEarlyReturnRequest = notifications.some(notification => 
+                                        notification.type === 'early_return_request' && 
+                                        !notification.dismissed &&
+                                        notification.listingId === (exchange.ItemId || exchange.itemId)
+                                    );
+                                }
+                            } catch (notificationError) {
+                                console.warn('⚠️ Could not check for early return requests:', notificationError);
+                            }
+
                             loanedItems.push({
                                 id: exchange.Id || exchange.id,
                                 exchangeId: exchange.Id || exchange.id,
@@ -1057,7 +1086,8 @@ class AssetHub {
                                 borrowerAvatar: borrowerAvatar,
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                requestCreated: exchange.RequestCreated || exchange.requestCreated
+                                requestCreated: exchange.RequestCreated || exchange.requestCreated,
+                                hasEarlyReturnRequest: hasEarlyReturnRequest
                             });
                         }
                     } catch (itemError) {
@@ -1260,7 +1290,14 @@ class AssetHub {
                 this.showSuccess(`Request ${action}d successfully!`);
                 
                 // Remove the request from the list
-                this.requestedItems = this.requestedItems.filter(req => req.id !== request.id);
+                console.log('🔍 Before filtering - requestedItems count:', this.requestedItems.length);
+                console.log('🔍 Request ID to remove:', request.id);
+                this.requestedItems = this.requestedItems.filter(req => {
+                    const shouldKeep = req.id !== request.id;
+                    console.log('🔍 Checking request:', req.id, 'vs', request.id, 'keep:', shouldKeep);
+                    return shouldKeep;
+                });
+                console.log('🔍 After filtering - requestedItems count:', this.requestedItems.length);
                 this.renderRequestedItems();
                 
                 // Always refresh borrowed items to update status for both approved and denied items
@@ -1301,6 +1338,12 @@ class AssetHub {
     }
 
     async handleEarlyReturnRequest(exchangeId) {
+        // Prevent multiple simultaneous requests
+        if (this.earlyReturnRequestInProgress) {
+            console.log('⚠️ Early return request already in progress, ignoring duplicate click');
+            return;
+        }
+
         const confirmed = await this.showConfirmation(
             'Request Early Return',
             'Are you sure you want to request early return for this item?'
@@ -1312,6 +1355,7 @@ class AssetHub {
         }
         
         console.log('✅ User confirmed the early return request, proceeding...');
+        this.earlyReturnRequestInProgress = true;
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -1319,7 +1363,7 @@ class AssetHub {
             console.log('📤 Requesting early return for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-early-return`, {
+            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/request-early-return`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1357,29 +1401,35 @@ class AssetHub {
             console.error('❌ Error requesting early return:', error);
             console.error('❌ Error details:', error.message);
             this.showError(`An error occurred while requesting early return: ${error.message}`);
+        } finally {
+            this.earlyReturnRequestInProgress = false;
         }
     }
 
-    async handleMarkAsReturned(exchangeId) {
+    // Note: handleMarkAsReturned method removed
+    // Borrowers can no longer mark items as returned directly
+    // They must request early returns, which owners must approve
+
+    async handleRequestItemBackEarly(exchangeId) {
         const confirmed = await this.showConfirmation(
-            'Mark as Returned',
-            'Are you sure you want to mark this item as returned? The owner will need to confirm receipt.'
+            'Request Item Back Early',
+            'Are you sure you want to request this item back early? This will send a message to the borrower.'
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled marking item as returned');
+            console.log('❌ User cancelled the request item back early');
             return;
         }
         
-        console.log('✅ User confirmed marking item as returned, proceeding...');
+        console.log('✅ User confirmed the request item back early, proceeding...');
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            console.log('📤 Marking item as returned for exchange:', exchangeId);
+            console.log('📤 Requesting item back early for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/mark-returned`, {
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-item-back-early`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1393,13 +1443,13 @@ class AssetHub {
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('✅ Item marked as returned successfully:', result);
+                console.log('✅ Request item back early sent successfully:', result);
                 
-                this.showSuccess('Item marked as returned! Waiting for owner confirmation.');
+                this.showSuccess('Request to get item back early sent successfully!');
                 
-                // Refresh the borrowed items to update the status
-                this.borrowedItems = await this.getBorrowedItems();
-                this.renderBorrowedItems();
+                // Refresh the loaned items to update the status
+                this.loanedItems = await this.getLoanedItems();
+                this.renderLoanedItems();
                 this.updateCounts();
                 
                 // Trigger global refresh for notifications and other pages
@@ -1411,12 +1461,12 @@ class AssetHub {
                 const errorText = await response.text();
                 console.error('❌ API Error Response:', errorText);
                 console.error('❌ Response Status:', response.status);
-                this.showError(`Failed to mark item as returned: ${errorText}`);
+                this.showError(`Failed to request item back early: ${errorText}`);
             }
         } catch (error) {
-            console.error('❌ Error marking item as returned:', error);
+            console.error('❌ Error requesting item back early:', error);
             console.error('❌ Error details:', error.message);
-            this.showError(`An error occurred while marking item as returned: ${error.message}`);
+            this.showError(`An error occurred while requesting item back early: ${error.message}`);
         }
     }
 
@@ -1489,6 +1539,7 @@ class AssetHub {
         }
     }
 
+
     async handleEarlyReturnAction(exchangeId, isApprove) {
         const action = isApprove ? 'approve' : 'decline';
         const confirmed = await this.showConfirmation(
@@ -1512,7 +1563,7 @@ class AssetHub {
             console.log('📤 Exchange ID:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/early-return`, {
+            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/early-return`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1696,7 +1747,7 @@ class AssetHub {
         }
 
         console.log('🔍 Creating card for item:', item.title, 'with type:', type);
-        
+
         if (type === 'owned') {
             console.log('🔍 Processing owned item:', item.title);
             // Hide cancel request button for owned items
@@ -1725,7 +1776,6 @@ class AssetHub {
                 const isPendingReturn = item.returnPendingConfirmation === true;
                 const canRequestEarlyReturn = isApproved && !isReturned && !isPendingReturn && 
                     item.endDate && new Date() < new Date(item.endDate);
-                const canMarkReturned = isApproved && !isReturned && !isPendingReturn;
                 
                 if (canRequestEarlyReturn) {
                     // Add early return request button
@@ -1748,26 +1798,9 @@ class AssetHub {
                     });
                 }
                 
-                if (canMarkReturned) {
-                    // Add mark as returned button
-                    const markReturnedBtn = document.createElement('button');
-                    markReturnedBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
-                    markReturnedBtn.innerHTML = `
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        Mark as Returned
-                    `;
-                    
-                    dropdownMenu.appendChild(markReturnedBtn);
-                    
-                    markReturnedBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (dropdownMenu) dropdownMenu.classList.remove('show');
-                        this.handleMarkAsReturned(item.exchangeId || item.id);
-                    });
-                }
+                // Note: Borrowers cannot mark items as returned directly
+                // They can only request early returns, which the owner must approve
+                // The owner will then confirm receipt when they actually receive the item
             }
         } else if (type === 'loaned') {
             // For loaned items, add early return approval buttons and return confirmation buttons
@@ -1786,6 +1819,9 @@ class AssetHub {
                 
                 // Check if there's a pending return confirmation
                 const isPendingReturn = item.returnPendingConfirmation === true;
+                
+                // Check if there's a pending early return request (stored in item data)
+                const hasEarlyReturnRequest = item.hasEarlyReturnRequest === true;
                 
                 if (isPendingReturn) {
                     // Add return confirmation buttons
@@ -1823,7 +1859,7 @@ class AssetHub {
                         if (dropdownMenu) dropdownMenu.classList.remove('show');
                         this.handleConfirmReturn(item.exchangeId || item.id, false);
                     });
-                } else {
+                } else if (hasEarlyReturnRequest) {
                     // Add early return approval buttons (for early return requests)
                     const earlyReturnApproveBtn = document.createElement('button');
                     earlyReturnApproveBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
@@ -1858,6 +1894,25 @@ class AssetHub {
                         e.stopPropagation();
                         if (dropdownMenu) dropdownMenu.classList.remove('show');
                         this.handleEarlyReturnAction(item.exchangeId || item.id, false);
+                    });
+                } else {
+                    // Add "Request Item Back Early" button for loaned out items
+                    const requestBackBtn = document.createElement('button');
+                    requestBackBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center';
+                    requestBackBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Request Item Back Early
+                    `;
+                    
+                    dropdownMenu.appendChild(requestBackBtn);
+                    
+                    requestBackBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleRequestItemBackEarly(item.exchangeId || item.id);
                     });
                 }
             }
