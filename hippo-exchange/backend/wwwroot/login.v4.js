@@ -232,6 +232,53 @@ console.log("login.js loaded at", location.href);
   };
   logoutBtn?.addEventListener("click", fullLogout);
 
+  /* Enforce Terms-of-Service agreement on registration */
+  (function () {
+    function init() {
+      const regForm   = document.getElementById('register-form');
+      if (!regForm) return; // nothing to do if the register form isn't on this view
+
+      const terms     = document.getElementById('terms');                  // the checkbox
+      const createBtn = document.getElementById('create-account-btn');     // the submit button
+      const msgBox    = document.getElementById('message-box');            // optional status area
+
+      // Keep the button disabled until the user agrees
+      const syncTerms = () => {
+        if (createBtn) createBtn.disabled = !(terms && terms.checked);
+      };
+      syncTerms();
+      terms?.addEventListener('change', syncTerms);
+
+      // Hard gate on submit (covers scripted submits/AJAX/etc.)
+      regForm.addEventListener('submit', (e) => {
+        if (!terms || !terms.checked) {
+          e.preventDefault();
+
+          if (msgBox) {
+            msgBox.textContent = 'Please agree to the Terms before creating an account.';
+            msgBox.className = 'mb-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200';
+          }
+          terms?.focus();
+          return false;
+        }
+
+        // Preserve any native validation you rely on
+        if (regForm.checkValidity && !regForm.checkValidity()) {
+          e.preventDefault();
+          regForm.reportValidity?.();
+          return false;
+        }
+      }, { passive: false });
+    }
+
+    // Run after DOM is ready (works whether script is in <head> or at the bottom)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+
   // ---- Init ----
   setAuthUI(false);
 })();

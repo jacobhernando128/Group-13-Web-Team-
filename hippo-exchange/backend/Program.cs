@@ -29,8 +29,7 @@ namespace HippoExchange
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenAnyIP(5000); 
-                                         
-                                        
+                                                             
             });
 
             // -------- Config --------
@@ -44,6 +43,8 @@ namespace HippoExchange
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
 
+            builder.Services.AddSingleton(StorageClient.Create());
+
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
                 ?? builder.Configuration["GoogleCloud:CredentialPath"];
@@ -55,9 +56,6 @@ namespace HippoExchange
                     "or GoogleCloud:CredentialPath to a valid service-account JSON file. " +
                     $"Current value: '{credPath ?? "<empty>"}'");
             }
-
-            // Set the credential path for Google Cloud libraries
-            Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", credPath);
 
             var googleCred = GoogleCredential.FromFile(credPath);
 
@@ -861,7 +859,7 @@ namespace HippoExchange
                 var activeAsOwner = ownerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return (exchange.Approved ?? false)
+                    return exchange.Approved == true
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -879,7 +877,7 @@ namespace HippoExchange
                 var activeAsBorrower = borrowerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return (exchange.Approved ?? false)
+                    return exchange.Approved == true
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -1051,7 +1049,7 @@ namespace HippoExchange
                     OwnerId = dto.OwnerId.Trim(),
                     BorrowerId = dto.BorrowerId.Trim(),
                     ItemId = dto.ItemId.Trim(),
-                    Approved = false,                    // defaults false per your model
+                    Approved = null,                    // defaults false per your model
                     RequestCreated = DateTime.UtcNow,    // auto timestamp (UTC)
                     StartDate = dto.StartDate.HasValue ? DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc) : null,
                     EndDate = dto.EndDate.HasValue ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc) : null,
@@ -1085,9 +1083,9 @@ namespace HippoExchange
                 var scheduledPeriods = exchanges.Documents
                     .Select(doc => doc.ConvertTo<Exchange>())
                     .Where(ex => ex.StartDate.HasValue && ex.EndDate.HasValue)
-                    .Select(ex => new { 
-                        startDate = ex.StartDate.Value, 
-                        endDate = ex.EndDate.Value,
+                    .Select(ex => new {
+                        startDate  = ex.StartDate.GetValueOrDefault(),  // ✅ removes CS8629
+                        endDate    = ex.EndDate.GetValueOrDefault(),    // ✅ removes CS8629
                         borrowerId = ex.BorrowerId
                     })
                     .OrderBy(p => p.startDate)
@@ -1096,84 +1094,86 @@ namespace HippoExchange
                 return Results.Ok(scheduledPeriods);
             });
 
+
+
             // PUT /exchanges/{id}/approval — approve/decline with server-side invariants
-            app.MapPut("/exchanges/{id}/approval", async ([FromServices] FirestoreDb db, string id, [FromBody] UpdateExchangeApprovalDto dto) =>
+            app.MapPut("/exchanges/{id}/approval", async (
+                [FromServices] FirestoreDb db,
+                string id,
+                [FromBody] UpdateExchangeApprovalDto dto) =>
             {
                 try
-            {
-                var doc = db.Collection("exchanges").Document(id);
-                var snap = await doc.GetSnapshotAsync();
-                if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
-
-                    // Try to convert the document to Exchange, with error handling
-                    Exchange exchange;
-                    try
-                    {
-                        exchange = snap.ConvertTo<Exchange>();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
-                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
-                    }
-                var nowUtc = DateTime.UtcNow;
-
-                var updates = new Dictionary<string, object>
                 {
-                    ["approved"] = dto.Approved,
-                    ["requestHandled"] = nowUtc
-                };
+                    var doc  = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                if (dto.Approved)
-                {
-                    // Validate dates
-                    if (dto.StartDate is null || dto.EndDate is null)
-                        return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+                    // Convert once so we can safely use properties below
+                    var exchange = snap.ConvertTo<Exchange>();
+                    if (exchange is null)
+                        return Results.BadRequest(new { error = "Invalid exchange payload." });
 
-                    var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
-                    var endUtc = DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc);
+                    // Require explicit decision
+                    if (dto.Approved is null)
+                        return Results.BadRequest(new { error = "approved is required (true or false)." });
 
-                    if (endUtc <= startUtc)
-                        return Results.BadRequest(new { error = "endDate must be after startDate." });
+                    var nowUtc   = DateTime.UtcNow;
+                    var approved = dto.Approved.Value;
 
-                    // Check for scheduling conflicts with other approved exchanges for the same item
-                    // Simplified query to avoid index requirements
-                    var allExchanges = await db.Collection("exchanges")
-                        .WhereEqualTo("itemID", exchange.ItemId)
-                        .GetSnapshotAsync();
-                        
-                    var existingExchanges = allExchanges.Documents
-                        .Select(doc => doc.ConvertTo<Exchange>())
-                        .Where(ex => (ex.Approved ?? false) && ex.Id != id);
-
-                    foreach (var existingExchange in existingExchanges)
+                    var updates = new Dictionary<string, object>
                     {
-                        if (existingExchange.StartDate.HasValue && existingExchange.EndDate.HasValue)
+                        ["approved"]       = approved,
+                        ["requestHandled"] = nowUtc
+                    };
+
+                    if (approved)
+                    {
+                        // Validate and set dates on approval
+                        if (dto.StartDate is null || dto.EndDate is null)
+                            return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+
+                        var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+                        var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
+
+                        if (endUtc <= startUtc)
+                            return Results.BadRequest(new { error = "endDate must be after startDate." });
+
+                        // Check scheduling conflicts for this item (simple in-memory filter)
+                        var allExchanges = await db.Collection("exchanges")
+                            .WhereEqualTo("itemID", exchange.ItemId)
+                            .GetSnapshotAsync();
+
+                        var conflict = allExchanges.Documents
+                            .Select(d => d.ConvertTo<Exchange>())
+                            .Where(ex => (ex.Approved ?? false) && ex.Id != id)
+                            .FirstOrDefault(ex =>
+                                ex.StartDate.HasValue && ex.EndDate.HasValue &&
+                                startUtc < ex.EndDate.Value && endUtc > ex.StartDate.Value);
+
+                        if (conflict != null)
                         {
-                            // Check for date overlap
-                            if ((startUtc < existingExchange.EndDate.Value && endUtc > existingExchange.StartDate.Value))
+                            return Results.BadRequest(new
                             {
-                                return Results.BadRequest(new { 
-                                    error = $"This item is already scheduled for the period {existingExchange.StartDate.Value:yyyy-MM-dd} to {existingExchange.EndDate.Value:yyyy-MM-dd}. Please choose a different time period." 
-                                });
-                            }
+                                error = $"This item is already scheduled for the period " +
+                                        $"{conflict.StartDate!.Value:yyyy-MM-dd} to {conflict.EndDate!.Value:yyyy-MM-dd}. " +
+                                        "Please choose a different time period."
+                            });
                         }
+
+                        updates["startDate"] = startUtc;
+                        updates["endDate"]   = endUtc;
+
+                        // Update user counters on approval
+                        await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
+                    }
+                    else
+                    {
+                        // Declined: clear dates
+                        updates["startDate"] = FieldValue.Delete;
+                        updates["endDate"]   = FieldValue.Delete;
                     }
 
-                    updates["startDate"] = startUtc;
-                    updates["endDate"] = endUtc;
-
-                    // Update user counters when approving
-                    await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
-                }
-                else
-                {
-                    // Declined: ensure dates are not set
-                    updates["startDate"] = FieldValue.Delete;
-                    updates["endDate"] = FieldValue.Delete;
-                }
-
-                await doc.UpdateAsync(updates);
+                    await doc.UpdateAsync(updates);
 
                 // Send a message to the borrower about the approval decision
                 try
@@ -1291,42 +1291,40 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Approve or decline an exchange";
-                op.Description = "Sets approved flag and requestHandled timestamp. If approved, requires and sets startDate/endDate. If declined, clears any dates.";
+                op.Description = "Sets 'approved' (true/false) and 'requestHandled'. If approved, requires startDate/endDate; if declined, clears dates. New exchanges default to approved = null.";
                 return op;
             });
 
-            // PUT /exchanges/{id}/early-return — approve early return request
-            app.MapPut("/exchanges/{id}/early-return", async ([FromServices] FirestoreDb db, string id, [FromBody] EarlyReturnApprovalDto dto) =>
+
+            // PUT /exchanges/{id}/early-return — approve/decline early return request
+            app.MapPut("/exchanges/{id}/early-return", async (
+                [FromServices] FirestoreDb db,
+                string id,
+                [FromBody] EarlyReturnApprovalDto dto) =>
             {
                 try
                 {
-                    var doc = db.Collection("exchanges").Document(id);
+                    var doc  = db.Collection("exchanges").Document(id);
                     var snap = await doc.GetSnapshotAsync();
                     if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                    Exchange exchange;
-                    try
-                    {
-                        exchange = snap.ConvertTo<Exchange>();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
-                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
-                    }
+                    var exchange = snap.ConvertTo<Exchange>();
+                    if (exchange is null)
+                        return Results.BadRequest(new { error = "Invalid exchange payload." });
 
                     var nowUtc = DateTime.UtcNow;
 
+                    // Minimal updates for early return
                     var updates = new Dictionary<string, object>
                     {
-                        ["endDate"] = nowUtc, // Set end date to now for early return
-                        ["requestHandled"] = nowUtc,
+                        ["endDate"]             = nowUtc,     // early return ends now
+                        ["requestHandled"]      = nowUtc,     // mark handled
                         ["earlyReturnApproved"] = dto.Approved
                     };
 
                     if (dto.Approved)
                     {
-                        // Update user counters when approving early return
+                        // Update user counters only when approved
                         await UpdateUserCountersOnReturn(db, exchange.OwnerId, exchange.BorrowerId);
                     }
 
@@ -1448,12 +1446,12 @@ namespace HippoExchange
                     var updated = await doc.GetSnapshotAsync();
                     try
                     {
-                        return Results.Ok(updated.ConvertTo<Exchange>());
+                        var updatedExchange = updatedSnap.ConvertTo<Exchange>();
+                        return Results.Ok(updatedExchange);
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        Console.WriteLine($"Error converting updated exchange: {ex.Message}");
-                        return Results.Ok(new { message = "Early return request processed successfully", id = id });
+                        return Results.Ok(new { message = "Early return request processed successfully", id });
                     }
                 }
                 catch (Exception ex)
@@ -1471,7 +1469,7 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Approve or decline an early return request";
-                op.Description = "Processes an early return request by updating the end date and user counters.";
+                op.Description = "Processes an early return by moving endDate to now; updates user counters when approved.";
                 return op;
             });
 
@@ -2049,51 +2047,6 @@ namespace HippoExchange
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound();
 
-                var exchange = snap.ConvertTo<Exchange>();
-                
-                // Get the item details to include in notification
-                var listingDoc = db.Collection("listings").Document(exchange.ItemId);
-                var listingSnap = await listingDoc.GetSnapshotAsync();
-                var listing = listingSnap.Exists ? listingSnap.ConvertTo<Listing>() : null;
-                
-                // Get the actual item using the ItemId from the listing
-                Item? item = null;
-                if (listing != null)
-                {
-                    var itemDoc = db.Collection("items").Document(listing.ItemId);
-                    var itemSnap = await itemDoc.GetSnapshotAsync();
-                    item = itemSnap.Exists ? itemSnap.ConvertTo<Item>() : null;
-                }
-                
-                // Get the borrower details for the notification
-                var borrowerDoc = db.Collection("users").Document(exchange.BorrowerId);
-                var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
-                var borrower = borrowerSnap.Exists ? borrowerSnap.ConvertTo<UserAuth>() : null;
-
-                // Send notification to item owner about cancelled request
-                if (item != null && borrower != null)
-                {
-                    var borrowerName = !string.IsNullOrEmpty(borrower.FirstName) && !string.IsNullOrEmpty(borrower.LastName)
-                        ? $"{borrower.FirstName} {borrower.LastName}"
-                        : borrower.Email;
-
-                    var notification = new Notification
-                    {
-                        Id = Guid.NewGuid().ToString("n"),
-                        CreatedUtc = DateTime.UtcNow,
-                        SenderId = exchange.BorrowerId,
-                        ReceiverId = exchange.OwnerId,
-                        Message = $"{borrowerName} has cancelled their request for your item \"{item.Title}\". The request has been withdrawn.",
-                        Title = "Request Cancelled",
-                        Type = "exchange_cancelled",
-                        ListingId = exchange.ItemId,
-                        SenderAvatar = borrower.ProfilePicture,
-                        Dismissed = false
-                    };
-
-                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
-                }
-
                 await doc.DeleteAsync();
                 return Results.NoContent();
             })
@@ -2319,26 +2272,37 @@ namespace HippoExchange
             });
 
 
-            // POST /maintenance
+            // Compute nextMaintenanceDate on create using (lastMaintenanceDate ?? CreatedUtc) + frequency (days).
             app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto) =>
             {
                 if (string.IsNullOrWhiteSpace(dto.ItemId) || string.IsNullOrWhiteSpace(dto.Description))
                     return Results.BadRequest(new { message = "ItemId and Description are required." });
 
-                string? type = string.IsNullOrWhiteSpace(dto.Type) ? null : dto.Type.Trim();
+                string? type     = string.IsNullOrWhiteSpace(dto.Type)     ? null : dto.Type.Trim();
                 string? category = string.IsNullOrWhiteSpace(dto.Category) ? null : dto.Category.Trim();
+
+                var createdUtc = DateTime.UtcNow;
+                DateTime? lastUtc = dto.LastMaintenanceDate.HasValue
+                    ? DateTime.SpecifyKind(dto.LastMaintenanceDate.Value, DateTimeKind.Utc)
+                    : (DateTime?)null;
+
+                int? freq = dto.Frequency;
+                DateTime? nextUtc = (freq.HasValue && freq.Value > 0)
+                    ? (lastUtc ?? createdUtc).AddDays(freq.Value)
+                    : (DateTime?)null;
 
                 var m = new Maintenance
                 {
-                    Id = Guid.NewGuid().ToString("n"),
-                    ItemId = dto.ItemId.Trim(),
-                    Description = dto.Description.Trim(),
-                    Frequency = dto.Frequency,       // int? (days)
-                    CreatedUtc = DateTime.UtcNow,
-                    MaintenanceHistory = new List<DateTime>(),
-                    LastMaintenanceDate = null,
-                    Type = type,
-                    Category = category
+                    Id                  = Guid.NewGuid().ToString("n"),
+                    ItemId              = dto.ItemId.Trim(),
+                    Description         = dto.Description.Trim(),
+                    Frequency           = freq,                 // int? (days)
+                    CreatedUtc          = createdUtc,
+                    MaintenanceHistory  = new List<DateTime>(),
+                    LastMaintenanceDate = lastUtc,              // may be null on create
+                    NextMaintenanceDate = nextUtc,              // NEW: computed above
+                    Type                = type,
+                    Category            = category
                 };
 
                 var docRef = db.Collection("maintenance").Document(m.Id);
@@ -2355,30 +2319,33 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Create a maintenance record";
-                op.Description = "Creates a new maintenance document. Optional fields: frequency (days), type, category. Server sets CreatedUtc.";
-                // Example body in Swagger
+                op.Description =
+                    "Creates a new maintenance document. Optional fields: frequency (days), " +
+                    "type, category, lastMaintenanceDate (UTC). The server computes nextMaintenanceDate.";
                 op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
                 {
-                    ["itemId"] = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
-                    ["description"] = new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
-                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(90),
-                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
-                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
+                    ["itemId"]             = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
+                    ["description"]        = new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
+                    ["frequency"]          = new Microsoft.OpenApi.Any.OpenApiInteger(7),
+                    ["lastMaintenanceDate"]= new Microsoft.OpenApi.Any.OpenApiString("2025-10-01T00:00:00Z"),
+                    ["type"]               = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
+                    ["category"]           = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
                 };
                 return op;
             });
 
 
-            // PUT /maintenance/{id}  (partial update)
+            // Recompute nextMaintenanceDate whenever Frequency or LastMaintenanceDate changes.
             app.MapPut("/maintenance/{id}", async (FirestoreDb db, string id, UpdateMaintenanceDto dto) =>
             {
                 var docRef = db.Collection("maintenance").Document(id);
                 var snap = await docRef.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound(new { message = "Maintenance record not found." });
 
+                var current = snap.ConvertTo<Maintenance>();
                 var updates = new Dictionary<string, object>();
 
-                // Description (string)
+                // Description
                 if (dto.Description is not null)
                 {
                     var d = dto.Description.Trim();
@@ -2387,11 +2354,7 @@ namespace HippoExchange
                     updates["description"] = d;
                 }
 
-                // Frequency (int?)
-                if (dto.Frequency.HasValue)
-                    updates["frequency"] = dto.Frequency.Value;
-
-                // Type (string) - replace when provided
+                // Type
                 if (dto.Type is not null)
                 {
                     var t = dto.Type.Trim();
@@ -2400,7 +2363,7 @@ namespace HippoExchange
                     updates["type"] = t;
                 }
 
-                // Category (string) - replace when provided
+                // Category
                 if (dto.Category is not null)
                 {
                     var c = dto.Category.Trim();
@@ -2409,15 +2372,45 @@ namespace HippoExchange
                     updates["category"] = c;
                 }
 
-                // MaintenanceHistory (List<DateTime>?) - full replace when provided
+                // MaintenanceHistory (full replace if provided)
                 if (dto.MaintenanceHistory is not null)
                     updates["maintenanceHistory"] = dto.MaintenanceHistory;
 
-                // LastMaintenanceDate (DateTime?) - set or delete
+                // Frequency & LastMaintenanceDate (and recompute nextMaintenanceDate)
+                if (dto.Frequency.HasValue) updates["frequency"] = dto.Frequency.Value;
+
+                DateTime? effectiveLast = null;
+                bool lastWasProvided = false;
+
                 if (dto.LastMaintenanceDate.HasValue)
-                    updates["lastMaintenanceDate"] = dto.LastMaintenanceDate.Value;
+                {
+                    effectiveLast = DateTime.SpecifyKind(dto.LastMaintenanceDate.Value, DateTimeKind.Utc);
+                    updates["lastMaintenanceDate"] = effectiveLast.Value;
+                    lastWasProvided = true;
+                }
                 else if (dto.LastMaintenanceDateExplicitlyNull)
+                {
                     updates["lastMaintenanceDate"] = FieldValue.Delete;
+                    effectiveLast = null; // treated as null
+                    lastWasProvided = true;
+                }
+
+                // Decide when to recompute: if freq changed OR last changed/cleared
+                bool freqChanged = dto.Frequency.HasValue;
+                bool lastChanged = lastWasProvided;
+
+                if (freqChanged || lastChanged)
+                {
+                    int? freq = dto.Frequency ?? current.Frequency;
+                    DateTime? last = lastWasProvided ? effectiveLast : current.LastMaintenanceDate;
+
+                    DateTime? next = (freq.HasValue && freq.Value > 0)
+                        ? ((last ?? current.CreatedUtc).AddDays(freq.Value))
+                        : (DateTime?)null;
+
+                    if (next.HasValue) updates["nextMaintenanceDate"] = next.Value;
+                    else updates["nextMaintenanceDate"] = FieldValue.Delete;
+                }
 
                 if (updates.Count == 0)
                     return Results.BadRequest(new { message = "No fields provided to update." });
@@ -2436,17 +2429,16 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Update a maintenance record (partial)";
-                op.Description = "Allows partial updates to description, frequency (days), type (string), category (string), maintenanceHistory (array of DateTime), and lastMaintenanceDate.";
-                // Example body in Swagger
+                op.Description =
+                    "Allows partial updates to description, frequency, type, category, maintenanceHistory, and lastMaintenanceDate. " +
+                    "The server recalculates nextMaintenanceDate when frequency or lastMaintenanceDate changes.";
                 op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
                 {
-                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Service"),
-                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Corrective"),
-                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(30)
+                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(7),
+                    ["lastMaintenanceDate"] = new Microsoft.OpenApi.Any.OpenApiString("2025-10-01T00:00:00Z")
                 };
                 return op;
             });
-
 
 
             app.MapDelete("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
@@ -2479,7 +2471,7 @@ namespace HippoExchange
             {
                 try
                 {
-                    // Get all required maintenance records
+                    // Only check "required" maintenance records
                     var maintenanceSnaps = await db.Collection("maintenance")
                         .WhereEqualTo("type", "required")
                         .GetSnapshotAsync();
@@ -2490,36 +2482,47 @@ namespace HippoExchange
                     foreach (var maintenanceDoc in maintenanceSnaps.Documents)
                     {
                         var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
-                        
+
                         if (maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0)
                         {
-                            var lastMaintenanceDate = maintenance.LastMaintenanceDate ?? maintenance.CreatedUtc;
-                            var nextDueDate = lastMaintenanceDate.AddDays(maintenance.Frequency.Value);
-                            
-                            // Check if maintenance is due (within 1 day of due date)
+                            // Prefer persisted nextMaintenanceDate, otherwise compute it now
+                            var baseDate = maintenance.LastMaintenanceDate ?? maintenance.CreatedUtc;
+                            var computedNext = baseDate.AddDays(maintenance.Frequency.Value);
+                            var nextDueDate = maintenance.NextMaintenanceDate ?? computedNext;
+
+                            // OPTIONAL: back-fill nextMaintenanceDate if it's missing (keeps data consistent going forward)
+                            if (!maintenance.NextMaintenanceDate.HasValue)
+                            {
+                                await maintenanceDoc.Reference.UpdateAsync(new Dictionary<string, object>
+                                {
+                                    ["nextMaintenanceDate"] = nextDueDate
+                                });
+                            }
+
+                            // Due if we're within 1 day of due date (or past it)
                             if (DateTime.UtcNow >= nextDueDate.AddDays(-1))
                             {
-                                // Get item details
+                                // Load the item
                                 var itemSnap = await db.Collection("items").Document(maintenance.ItemId).GetSnapshotAsync();
                                 if (itemSnap.Exists)
                                 {
                                     var item = itemSnap.ConvertTo<Item>();
-                                    
-                                    // Create notification for the item owner
+
+                                    // Build the notification
                                     var notification = new Notification
                                     {
-                                        Id = Guid.NewGuid().ToString("n"),
-                                        SenderId = "system",
-                                        ReceiverId = item.UserId,
-                                        Message = $"Maintenance due for '{item.Title}': {maintenance.Description}",
-                                        Title = "Maintenance Due",
-                                        Type = "maintenance_due",
-                                        ListingId = maintenance.ItemId,
-                                        CreatedUtc = DateTime.UtcNow,
-                                        Dismissed = false
+                                        Id          = Guid.NewGuid().ToString("n"),
+                                        SenderId    = "system",
+                                        ReceiverId  = item.UserId,
+                                        Message     = $"Maintenance due for '{item.Title}': {maintenance.Description}",
+                                        Title       = "Maintenance Due",
+                                        Type        = "maintenance_due",
+                                        ListingId   = maintenance.ItemId,
+                                        CreatedUtc  = DateTime.UtcNow,
+                                        Dismissed   = false
                                     };
 
-                                    // Check if notification already exists for this maintenance
+                                    // Deduplicate: same receiver + type + listing and still not dismissed
                                     var existingNotification = await db.Collection("notifications")
                                         .WhereEqualTo("receiverId", item.UserId)
                                         .WhereEqualTo("type", "maintenance_due")
@@ -2527,7 +2530,7 @@ namespace HippoExchange
                                         .WhereEqualTo("dismissed", false)
                                         .GetSnapshotAsync();
 
-                                    if (!existingNotification.Any())
+                                    if (existingNotification.Documents.Count == 0)
                                     {
                                         await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
                                         notificationsCreated++;
@@ -2535,14 +2538,14 @@ namespace HippoExchange
 
                                     dueMaintenance.Add(new
                                     {
-                                        maintenanceId = maintenance.Id,
-                                        itemId = maintenance.ItemId,
-                                        itemTitle = item.Title,
-                                        description = maintenance.Description,
-                                        frequency = maintenance.Frequency,
+                                        maintenanceId       = maintenance.Id,
+                                        itemId              = maintenance.ItemId,
+                                        itemTitle           = item.Title,
+                                        description         = maintenance.Description,
+                                        frequency           = maintenance.Frequency,
                                         lastMaintenanceDate = maintenance.LastMaintenanceDate,
-                                        nextDueDate = nextDueDate,
-                                        ownerId = item.UserId
+                                        nextDueDate         = nextDueDate,
+                                        ownerId             = item.UserId
                                     });
                                 }
                             }
@@ -2568,7 +2571,10 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Check for due maintenance and create notifications";
-                op.Description = "Checks all required maintenance records and creates notifications for owners when maintenance is due.";
+                op.Description =
+                    "Checks all required maintenance records using nextMaintenanceDate when available; " +
+                    "falls back to (lastMaintenanceDate ?? CreatedUtc) + frequency. " +
+                    "Creates notifications for owners when maintenance is due (within 1 day).";
                 return op;
             });
 
@@ -2582,7 +2588,10 @@ namespace HippoExchange
                                     .WhereEqualTo("userID", userId)
                                     .GetSnapshotAsync();
 
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Review>()));
+                var reviews = snaps.Select(s => s.ConvertTo<Review>())
+                       .OrderByDescending(r => r.CreatedUtc);  
+
+                return Results.Ok(reviews);
             })
             .WithName("GetReviewsByUserId")
             .WithTags("Reviews")
@@ -2612,7 +2621,8 @@ namespace HippoExchange
                     Rating = rating,
                     RaterId = rater,
                     UserId = user,
-                    Description = desc
+                    Description = desc,
+                    CreatedUtc  = DateTime.UtcNow
                 };
 
                 await db.Collection("review").Document(review.Id).SetAsync(review);
@@ -3192,10 +3202,9 @@ namespace HippoExchange
                 }
             }).RequireAuthorization().WithName("GetCurrentUser");
 
-
             // -------- Messaging --------
 
-            // GET /messages/threads?userId=...&filter=all|unread|starred[&itemId=...]
+            // GET /messages/threads?userId=...&filter=all|unread|starred|archived|active[&itemId=...]
             app.MapGet("/messages/threads", async (FirestoreDb db, string userId, string? filter, string? itemId) =>
             {
                 if (string.IsNullOrWhiteSpace(userId)) return Results.BadRequest(new { error = "userId required" });
@@ -3225,6 +3234,10 @@ namespace HippoExchange
                     threads = threads.Where(t => t.StarredBy?.Contains(userId) == true).ToList();
                 else if (filter == "unread")
                     threads = threads.Where(t => !t.LastReadBy.TryGetValue(userId, out var last) || t.UpdatedUtc > last).ToList();
+                else if (filter == "archived")
+                    threads = threads.Where(t => t.ArchivedParticipants?.Contains(userId) == true).ToList(); 
+                else if (filter == "active")
+                    threads = threads.Where(t => !(t.ArchivedParticipants?.Contains(userId) == true)).ToList(); 
 
                 return Results.Ok(threads);
             })
@@ -3235,10 +3248,9 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "List message threads for a user";
-                op.Description = "Returns up to 100 threads for the user. Optional query: filter=(all|unread|starred), itemId (to restrict to a specific item). Sorting & filtering are done in-memory.";
+                op.Description = "Returns up to 100 threads for the user. filter=(all|unread|starred|archived|active), itemId (restrict to a specific item). Sorting & filtering are done in-memory.";
                 return op;
             });
-
 
 
             // GET /messages/threads/{threadId}/messages
@@ -3268,6 +3280,7 @@ namespace HippoExchange
             });
 
 
+            // GET /users/by-email
             app.MapGet("/users/by-email", async (FirestoreDb db, string email) =>
             {
                 if (string.IsNullOrWhiteSpace(email)) return Results.BadRequest(new { error = "email required" });
@@ -3333,6 +3346,7 @@ namespace HippoExchange
                     LastMessagePreview = null,
                     LastReadBy = new(),
                     StarredBy = new(),
+                    ArchivedParticipants = new(),
                     ItemId = dto.ItemId.Trim()
                 };
 
@@ -3513,11 +3527,11 @@ namespace HippoExchange
                 u.Id = doc.Id;
                 return Results.Ok(new
                 {
-                    id = u.Id, 
-                    email = u.Email, 
-                    firstName = u.FirstName, 
+                    id = u.Id,
+                    email = u.Email,
+                    firstName = u.FirstName,
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim() 
+                    name = $"{u.FirstName} {u.LastName}".Trim()
                 });
             })
             .WithName("GetUserById")
@@ -3529,6 +3543,76 @@ namespace HippoExchange
             {
                 op.Summary = "Find a user by id";
                 op.Description = "Returns a minimal user record (id, email, firstName, lastName, name) for the given id.";
+                return op;
+            });
+
+
+            // PUT /messages/threads/{threadId}/archive   { "userId": "..." }
+            app.MapPut("/messages/threads/{threadId}/archive", async (FirestoreDb db, string threadId, [FromBody] ArchiveParticipantDto dto) =>
+            {
+                if (dto is null || string.IsNullOrWhiteSpace(dto.UserId))
+                    return Results.BadRequest(new { error = "userId required" });
+
+                var docRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await docRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "thread not found" });
+
+                // Idempotent add; do NOT touch updatedUtc
+                await docRef.UpdateAsync("archivedParticipants", FieldValue.ArrayUnion(dto.UserId));
+
+                return Results.NoContent();
+            })
+            .WithName("ArchiveThreadForUser")
+            .WithTags("Messaging")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi(op =>
+            {
+                op.OperationId = "ArchiveThreadForUser";
+                op.Summary = "Archive a thread for a specific user";
+                op.Description = "Adds userId to archivedParticipants using FieldValue.ArrayUnion (per-user archive).";
+                op.RequestBody ??= new Microsoft.OpenApi.Models.OpenApiRequestBody();
+                op.RequestBody.Content ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiMediaType>();
+                op.RequestBody.Content["application/json"] = new Microsoft.OpenApi.Models.OpenApiMediaType
+                {
+                    Example = new OpenApiObject { ["userId"] = new OpenApiString("user_123") }
+                };
+                return op;
+            });
+
+
+            // DELETE /messages/threads/{threadId}/archive   { "userId": "..." }
+            app.MapDelete("/messages/threads/{threadId}/archive", async (FirestoreDb db, string threadId, [FromBody] ArchiveParticipantDto dto) =>
+            {
+                if (dto is null || string.IsNullOrWhiteSpace(dto.UserId))
+                    return Results.BadRequest(new { error = "userId required" });
+
+                var docRef = db.Collection("messageThreads").Document(threadId);
+                var snap = await docRef.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "thread not found" });
+
+                // Idempotent remove; do NOT touch updatedUtc
+                await docRef.UpdateAsync("archivedParticipants", FieldValue.ArrayRemove(dto.UserId));
+
+                return Results.NoContent();
+            })
+            .WithName("UnarchiveThreadForUser")
+            .WithTags("Messaging")
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status404NotFound)
+            .Produces(StatusCodes.Status400BadRequest)
+            .WithOpenApi(op =>
+            {
+                op.OperationId = "UnarchiveThreadForUser";
+                op.Summary = "Unarchive a thread for a specific user";
+                op.Description = "Removes userId from archivedParticipants using FieldValue.ArrayRemove (per-user archive).";
+                op.RequestBody ??= new Microsoft.OpenApi.Models.OpenApiRequestBody();
+                op.RequestBody.Content ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiMediaType>();
+                op.RequestBody.Content["application/json"] = new Microsoft.OpenApi.Models.OpenApiMediaType
+                {
+                    Example = new OpenApiObject { ["userId"] = new OpenApiString("user_123") }
+                };
                 return op;
             });
 
@@ -3635,7 +3719,7 @@ namespace HippoExchange
     {
         [FirestoreDocumentId] public string? Id { get; set; }
 
-        [FirestoreProperty("approved")] public bool? Approved { get; set; } = false;
+        [FirestoreProperty("approved")] public bool? Approved { get; set; } = null;
 
         [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
 
@@ -3728,6 +3812,8 @@ namespace HippoExchange
 
         [FirestoreProperty("maintenanceHistory")] public List<DateTime> MaintenanceHistory { get; set; } = new();
 
+        [FirestoreProperty("nextMaintenanceDate")] public DateTime? NextMaintenanceDate { get; set; }
+
         [FirestoreProperty("lastMaintenanceDate")] public DateTime? LastMaintenanceDate { get; set; }
 
         [FirestoreProperty("type")] public string? Type { get; set; }
@@ -3748,6 +3834,7 @@ namespace HippoExchange
         [FirestoreProperty("Document")] public string DocumentContent { get; set; } = default!;
 
         [FirestoreProperty("maintenanceID")] public string MaintenanceId { get; set; } = default!;
+
     }
 
 
@@ -3763,6 +3850,8 @@ namespace HippoExchange
         [FirestoreProperty("description")] public string Description { get; set; } = default!;
 
         [FirestoreProperty("userID")] public string UserId { get; set; } = default!;
+
+        [FirestoreProperty("CreatedUtc")] public DateTime CreatedUtc { get; set; }
     }
 
 
@@ -3786,7 +3875,8 @@ namespace HippoExchange
         [FirestoreProperty("starredBy")] public List<string> StarredBy { get; set; } = new();
 
         [FirestoreProperty("itemID")] public string ItemId { get; set; } = default!;
-        [FirestoreProperty("archivedBy")] public List<string> ArchivedBy { get; set; } = new();
+
+        [FirestoreProperty("archivedParticipants")] public List<string> ArchivedParticipants { get; set; } = new();
     }
 
 
@@ -3837,7 +3927,7 @@ namespace HippoExchange
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId, DateTime? StartDate = null, DateTime? EndDate = null);
     public sealed class UpdateExchangeApprovalDto
     {
-        public bool Approved { get; set; }
+        public bool? Approved { get; set; }
         public DateTime? StartDate { get; set; }  // allow null when declining
         public DateTime? EndDate { get; set; }    // allow null when declining
     }
@@ -3868,8 +3958,10 @@ namespace HippoExchange
         string Description,
         int? Frequency,
         string? Type,
-        string? Category
+        string? Category,
+        DateTime? LastMaintenanceDate = null
     );
+
 
     public record UpdateMaintenanceDto
     (
@@ -3881,7 +3973,6 @@ namespace HippoExchange
         bool LastMaintenanceDateExplicitlyNull = false,
         string? Category = null
     );  
-
 
 
     // ---- DocumentEntry DTOs ----
@@ -3903,6 +3994,7 @@ namespace HippoExchange
     public record SendMessageDto(string SenderId, string Body);
     public record MarkReadDto(string UserId);
     public record StarDto(string UserId, bool Starred);
+    public record ArchiveParticipantDto(string UserId);
 
     // Background service for return date notifications
     public class ReturnDateNotificationService : BackgroundService
@@ -3943,34 +4035,32 @@ namespace HippoExchange
 
             try
             {
-                // Get all approved exchanges first, then filter by date in memory
-                // This avoids the need for a composite index
-                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
+                // Query approved exchanges, then filter by date range in-memory (no composite index required)
                 var tomorrow = DateTime.UtcNow.AddDays(1);
+                var twoDaysFromNow = DateTime.UtcNow.AddDays(2);
 
                 var exchangesSnapshot = await db.Collection("exchanges")
                     .WhereEqualTo("approved", true)
                     .GetSnapshotAsync();
 
-                // Filter exchanges by date in memory to avoid composite index requirement
                 var upcomingExchanges = exchangesSnapshot
-                    .Where(doc => 
+                    .Where(doc =>
                     {
                         var exchange = doc.ConvertTo<Exchange>();
-                        return exchange?.EndDate != null && 
-                               exchange.EndDate >= tomorrow && 
-                               exchange.EndDate <= twoDaysFromNow;
+                        return exchange?.EndDate != null &&
+                            exchange.EndDate >= tomorrow &&
+                            exchange.EndDate <= twoDaysFromNow;
                     })
                     .ToList();
 
-                _logger.LogInformation($"Found {upcomingExchanges.Count} exchanges with upcoming return dates");
+                _logger.LogInformation("Found {Count} exchanges with upcoming return dates", upcomingExchanges.Count);
 
                 foreach (var exchangeDoc in upcomingExchanges)
                 {
                     var exchange = exchangeDoc.ConvertTo<Exchange>();
                     if (exchange?.EndDate == null) continue;
 
-                    // Check if we already sent a notification for this exchange
+                    // Rate-limit: skip if a recent reminder was sent in last 24h
                     var existingNotification = await db.Collection("notifications")
                         .WhereEqualTo("receiverID", exchange.BorrowerId)
                         .WhereEqualTo("type", "return_reminder")
@@ -3979,32 +4069,22 @@ namespace HippoExchange
 
                     if (existingNotification.Count > 0)
                     {
-                        // Check if the notification was sent recently (within last 24 hours)
-                        var recentNotification = existingNotification.Documents
-                            .FirstOrDefault(doc => 
-                            {
-                                var notif = doc.ConvertTo<Notification>();
-                                return notif.CreatedUtc > DateTime.UtcNow.AddDays(-1);
-                            });
-
-                        if (recentNotification != null) continue; // Already sent recently
+                        var recent = existingNotification.Documents.FirstOrDefault(d =>
+                        {
+                            var n = d.ConvertTo<Notification>();
+                            return n.CreatedUtc > DateTime.UtcNow.AddDays(-1);
+                        });
+                        if (recent != null) continue;
                     }
 
-                    // Get item details
+                    // Fetch item for a nice message
                     var itemDoc = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
                     if (!itemDoc.Exists) continue;
 
                     var item = itemDoc.ConvertTo<Item>();
                     if (item == null) continue;
 
-                    // Get borrower details
-                    var borrowerDoc = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
-                    if (!borrowerDoc.Exists) continue;
-
-                    var borrower = borrowerDoc.ConvertTo<UserAuth>();
-                    if (borrower == null) continue;
-
-                    // Create notification
+                    // Create and store the notification
                     var notification = new Notification
                     {
                         Id = Guid.NewGuid().ToString("n"),
@@ -4020,7 +4100,8 @@ namespace HippoExchange
                     };
 
                     await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
-                    _logger.LogInformation($"Sent return reminder notification to user {exchange.BorrowerId} for item {item.Title}");
+                    _logger.LogInformation("Sent return reminder notification to user {UserId} for item {ItemTitle}",
+                        exchange.BorrowerId, item.Title);
                 }
             }
             catch (Exception ex)
@@ -4029,5 +4110,9 @@ namespace HippoExchange
             }
         }
     }
+
+    
+        
+    
 
 }

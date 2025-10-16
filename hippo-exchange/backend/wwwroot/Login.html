@@ -59,7 +59,7 @@
 
         <div class="flex flex-col items-stretch relative min-h-[620px]">
           <!-- Register -->
-          <form id="register-form" class="fade active absolute inset-0 flex flex-col" novalidate>
+          <form id="register-form" class="fade active absolute inset-0 flex flex-col">
             <div class="text-center mb-6">
               <h3 class="text-2xl font-bold text-blue-700">Create an account</h3>
               <p class="text-slate-600 mt-1">It only takes a minute.</p>
@@ -123,13 +123,13 @@
               <input id="terms" type="checkbox" class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 required>
               <label for="terms" class="text-sm text-slate-600">
-                I agree to the <a href="#" class="text-blue-600 hover:underline">Terms</a> and <a href="#"
-                  class="text-blue-600 hover:underline">Privacy Policy</a>.
+                I agree to the <a href="./terms-of-service.html" class="text-blue-600 hover:underline">Terms and Privacy Policy</a>
               </label>
             </div>
 
-            <button type="submit"
-              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition">
+            <button id="create-account-btn" type="submit" disabled
+              class="btn-sheen w-full mt-6 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl font-semibold shadow hover:from-blue-600 hover:to-blue-800 transition
+                    disabled:opacity-50 disabled:cursor-not-allowed">
               Create account
             </button>
 
