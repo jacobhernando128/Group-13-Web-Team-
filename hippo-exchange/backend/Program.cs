@@ -1766,16 +1766,17 @@ namespace HippoExchange
             });
 
 
-            // PUT /maintenance/{id}  (partial update)
+            // Recompute nextMaintenanceDate whenever Frequency or LastMaintenanceDate changes.
             app.MapPut("/maintenance/{id}", async (FirestoreDb db, string id, UpdateMaintenanceDto dto) =>
             {
                 var docRef = db.Collection("maintenance").Document(id);
                 var snap = await docRef.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound(new { message = "Maintenance record not found." });
 
+                var current = snap.ConvertTo<Maintenance>();
                 var updates = new Dictionary<string, object>();
 
-                // Description (string)
+                // Description
                 if (dto.Description is not null)
                 {
                     var d = dto.Description.Trim();
@@ -1784,11 +1785,7 @@ namespace HippoExchange
                     updates["description"] = d;
                 }
 
-                // Frequency (int?)
-                if (dto.Frequency.HasValue)
-                    updates["frequency"] = dto.Frequency.Value;
-
-                // Type (string) - replace when provided
+                // Type
                 if (dto.Type is not null)
                 {
                     var t = dto.Type.Trim();
@@ -1797,7 +1794,7 @@ namespace HippoExchange
                     updates["type"] = t;
                 }
 
-                // Category (string) - replace when provided
+                // Category
                 if (dto.Category is not null)
                 {
                     var c = dto.Category.Trim();
@@ -1806,15 +1803,45 @@ namespace HippoExchange
                     updates["category"] = c;
                 }
 
-                // MaintenanceHistory (List<DateTime>?) - full replace when provided
+                // MaintenanceHistory (full replace if provided)
                 if (dto.MaintenanceHistory is not null)
                     updates["maintenanceHistory"] = dto.MaintenanceHistory;
 
-                // LastMaintenanceDate (DateTime?) - set or delete
+                // Frequency & LastMaintenanceDate (and recompute nextMaintenanceDate)
+                if (dto.Frequency.HasValue) updates["frequency"] = dto.Frequency.Value;
+
+                DateTime? effectiveLast = null;
+                bool lastWasProvided = false;
+
                 if (dto.LastMaintenanceDate.HasValue)
-                    updates["lastMaintenanceDate"] = dto.LastMaintenanceDate.Value;
+                {
+                    effectiveLast = DateTime.SpecifyKind(dto.LastMaintenanceDate.Value, DateTimeKind.Utc);
+                    updates["lastMaintenanceDate"] = effectiveLast.Value;
+                    lastWasProvided = true;
+                }
                 else if (dto.LastMaintenanceDateExplicitlyNull)
+                {
                     updates["lastMaintenanceDate"] = FieldValue.Delete;
+                    effectiveLast = null; // treated as null
+                    lastWasProvided = true;
+                }
+
+                // Decide when to recompute: if freq changed OR last changed/cleared
+                bool freqChanged = dto.Frequency.HasValue;
+                bool lastChanged = lastWasProvided;
+
+                if (freqChanged || lastChanged)
+                {
+                    int? freq = dto.Frequency ?? current.Frequency;
+                    DateTime? last = lastWasProvided ? effectiveLast : current.LastMaintenanceDate;
+
+                    DateTime? next = (freq.HasValue && freq.Value > 0)
+                        ? ((last ?? current.CreatedUtc).AddDays(freq.Value))
+                        : (DateTime?)null;
+
+                    if (next.HasValue) updates["nextMaintenanceDate"] = next.Value;
+                    else updates["nextMaintenanceDate"] = FieldValue.Delete;
+                }
 
                 if (updates.Count == 0)
                     return Results.BadRequest(new { message = "No fields provided to update." });
@@ -1833,17 +1860,16 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Update a maintenance record (partial)";
-                op.Description = "Allows partial updates to description, frequency (days), type (string), category (string), maintenanceHistory (array of DateTime), and lastMaintenanceDate.";
-                // Example body in Swagger
+                op.Description =
+                    "Allows partial updates to description, frequency, type, category, maintenanceHistory, and lastMaintenanceDate. " +
+                    "The server recalculates nextMaintenanceDate when frequency or lastMaintenanceDate changes.";
                 op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
                 {
-                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Service"),
-                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Corrective"),
-                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(30)
+                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(7),
+                    ["lastMaintenanceDate"] = new Microsoft.OpenApi.Any.OpenApiString("2025-10-01T00:00:00Z")
                 };
                 return op;
             });
-
 
 
             app.MapDelete("/maintenance/item/{itemId}", async (FirestoreDb db, string itemId) =>
