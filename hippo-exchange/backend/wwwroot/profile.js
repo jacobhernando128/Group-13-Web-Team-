@@ -51,6 +51,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Setup profile picture upload
     setupProfilePictureUpload(viewingUserId, API_BASE_URL);
+
+    // Auto-refresh functionality (5 seconds)
+    let autoRefreshInterval = null;
+    
+    function startAutoRefresh() {
+        // Clear any existing interval
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        
+        // Set up new interval for 60 seconds (1 minute)
+        autoRefreshInterval = setInterval(() => {
+            console.log('🔄 Auto-refreshing profile data...');
+            loadUserProfile(viewingUserId, API_BASE_URL);
+            loadUserReviews(viewingUserId, API_BASE_URL);
+        }, 60000);
+        
+        console.log('✅ Auto-refresh started for profile (60 seconds)');
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+            console.log('⏹️ Auto-refresh stopped for profile');
+        }
+    }
+    
+    // Start auto-refresh when page becomes visible
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    }
+    
+    // Start auto-refresh initially
+    startAutoRefresh();
+    
+    // Handle page visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', stopAutoRefresh);
 });
 
 // Mobile menu setup

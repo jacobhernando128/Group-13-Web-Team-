@@ -10,18 +10,61 @@ class AssetHub {
         this.currentEditingItem = null;
         this.currentDeletingItem = null;
         this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
+        this.autoRefreshInterval = null; // Auto-refresh interval
 
         this.init();
+    }
+    
+    handleUrlParameters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab');
+        
+        if (tab === 'pending') {
+            console.log('🎯 URL parameter found - opening pending requests tab');
+            // Wait for the page to load, then switch to pending tab
+            setTimeout(() => {
+                this.switchToPendingTab();
+            }, 1000);
+        }
+    }
+    
+    switchToPendingTab() {
+        // Find and click the "My Items" tab button
+        const myItemsTab = document.querySelector('[data-tab="my-items"]');
+        if (myItemsTab) {
+            console.log('🔄 Switching to My Items tab');
+            myItemsTab.click();
+            
+            // Then scroll to or highlight pending requests section
+            setTimeout(() => {
+                const pendingSection = document.querySelector('#pending-requests-section');
+                if (pendingSection) {
+                    pendingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Add a subtle highlight effect
+                    pendingSection.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                    setTimeout(() => {
+                        pendingSection.style.backgroundColor = '';
+                    }, 3000);
+                }
+            }, 500);
+        }
     }
 
     async init() {
         // Check authentication first
         await this.checkAuthAndLoadUser();
         this.setupEventListeners();
+        
+        // Handle URL parameters
+        this.handleUrlParameters();
+        
         this.loadUserAssets();
         
         // Check for due maintenance notifications
         this.checkDueMaintenance();
+        
+        // Start auto-refresh functionality (5 seconds)
+        this.startAutoRefresh();
         
         // Add visibility change listener to refresh data when user returns to the page
         document.addEventListener('visibilitychange', () => {
@@ -30,6 +73,11 @@ class AssetHub {
                 this.loadUserAssets();
                 // Also check for due maintenance when user returns
                 this.checkDueMaintenance();
+                // Restart auto-refresh
+                this.startAutoRefresh();
+            } else {
+                // Page is hidden, stop auto-refresh to save resources
+                this.stopAutoRefresh();
             }
         });
     }
@@ -63,6 +111,31 @@ class AssetHub {
             }
         } catch (error) {
             console.error('❌ Error checking due maintenance:', error);
+        }
+    }
+
+    // Auto-refresh functionality (5 seconds)
+    startAutoRefresh() {
+        // Clear any existing interval
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+        }
+        
+        // Set up new interval for 60 seconds (1 minute)
+        this.autoRefreshInterval = setInterval(() => {
+            console.log('🔄 Auto-refreshing asset hub data...');
+            this.loadUserAssets();
+            this.checkDueMaintenance();
+        }, 60000);
+        
+        console.log('✅ Auto-refresh started for asset hub (60 seconds)');
+    }
+    
+    stopAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+            console.log('⏹️ Auto-refresh stopped for asset hub');
         }
     }
 
@@ -464,6 +537,9 @@ class AssetHub {
             this.loanedItems = await this.getLoanedItems();
             this.renderLoanedItems();
 
+            // Re-render owned items to update availability status based on loaned items
+            this.renderOwnedItems();
+
             this.updateCounts();
         } catch (error) {
             console.error('Error loading user assets:', error);
@@ -803,14 +879,28 @@ class AssetHub {
 
             if (response.ok) {
                 const exchanges = await response.json();
-                console.log('✅ Exchanges received:', exchanges);
+                console.log('✅ All exchanges received:', exchanges);
+                console.log('📊 Total exchanges count:', exchanges.length);
+
+                // Log each exchange for debugging
+                exchanges.forEach((exchange, index) => {
+                    console.log(`📋 Exchange ${index + 1}:`, {
+                        id: exchange.Id || exchange.id,
+                        approved: exchange.Approved,
+                        approved_lower: exchange.approved,
+                        ownerId: exchange.OwnerId || exchange.ownerId,
+                        borrowerId: exchange.BorrowerId || exchange.borrowerId,
+                        itemId: exchange.ItemId || exchange.itemId
+                    });
+                });
 
                 // Filter for pending requests (not approved/declined)
                 const pendingExchanges = exchanges.filter(exchange => 
                     !exchange.approved && !exchange.Approved
                 );
 
-                console.log('📋 Pending exchanges:', pendingExchanges);
+                console.log('📋 Pending exchanges after filtering:', pendingExchanges);
+                console.log('📊 Pending exchanges count:', pendingExchanges.length);
 
                 // Fetch actual item details and borrower names for each exchange
                 const requestedItems = [];
@@ -1118,13 +1208,20 @@ class AssetHub {
     }
 
     async handleRequestAction(request, isApprove) {
+        console.log('🔍 handleRequestAction called:', { request, isApprove });
+        
         const action = isApprove ? 'approve' : 'decline';
         const confirmed = await this.showConfirmation(
             `${isApprove ? 'Approve' : 'Decline'} Request`,
             `Are you sure you want to ${action} ${request.borrowerName}'s request for "${request.title}"?`
         );
 
-        if (!confirmed) return;
+        if (!confirmed) {
+            console.log('❌ User cancelled the action');
+            return;
+        }
+        
+        console.log('✅ User confirmed the action, proceeding...');
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -1139,6 +1236,8 @@ class AssetHub {
                 : { Approved: false };
 
             console.log('📤 Updating exchange:', approvalBody);
+            console.log('📤 Exchange ID:', request.exchangeId);
+            console.log('📤 Token available:', !!token);
 
             const response = await fetch(`http://localhost:5000/exchanges/${request.exchangeId}/approval`, {
                 method: 'PUT',
@@ -1149,6 +1248,9 @@ class AssetHub {
                 },
                 body: JSON.stringify(approvalBody)
             });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
 
             if (response.ok) {
                 const updatedExchange = await response.json();
@@ -1173,6 +1275,9 @@ class AssetHub {
                     this.loanedItems = await this.getLoanedItems();
                     console.log('🔄 Refreshed loaned items:', this.loanedItems);
                     this.renderLoanedItems();
+                    
+                    // Re-render owned items to update availability status
+                    this.renderOwnedItems();
                 }
                 
                 this.updateCounts();
@@ -1184,12 +1289,280 @@ class AssetHub {
                 
             } else {
                 const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
                 this.showError(`Failed to ${action} request: ${errorText}`);
             }
         } catch (error) {
-            console.error(`Error ${action}ing request:`, error);
-            this.showError(`An error occurred while ${action}ing the request`);
+            console.error(`❌ Error ${action}ing request:`, error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while ${action}ing the request: ${error.message}`);
         }
+    }
+
+    async handleEarlyReturnRequest(exchangeId) {
+        const confirmed = await this.showConfirmation(
+            'Request Early Return',
+            'Are you sure you want to request early return for this item?'
+        );
+
+        if (!confirmed) {
+            console.log('❌ User cancelled the early return request');
+            return;
+        }
+        
+        console.log('✅ User confirmed the early return request, proceeding...');
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            console.log('📤 Requesting early return for exchange:', exchangeId);
+            console.log('📤 Token available:', !!token);
+
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-early-return`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Early return request sent successfully:', result);
+                
+                this.showSuccess('Early return request sent successfully!');
+                
+                // Refresh the borrowed items to update the status
+                this.borrowedItems = await this.getBorrowedItems();
+                this.renderBorrowedItems();
+                this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
+            } else {
+                const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
+                this.showError(`Failed to request early return: ${errorText}`);
+            }
+        } catch (error) {
+            console.error('❌ Error requesting early return:', error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while requesting early return: ${error.message}`);
+        }
+    }
+
+    async handleMarkAsReturned(exchangeId) {
+        const confirmed = await this.showConfirmation(
+            'Mark as Returned',
+            'Are you sure you want to mark this item as returned? The owner will need to confirm receipt.'
+        );
+
+        if (!confirmed) {
+            console.log('❌ User cancelled marking item as returned');
+            return;
+        }
+        
+        console.log('✅ User confirmed marking item as returned, proceeding...');
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            console.log('📤 Marking item as returned for exchange:', exchangeId);
+            console.log('📤 Token available:', !!token);
+
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/mark-returned`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('✅ Item marked as returned successfully:', result);
+                
+                this.showSuccess('Item marked as returned! Waiting for owner confirmation.');
+                
+                // Refresh the borrowed items to update the status
+                this.borrowedItems = await this.getBorrowedItems();
+                this.renderBorrowedItems();
+                this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
+            } else {
+                const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
+                this.showError(`Failed to mark item as returned: ${errorText}`);
+            }
+        } catch (error) {
+            console.error('❌ Error marking item as returned:', error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while marking item as returned: ${error.message}`);
+        }
+    }
+
+    async handleConfirmReturn(exchangeId, isConfirm) {
+        const action = isConfirm ? 'confirm' : 'dispute';
+        const confirmed = await this.showConfirmation(
+            `${isConfirm ? 'Confirm' : 'Dispute'} Return`,
+            `Are you sure you want to ${action} this item return?`
+        );
+
+        if (!confirmed) {
+            console.log(`❌ User cancelled the return ${action}`);
+            return;
+        }
+        
+        console.log(`✅ User confirmed the return ${action}, proceeding...`);
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            const confirmBody = { Confirmed: isConfirm };
+
+            console.log('📤 Confirming return:', confirmBody);
+            console.log('📤 Exchange ID:', exchangeId);
+            console.log('📤 Token available:', !!token);
+
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/confirm-return`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(confirmBody)
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
+
+            if (response.ok) {
+                const updatedExchange = await response.json();
+                console.log('✅ Return confirmation processed successfully:', updatedExchange);
+                
+                this.showSuccess(`Return ${action}ed successfully!`);
+                
+                // Refresh the loaned items to update the status
+                this.loanedItems = await this.getLoanedItems();
+                this.renderLoanedItems();
+                
+                // Re-render owned items to update availability status
+                this.renderOwnedItems();
+                
+                this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
+            } else {
+                const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
+                this.showError(`Failed to ${action} return: ${errorText}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error ${action}ing return:`, error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while ${action}ing the return: ${error.message}`);
+        }
+    }
+
+    async handleEarlyReturnAction(exchangeId, isApprove) {
+        const action = isApprove ? 'approve' : 'decline';
+        const confirmed = await this.showConfirmation(
+            `${isApprove ? 'Approve' : 'Decline'} Early Return`,
+            `Are you sure you want to ${action} this early return request?`
+        );
+
+        if (!confirmed) {
+            console.log('❌ User cancelled the early return action');
+            return;
+        }
+        
+        console.log('✅ User confirmed the early return action, proceeding...');
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            const approvalBody = { Approved: isApprove };
+
+            console.log('📤 Processing early return:', approvalBody);
+            console.log('📤 Exchange ID:', exchangeId);
+            console.log('📤 Token available:', !!token);
+
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/early-return`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(approvalBody)
+            });
+            
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
+
+            if (response.ok) {
+                const updatedExchange = await response.json();
+                console.log('✅ Early return processed successfully:', updatedExchange);
+                
+                this.showSuccess(`Early return request ${action}d successfully!`);
+                
+                // Refresh the loaned items to update the status
+                this.loanedItems = await this.getLoanedItems();
+                this.renderLoanedItems();
+                
+                // Re-render owned items to update availability status
+                this.renderOwnedItems();
+                
+                this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
+            } else {
+                const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
+                this.showError(`Failed to ${action} early return request: ${errorText}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error ${action}ing early return request:`, error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while ${action}ing the early return request: ${error.message}`);
+        }
+    }
+
+    isItemCurrentlyLoaned(itemId) {
+        // Check if the item is currently loaned out by looking at the loaned items
+        return this.loanedItems.some(loanedItem => 
+            loanedItem.itemId === itemId || loanedItem.id === itemId
+        );
     }
 
     createItemCard(item, type) {
@@ -1277,13 +1650,15 @@ class AssetHub {
             statusBadge.textContent = 'Loaned Out';
             statusBadge.className = 'badge status-badge bg-blue-500';
         } else {
-            // For owned items, show availability
-            if (item.available) {
-                statusBadge.textContent = 'Available';
-                statusBadge.className = 'badge status-badge bg-green-500';
-            } else {
+            // For owned items, determine availability based on whether item is currently loaned out
+            const isCurrentlyLoaned = this.isItemCurrentlyLoaned(item.id);
+            
+            if (isCurrentlyLoaned) {
                 statusBadge.textContent = 'Unavailable';
                 statusBadge.className = 'badge status-badge bg-red-500';
+            } else {
+                statusBadge.textContent = 'Available';
+                statusBadge.className = 'badge status-badge bg-green-500';
             }
         }
 
@@ -1320,11 +1695,171 @@ class AssetHub {
             });
         }
 
+        console.log('🔍 Creating card for item:', item.title, 'with type:', type);
+        
         if (type === 'owned') {
+            console.log('🔍 Processing owned item:', item.title);
             // Hide cancel request button for owned items
             const cancelRequestBtn = card.querySelector('.cancel-request-btn');
             if (cancelRequestBtn) {
                 cancelRequestBtn.style.display = 'none';
+            }
+        } else if (type === 'borrowed') {
+            // For borrowed items, add return buttons based on status
+            const dropdownMenu = card.querySelector('.dropdown-menu');
+            if (dropdownMenu) {
+                // Hide buttons that don't apply to borrowed items
+                const editBtn = card.querySelector('.edit-btn');
+                const deleteBtn = card.querySelector('.delete-btn');
+                const maintenanceBtn = card.querySelector('.maintenance-btn');
+                const cancelRequestBtn = card.querySelector('.cancel-request-btn');
+                
+                if (editBtn) editBtn.style.display = 'none';
+                if (deleteBtn) deleteBtn.style.display = 'none';
+                if (maintenanceBtn) maintenanceBtn.style.display = 'none';
+                if (cancelRequestBtn) cancelRequestBtn.style.display = 'none';
+                
+                // Check if item is approved and not already returned
+                const isApproved = item.approved === true || item.Approved === true;
+                const isReturned = item.endDate && new Date(item.endDate) <= new Date();
+                const isPendingReturn = item.returnPendingConfirmation === true;
+                const canRequestEarlyReturn = isApproved && !isReturned && !isPendingReturn && 
+                    item.endDate && new Date() < new Date(item.endDate);
+                const canMarkReturned = isApproved && !isReturned && !isPendingReturn;
+                
+                if (canRequestEarlyReturn) {
+                    // Add early return request button
+                    const earlyReturnRequestBtn = document.createElement('button');
+                    earlyReturnRequestBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center';
+                    earlyReturnRequestBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Request Early Return
+                    `;
+                    
+                    dropdownMenu.appendChild(earlyReturnRequestBtn);
+                    
+                    earlyReturnRequestBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleEarlyReturnRequest(item.exchangeId || item.id);
+                    });
+                }
+                
+                if (canMarkReturned) {
+                    // Add mark as returned button
+                    const markReturnedBtn = document.createElement('button');
+                    markReturnedBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
+                    markReturnedBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Mark as Returned
+                    `;
+                    
+                    dropdownMenu.appendChild(markReturnedBtn);
+                    
+                    markReturnedBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleMarkAsReturned(item.exchangeId || item.id);
+                    });
+                }
+            }
+        } else if (type === 'loaned') {
+            // For loaned items, add early return approval buttons and return confirmation buttons
+            const dropdownMenu = card.querySelector('.dropdown-menu');
+            if (dropdownMenu) {
+                // Hide buttons that don't apply to loaned items
+                const editBtn = card.querySelector('.edit-btn');
+                const deleteBtn = card.querySelector('.delete-btn');
+                const maintenanceBtn = card.querySelector('.maintenance-btn');
+                const cancelRequestBtn = card.querySelector('.cancel-request-btn');
+                
+                if (editBtn) editBtn.style.display = 'none';
+                if (deleteBtn) deleteBtn.style.display = 'none';
+                if (maintenanceBtn) maintenanceBtn.style.display = 'none';
+                if (cancelRequestBtn) cancelRequestBtn.style.display = 'none';
+                
+                // Check if there's a pending return confirmation
+                const isPendingReturn = item.returnPendingConfirmation === true;
+                
+                if (isPendingReturn) {
+                    // Add return confirmation buttons
+                    const confirmReturnBtn = document.createElement('button');
+                    confirmReturnBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
+                    confirmReturnBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Confirm Return
+                    `;
+                    
+                    const disputeReturnBtn = document.createElement('button');
+                    disputeReturnBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center';
+                    disputeReturnBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Dispute Return
+                    `;
+                    
+                    dropdownMenu.appendChild(confirmReturnBtn);
+                    dropdownMenu.appendChild(disputeReturnBtn);
+                    
+                    confirmReturnBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleConfirmReturn(item.exchangeId || item.id, true);
+                    });
+                    
+                    disputeReturnBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleConfirmReturn(item.exchangeId || item.id, false);
+                    });
+                } else {
+                    // Add early return approval buttons (for early return requests)
+                    const earlyReturnApproveBtn = document.createElement('button');
+                    earlyReturnApproveBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
+                    earlyReturnApproveBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Approve Early Return
+                    `;
+                    
+                    const earlyReturnDeclineBtn = document.createElement('button');
+                    earlyReturnDeclineBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center';
+                    earlyReturnDeclineBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        Decline Early Return
+                    `;
+                    
+                    dropdownMenu.appendChild(earlyReturnApproveBtn);
+                    dropdownMenu.appendChild(earlyReturnDeclineBtn);
+                    
+                    earlyReturnApproveBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleEarlyReturnAction(item.exchangeId || item.id, true);
+                    });
+                    
+                    earlyReturnDeclineBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleEarlyReturnAction(item.exchangeId || item.id, false);
+                    });
+                }
             }
             
             if (editBtn) {
@@ -1347,13 +1882,17 @@ class AssetHub {
             if (maintenanceBtn) {
                 maintenanceBtn.style.display = 'block';
                 maintenanceBtn.addEventListener('click', (e) => {
+                    console.log('🔧 Maintenance button clicked for item:', item);
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
                     this.openMaintenanceModal(item);
                 });
+            } else {
+                console.log('❌ Maintenance button not found for owned item:', item);
             }
         } else {
+            console.log('🔍 Processing non-owned item (type:', type, ') for:', item.title);
             // For borrowed items, hide edit, delete, and maintenance buttons
             if (editBtn) editBtn.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
@@ -1656,8 +2195,16 @@ class AssetHub {
 
         console.log('🔧 Opening maintenance modal for item:', item);
 
+        // Check if maintenance form exists
+        const maintenanceForm = document.getElementById('maintenance-form');
+        if (!maintenanceForm) {
+            console.error('❌ Maintenance form not found!');
+            this.showError('Maintenance form not found. Please refresh the page.');
+            return;
+        }
+
         // Reset form
-        document.getElementById('maintenance-form').reset();
+        maintenanceForm.reset();
 
         // Check if this is a borrowed item (borrowed items should only allow history)
         const isBorrowedItem = !this.ownedItems.some(ownedItem => ownedItem.id === item.id);
@@ -1696,7 +2243,15 @@ class AssetHub {
         // Maintenance history section removed - no longer loading history
 
         // Show modal
-        document.getElementById('maintenance-modal').classList.add('active');
+        const maintenanceModal = document.getElementById('maintenance-modal');
+        if (!maintenanceModal) {
+            console.error('❌ Maintenance modal not found!');
+            this.showError('Maintenance modal not found. Please refresh the page.');
+            return;
+        }
+        
+        console.log('🔧 Showing maintenance modal');
+        maintenanceModal.classList.add('active');
     }
 
     closeMaintenanceModal() {

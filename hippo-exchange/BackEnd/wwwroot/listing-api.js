@@ -713,6 +713,247 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Check for existing exchange request
+  async function checkExistingRequest(listing) {
+    if (!currentUser) {
+      console.log('No current user, cannot check existing requests');
+      return null;
+    }
+
+    const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
+    if (!currentUserId) {
+      console.log('No current user ID, cannot check existing requests');
+      return null;
+    }
+
+    try {
+      console.log('🔍 Checking for existing exchange requests for user:', currentUserId, 'and item:', listing.id);
+      
+      const response = await fetch(`${API_BASE_URL}/exchanges/borrower/${currentUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('hippo_token')}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ Failed to fetch user exchanges:', response.status);
+        return null;
+      }
+
+      const exchanges = await response.json();
+      console.log('📋 User exchanges:', exchanges);
+
+      // Find exchange for this specific item
+      const existingExchange = exchanges.find(exchange => 
+        exchange.itemId === listing.id || exchange.ItemId === listing.id
+      );
+
+      if (existingExchange) {
+        console.log('✅ Found existing exchange request:', existingExchange);
+        return existingExchange;
+      } else {
+        console.log('ℹ️ No existing exchange request found for this item');
+        return null;
+      }
+
+    } catch (error) {
+      console.error('❌ Error checking existing requests:', error);
+      return null;
+    }
+  }
+
+  // Update request button UI based on existing request status
+  function updateRequestButtonUI(requestBtn, existingRequest, listing) {
+    if (!requestBtn) return;
+
+    if (!existingRequest) {
+      // No existing request - show normal request button
+      requestBtn.disabled = false;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          <span class="font-medium">Request Item</span>
+        </div>
+      `;
+      requestBtn.className = 'btn-primary';
+      return;
+    }
+
+    // Determine the status of the existing request
+    const isApproved = existingRequest.approved === true || existingRequest.Approved === true;
+    const isDeclined = existingRequest.approved === false || existingRequest.Approved === false;
+    const isPending = !isApproved && !isDeclined;
+
+    if (isApproved) {
+      // Request was approved
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="font-medium">Request Approved</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-green-500 text-white border-green-500 cursor-not-allowed opacity-75';
+      
+      // Add success info panel
+      addRequestStatusPanel(listing, 'approved', existingRequest);
+      
+    } else if (isDeclined) {
+      // Request was declined
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+          <span class="font-medium">Request Declined</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-red-500 text-white border-red-500 cursor-not-allowed opacity-75';
+      
+      // Add declined info panel
+      addRequestStatusPanel(listing, 'declined', existingRequest);
+      
+    } else if (isPending) {
+      // Request is pending
+      requestBtn.disabled = true;
+      requestBtn.innerHTML = `
+        <div class="flex items-center justify-center">
+          <svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="font-medium">Request Pending</span>
+        </div>
+      `;
+      requestBtn.className = 'bg-yellow-500 text-white border-yellow-500 cursor-not-allowed opacity-75';
+      
+      // Add pending info panel
+      addRequestStatusPanel(listing, 'pending', existingRequest);
+    }
+  }
+
+  // Add request status information panel
+  function addRequestStatusPanel(listing, status, exchange) {
+    // Remove existing status panel if any
+    const existingPanel = document.getElementById('request-status-panel');
+    if (existingPanel) {
+      existingPanel.remove();
+    }
+
+    // Create status info panel
+    const statusPanel = document.createElement('div');
+    statusPanel.id = 'request-status-panel';
+    
+    let panelClass, iconClass, iconPath, title, message, additionalInfo;
+    
+    switch (status) {
+      case 'approved':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-green-500 bg-green-50/50';
+        iconClass = 'w-8 h-8 bg-green-100 rounded-full flex items-center justify-center';
+        iconPath = 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
+        title = 'Request Approved!';
+        message = `Your request to borrow "${listing.title}" has been approved by ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-green-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <span>Check your exchanges for pickup details</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>Message the owner to coordinate pickup</span>
+            </div>
+          </div>
+        `;
+        break;
+        
+      case 'declined':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-red-500 bg-red-50/50';
+        iconClass = 'w-8 h-8 bg-red-100 rounded-full flex items-center justify-center';
+        iconPath = 'M6 18L18 6M6 6l12 12';
+        title = 'Request Declined';
+        message = `Your request to borrow "${listing.title}" was declined by ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-red-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>You can browse other similar items</span>
+            </div>
+          </div>
+        `;
+        break;
+        
+      case 'pending':
+        panelClass = 'glass p-4 rounded-lg mt-4 border-l-4 border-yellow-500 bg-yellow-50/50';
+        iconClass = 'w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center';
+        iconPath = 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z';
+        title = 'Request Pending';
+        message = `Your request to borrow "${listing.title}" is pending approval from ${listing.seller.name}.`;
+        additionalInfo = `
+          <div class="space-y-1 text-xs text-yellow-600">
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span>Check your exchanges for updates</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              <span>You can message the owner to discuss details</span>
+            </div>
+          </div>
+        `;
+        break;
+    }
+
+    statusPanel.className = panelClass;
+    statusPanel.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0">
+          <div class="${iconClass}">
+            <svg class="w-4 h-4 text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"/>
+            </svg>
+          </div>
+        </div>
+        <div class="flex-1">
+          <h4 class="font-semibold text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-800 text-sm mb-1">${title}</h4>
+          <p class="text-${status === 'approved' ? 'green' : status === 'declined' ? 'red' : 'yellow'}-700 text-xs mb-2">${message}</p>
+          ${additionalInfo}
+        </div>
+      </div>
+    `;
+
+    // Add to the user controls section
+    const userControls = document.getElementById('user-controls');
+    if (userControls) {
+      userControls.appendChild(statusPanel);
+
+      // Animate in
+      statusPanel.style.opacity = '0';
+      statusPanel.style.transform = 'translateY(10px)';
+      statusPanel.style.transition = 'all 0.3s ease-out';
+
+      setTimeout(() => {
+        statusPanel.style.opacity = '1';
+        statusPanel.style.transform = 'translateY(0)';
+      }, 100);
+    }
+  }
+
   // Request Item Function
   async function requestItem(listing) {
     console.log('Requesting item:', listing.id);
@@ -820,6 +1061,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Proceed with request after date selection
   async function proceedWithRequest(listing, startDate, endDate) {
     console.log('Proceeding with request for dates:', startDate, 'to', endDate);
+
+    // Check for existing request first
+    const existingRequest = await checkExistingRequest(listing);
+    if (existingRequest) {
+      console.log('⚠️ User already has a request for this item:', existingRequest);
+      showToast('You have already requested this item. Check your exchanges for the status.', 'warning');
+      return;
+    }
 
     // Check if user is authenticated
     if (!currentUser) {
@@ -1205,6 +1454,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function addInteractivity(listing) {
     const requestBtn = $('request-item-btn');
+    
+    // Check for existing exchange requests and update UI accordingly
+    checkExistingRequest(listing).then(existingRequest => {
+      updateRequestButtonUI(requestBtn, existingRequest, listing);
+    });
+    
     requestBtn?.addEventListener('click', async () => {
       await requestItem(listing);
     });
@@ -1272,6 +1527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       signOut();
     });
   }
+
 
 });
 

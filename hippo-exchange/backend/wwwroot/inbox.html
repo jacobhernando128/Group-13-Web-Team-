@@ -12,6 +12,47 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <link rel="stylesheet" href="./styles.css" />
+  
+  <style>
+    /* Custom Archive Modal Styles */
+    #archive-modal.show {
+      display: flex !important;
+    }
+    
+    #archive-modal.show #archive-modal-content {
+      transform: scale(1) !important;
+      opacity: 1 !important;
+    }
+    
+    #archive-modal-content {
+      animation: modalSlideIn 0.3s ease-out forwards;
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        transform: scale(0.9) translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    /* Modal backdrop animation */
+    #archive-modal.show {
+      animation: backdropFadeIn 0.3s ease-out forwards;
+    }
+    
+    @keyframes backdropFadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  </style>
 </head>
 
 <body class="relative min-h-screen overflow-hidden">
@@ -84,7 +125,6 @@
               class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Loading...</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Loading...</p>
             </div>
           </div>
           <!-- Balance removed per UX request -->
@@ -231,6 +271,42 @@
   </div>
 
   <!-- Compose modal removed: direct messages are created via listings only -->
+
+  <!-- Custom Archive Modal -->
+  <div id="archive-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-95 opacity-0" id="archive-modal-content">
+      <div class="p-6">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-center mb-4">
+          <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h10l2 2v6a2 2 0 01-2 2H7a2 2 0 01-2-2V9l2-2z" />
+            </svg>
+          </div>
+        </div>
+        
+        <!-- Modal Title -->
+        <h3 id="archive-modal-title" class="text-xl font-semibold text-slate-800 text-center mb-2">
+          Archive Conversation
+        </h3>
+        
+        <!-- Modal Message -->
+        <p id="archive-modal-message" class="text-slate-600 text-center mb-6 leading-relaxed">
+          Are you sure you want to archive this conversation? You can view it later from the Archived view.
+        </p>
+        
+        <!-- Modal Actions -->
+        <div class="flex gap-3">
+          <button id="archive-modal-cancel" class="flex-1 px-4 py-3 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300">
+            Cancel
+          </button>
+          <button id="archive-modal-confirm" class="flex-1 px-4 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+            Archive
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script defer src="./global-notifications.js"></script>
   <script defer src="./profile-utils.js"></script>

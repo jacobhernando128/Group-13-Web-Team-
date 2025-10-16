@@ -43,6 +43,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Setup review creation functionality
     setupReviewCreation();
+
+    // Auto-refresh functionality (5 seconds)
+    let autoRefreshInterval = null;
+    
+    function startAutoRefresh() {
+        // Clear any existing interval
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        
+        // Set up new interval for 60 seconds (1 minute)
+        autoRefreshInterval = setInterval(() => {
+            console.log('🔄 Auto-refreshing other user data...');
+            loadUserProfile(viewingUserId);
+            loadUserItems(viewingUserId);
+            loadUserReviews(viewingUserId);
+        }, 60000);
+        
+        console.log('✅ Auto-refresh started for other user page (60 seconds)');
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+            console.log('⏹️ Auto-refresh stopped for other user page');
+        }
+    }
+    
+    // Start auto-refresh when page becomes visible
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    }
+    
+    // Start auto-refresh initially
+    startAutoRefresh();
+    
+    // Handle page visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', stopAutoRefresh);
 });
 
 // Mobile menu setup

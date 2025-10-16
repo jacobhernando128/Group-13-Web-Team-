@@ -398,6 +398,77 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Check if an item is currently loaned out
+  async function isItemLoanedOut(itemId, ownerId) {
+    try {
+      console.log('🔍 Checking if item is loaned out:', itemId, 'for owner:', ownerId);
+      
+      if (!ownerId) {
+        console.log('⚠️ No owner ID provided, assuming item is available');
+        return false;
+      }
+      
+      // Get all exchanges for this item's owner
+      const response = await fetch(`/exchanges/owner/${ownerId}`, {
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ Failed to fetch exchanges for owner:', response.status);
+        return false;
+      }
+
+      const exchanges = await response.json();
+      const now = new Date();
+      
+      // Check if there's an approved exchange for this item that's currently active
+      const activeExchange = exchanges.find(exchange => {
+        const isApproved = exchange.approved === true || exchange.Approved === true;
+        const isForThisItem = exchange.itemID === itemId || exchange.itemId === itemId;
+        
+        if (!isApproved || !isForThisItem) {
+          return false;
+        }
+        
+        // Check if the exchange is currently active (between start and end dates)
+        const startDate = new Date(exchange.startDate);
+        const endDate = new Date(exchange.endDate);
+        
+        return now >= startDate && now <= endDate;
+      });
+
+      if (activeExchange) {
+        console.log('🚫 Item is currently loaned out:', itemId, activeExchange);
+        return true;
+      }
+
+      console.log('✅ Item is available:', itemId);
+      return false;
+
+    } catch (error) {
+      console.error('❌ Error checking if item is loaned out:', error);
+      return false; // Default to showing the item if we can't check
+    }
+  }
+
+  // Filter out loaned out items from the listings
+  async function filterLoanedOutItems(items) {
+    console.log('🔍 Filtering out loaned out items from', items.length, 'items');
+    
+    const availableItems = [];
+    
+    for (const item of items) {
+      const ownerId = item.userId || item.ownerId;
+      const isLoanedOut = await isItemLoanedOut(item.id, ownerId);
+      if (!isLoanedOut) {
+        availableItems.push(item);
+      }
+    }
+    
+    console.log(`✅ Filtered to ${availableItems.length} available items (removed ${items.length - availableItems.length} loaned out items)`);
+    return availableItems;
+  }
+
   async function load(loadMore = false) {
     try {
       if (!loadMore) {
@@ -419,13 +490,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
       
+      let rawItems = [];
       // Handle new pagination response format
       if (data.items && Array.isArray(data.items)) {
-        if (loadMore) {
-          allListings = [...allListings, ...data.items];
-        } else {
-          allListings = data.items;
-        }
+        rawItems = data.items;
         paginationInfo = {
           totalCount: data.totalCount || 0,
           limit: data.limit || 100,
@@ -434,11 +502,22 @@ document.addEventListener('DOMContentLoaded', () => {
         };
       } else {
         // Fallback for old format
-        allListings = Array.isArray(data) ? data : [];
+        rawItems = Array.isArray(data) ? data : [];
         paginationInfo.hasMore = false;
       }
 
-      console.log(`Loaded ${allListings.length} listings from backend (${paginationInfo.totalCount} total)`);
+      console.log(`Loaded ${rawItems.length} raw listings from backend (${paginationInfo.totalCount} total)`);
+      
+      // Filter out loaned out items
+      const availableItems = await filterLoanedOutItems(rawItems);
+      
+      if (loadMore) {
+        allListings = [...allListings, ...availableItems];
+      } else {
+        allListings = availableItems;
+      }
+
+      console.log(`Final listings after filtering: ${allListings.length} available items`);
       render(allListings);
       updateLoadMoreButton();
 
@@ -474,6 +553,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   load();
+
+  // Auto-refresh functionality (5 seconds)
+  let autoRefreshInterval = null;
+  
+  function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+    }
+    
+    // Set up new interval for 60 seconds (1 minute)
+    autoRefreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing home page listings...');
+      load();
+    }, 60000);
+    
+    console.log('✅ Auto-refresh started for home page (60 seconds)');
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+      console.log('⏹️ Auto-refresh stopped for home page');
+    }
+  }
+  
+  // Start auto-refresh when page becomes visible
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+    }
+  }
+  
+  // Start auto-refresh initially
+  startAutoRefresh();
+  
+  // Handle page visibility changes
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  // Clean up on page unload
+  window.addEventListener('beforeunload', stopAutoRefresh);
 });
 
 // Authentication and user data functions

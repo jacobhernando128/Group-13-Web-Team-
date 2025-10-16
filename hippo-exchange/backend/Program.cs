@@ -28,9 +28,9 @@ namespace HippoExchange
             var builder = WebApplication.CreateBuilder(args);
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(5000);
-
-
+                options.ListenAnyIP(5000); 
+                                         
+                                        
             });
 
             // -------- Config --------
@@ -65,7 +65,7 @@ namespace HippoExchange
             static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
             {
                 if (user == null) throw new ArgumentNullException(nameof(user));
-
+                
                 var tokenHandler = new JwtSecurityTokenHandler();
                 var key = Encoding.UTF8.GetBytes(jwtKey);
                 var tokenDescriptor = new SecurityTokenDescriptor
@@ -94,7 +94,7 @@ namespace HippoExchange
                 DatabaseId = databaseId,
                 Credential = googleCred
             }.Build());
-
+            
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
@@ -861,7 +861,7 @@ namespace HippoExchange
                 var activeAsOwner = ownerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return exchange.Approved
+                    return (exchange.Approved ?? false)
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -879,7 +879,7 @@ namespace HippoExchange
                 var activeAsBorrower = borrowerExchanges.Any(ex =>
                 {
                     var exchange = ex.ConvertTo<Exchange>();
-                    return exchange.Approved
+                    return (exchange.Approved ?? false)
                         && exchange.StartDate.HasValue
                         && exchange.EndDate.HasValue
                         && exchange.StartDate.Value <= nowUtc
@@ -909,7 +909,7 @@ namespace HippoExchange
                 op.Summary = "Delete a user account";
                 op.Description = "Deletes a user if they have no active exchanges (between start and end dates). Also removes auth record.";
                 return op;
-            });
+            });    
 
 
             // -------- Exchanges --------
@@ -963,8 +963,8 @@ namespace HippoExchange
                     ItemId = dto.ItemId.Trim(),
                     Approved = false,                    // defaults false per your model
                     RequestCreated = DateTime.UtcNow,    // auto timestamp (UTC)
-                    StartDate = dto.StartDate,           // use provided start date
-                    EndDate = dto.EndDate,               // use provided end date
+                    StartDate = dto.StartDate.HasValue ? DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc) : null,
+                    EndDate = dto.EndDate.HasValue ? DateTime.SpecifyKind(dto.EndDate.Value, DateTimeKind.Utc) : null,
                     RequestHandled = null
                 };
 
@@ -1009,11 +1009,23 @@ namespace HippoExchange
             // PUT /exchanges/{id}/approval — approve/decline with server-side invariants
             app.MapPut("/exchanges/{id}/approval", async ([FromServices] FirestoreDb db, string id, [FromBody] UpdateExchangeApprovalDto dto) =>
             {
+                try
+            {
                 var doc = db.Collection("exchanges").Document(id);
                 var snap = await doc.GetSnapshotAsync();
                 if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
-                var exchange = snap.ConvertTo<Exchange>();
+                    // Try to convert the document to Exchange, with error handling
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
                 var nowUtc = DateTime.UtcNow;
 
                 var updates = new Dictionary<string, object>
@@ -1035,22 +1047,24 @@ namespace HippoExchange
                         return Results.BadRequest(new { error = "endDate must be after startDate." });
 
                     // Check for scheduling conflicts with other approved exchanges for the same item
-                    var existingExchanges = await db.Collection("exchanges")
+                    // Simplified query to avoid index requirements
+                    var allExchanges = await db.Collection("exchanges")
                         .WhereEqualTo("itemID", exchange.ItemId)
-                        .WhereEqualTo("approved", true)
-                        .WhereNotEqualTo("Id", id) // Exclude current exchange
                         .GetSnapshotAsync();
+                        
+                    var existingExchanges = allExchanges.Documents
+                        .Select(doc => doc.ConvertTo<Exchange>())
+                        .Where(ex => (ex.Approved ?? false) && ex.Id != id);
 
-                    foreach (var existingExchange in existingExchanges.Documents)
+                    foreach (var existingExchange in existingExchanges)
                     {
-                        var existing = existingExchange.ConvertTo<Exchange>();
-                        if (existing.StartDate.HasValue && existing.EndDate.HasValue)
+                        if (existingExchange.StartDate.HasValue && existingExchange.EndDate.HasValue)
                         {
                             // Check for date overlap
-                            if ((startUtc < existing.EndDate.Value && endUtc > existing.StartDate.Value))
+                            if ((startUtc < existingExchange.EndDate.Value && endUtc > existingExchange.StartDate.Value))
                             {
                                 return Results.BadRequest(new { 
-                                    error = $"This item is already scheduled for the period {existing.StartDate.Value:yyyy-MM-dd} to {existing.EndDate.Value:yyyy-MM-dd}. Please choose a different time period." 
+                                    error = $"This item is already scheduled for the period {existingExchange.StartDate.Value:yyyy-MM-dd} to {existingExchange.EndDate.Value:yyyy-MM-dd}. Please choose a different time period." 
                                 });
                             }
                         }
@@ -1072,7 +1086,21 @@ namespace HippoExchange
                 await doc.UpdateAsync(updates);
 
                 var updated = await doc.GetSnapshotAsync();
+                try
+                {
                 return Results.Ok(updated.ConvertTo<Exchange>());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error converting updated exchange: {ex.Message}");
+                    return Results.Ok(new { message = "Exchange updated successfully", id = id });
+                }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in approval endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
             })
             .WithName("UpdateExchangeApproval")
             .WithTags("Exchanges")
@@ -1087,6 +1115,326 @@ namespace HippoExchange
                 return op;
             });
 
+            // PUT /exchanges/{id}/early-return — approve early return request
+            app.MapPut("/exchanges/{id}/early-return", async ([FromServices] FirestoreDb db, string id, [FromBody] EarlyReturnApprovalDto dto) =>
+            {
+                try
+                {
+                    var doc = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
+
+                    var nowUtc = DateTime.UtcNow;
+
+                    var updates = new Dictionary<string, object>
+                    {
+                        ["endDate"] = nowUtc, // Set end date to now for early return
+                        ["requestHandled"] = nowUtc,
+                        ["earlyReturnApproved"] = dto.Approved
+                    };
+
+                    if (dto.Approved)
+                    {
+                        // Update user counters when approving early return
+                        await UpdateUserCountersOnReturn(db, exchange.OwnerId, exchange.BorrowerId);
+                    }
+
+                    await doc.UpdateAsync(updates);
+
+                    var updated = await doc.GetSnapshotAsync();
+                    try
+                    {
+                        return Results.Ok(updated.ConvertTo<Exchange>());
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting updated exchange: {ex.Message}");
+                        return Results.Ok(new { message = "Early return request processed successfully", id = id });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in early return endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
+            })
+            .WithName("ApproveEarlyReturn")
+            .WithTags("Exchanges")
+            .Accepts<EarlyReturnApprovalDto>("application/json")
+            .Produces<Exchange>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Approve or decline an early return request";
+                op.Description = "Processes an early return request by updating the end date and user counters.";
+                return op;
+            });
+
+            // POST /exchanges/{id}/request-early-return — borrower requests early return
+            app.MapPost("/exchanges/{id}/request-early-return", async ([FromServices] FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    var doc = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
+
+                    // Check if exchange is approved and not already returned
+                    if (!(exchange.Approved ?? false))
+                    {
+                        return Results.BadRequest(new { error = "Can only request early return for approved exchanges." });
+                    }
+
+                    // Check if already returned
+                    if (exchange.EndDate.HasValue && exchange.EndDate.Value <= DateTime.UtcNow)
+                    {
+                        return Results.BadRequest(new { error = "This item has already been returned." });
+                    }
+
+                    // Check if it's actually early (before end date)
+                    if (exchange.EndDate.HasValue && DateTime.UtcNow >= exchange.EndDate.Value)
+                    {
+                        return Results.BadRequest(new { error = "Cannot request early return on or after the return date." });
+                    }
+
+                    // Create early return request notification
+                    var notification = new Notification
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        SenderId = exchange.BorrowerId,
+                        ReceiverId = exchange.OwnerId,
+                        Title = "Early Return Request",
+                        Message = $"The borrower wants to return your item early.",
+                        Type = "early_return_request",
+                        ListingId = exchange.ItemId,
+                        CreatedUtc = DateTime.UtcNow,
+                        Dismissed = false
+                    };
+
+                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+
+                    return Results.Ok(new { message = "Early return request sent successfully", notificationId = notification.Id });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in early return request endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
+            })
+            .WithName("RequestEarlyReturn")
+            .WithTags("Exchanges")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Request early return of a borrowed item";
+                op.Description = "Allows borrowers to request early return of their borrowed items.";
+                return op;
+            });
+
+
+            // POST /exchanges/{id}/mark-returned — borrower marks item as returned (requires owner approval)
+            app.MapPost("/exchanges/{id}/mark-returned", async ([FromServices] FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    var doc = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
+
+                    // Check if exchange is approved and not already returned
+                    if (!(exchange.Approved ?? false))
+                    {
+                        return Results.BadRequest(new { error = "Can only mark returned for approved exchanges." });
+                    }
+
+                    // Check if already returned
+                    if (exchange.EndDate.HasValue && exchange.EndDate.Value <= DateTime.UtcNow)
+                    {
+                        return Results.BadRequest(new { error = "This item has already been returned." });
+                    }
+
+                    // Create return confirmation notification for owner
+                    var notification = new Notification
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        SenderId = exchange.BorrowerId,
+                        ReceiverId = exchange.OwnerId,
+                        Title = "Item Returned",
+                        Message = $"The borrower has marked your item as returned. Please confirm receipt.",
+                        Type = "item_returned",
+                        ListingId = exchange.ItemId,
+                        CreatedUtc = DateTime.UtcNow,
+                        Dismissed = false
+                    };
+
+                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+
+                    // Mark the exchange as pending return confirmation
+                    var updates = new Dictionary<string, object>
+                    {
+                        ["returnPendingConfirmation"] = true,
+                        ["returnRequestedAt"] = DateTime.UtcNow
+                    };
+
+                    await doc.UpdateAsync(updates);
+
+                    return Results.Ok(new { message = "Item marked as returned. Waiting for owner confirmation.", notificationId = notification.Id });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in mark returned endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
+            })
+            .WithName("MarkItemReturned")
+            .WithTags("Exchanges")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Mark an item as returned (requires owner confirmation)";
+                op.Description = "Allows borrowers to mark items as returned, which requires owner confirmation.";
+                return op;
+            });
+
+            // PUT /exchanges/{id}/confirm-return — owner confirms item return
+            app.MapPut("/exchanges/{id}/confirm-return", async ([FromServices] FirestoreDb db, string id, [FromBody] ConfirmReturnDto dto) =>
+            {
+                try
+                {
+                    var doc = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
+
+                    var nowUtc = DateTime.UtcNow;
+
+                    var updates = new Dictionary<string, object>
+                    {
+                        ["endDate"] = nowUtc,
+                        ["returnConfirmed"] = dto.Confirmed,
+                        ["returnConfirmedAt"] = nowUtc,
+                        ["returnPendingConfirmation"] = false
+                    };
+
+                    if (dto.Confirmed)
+                    {
+                        // Update user counters when confirming return
+                        await UpdateUserCountersOnReturn(db, exchange.OwnerId, exchange.BorrowerId);
+                        
+                        // Create confirmation notification for borrower
+                        var notification = new Notification
+                        {
+                            Id = Guid.NewGuid().ToString("n"),
+                            SenderId = exchange.OwnerId,
+                            ReceiverId = exchange.BorrowerId,
+                            Title = "Return Confirmed",
+                            Message = $"Your item return has been confirmed by the owner.",
+                            Type = "return_confirmed",
+                            ListingId = exchange.ItemId,
+                            CreatedUtc = nowUtc,
+                            Dismissed = false
+                        };
+
+                        await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+                    }
+                    else
+                    {
+                        // Create dispute notification for borrower
+                        var notification = new Notification
+                        {
+                            Id = Guid.NewGuid().ToString("n"),
+                            SenderId = exchange.OwnerId,
+                            ReceiverId = exchange.BorrowerId,
+                            Title = "Return Disputed",
+                            Message = $"The owner has disputed your item return. Please contact support.",
+                            Type = "return_disputed",
+                            ListingId = exchange.ItemId,
+                            CreatedUtc = nowUtc,
+                            Dismissed = false
+                        };
+
+                        await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+                    }
+
+                    await doc.UpdateAsync(updates);
+
+                    var updated = await doc.GetSnapshotAsync();
+                    try
+                    {
+                        return Results.Ok(updated.ConvertTo<Exchange>());
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting updated exchange: {ex.Message}");
+                        return Results.Ok(new { message = "Return confirmation processed successfully", id = id });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in confirm return endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
+            })
+            .WithName("ConfirmReturn")
+            .WithTags("Exchanges")
+            .Accepts<ConfirmReturnDto>("application/json")
+            .Produces<Exchange>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Confirm or dispute an item return";
+                op.Description = "Allows owners to confirm or dispute item returns from borrowers.";
+                return op;
+            });
 
             // PUT /exchanges/{id}/return — mark exchange as returned
             app.MapPut("/exchanges/{id}/return", async ([FromServices] FirestoreDb db, string id) =>
@@ -1096,7 +1444,7 @@ namespace HippoExchange
                 if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
                 var exchange = snap.ConvertTo<Exchange>();
-                if (!exchange.Approved)
+                if (!(exchange.Approved ?? false))
                 {
                     return Results.BadRequest(new { error = "Cannot return an unapproved exchange." });
                 }
@@ -1131,12 +1479,12 @@ namespace HippoExchange
                 if (!snap.Exists) return Results.NotFound();
 
                 var exchange = snap.ConvertTo<Exchange>();
-
+                
                 // Get the item details to include in notification
                 var listingDoc = db.Collection("listings").Document(exchange.ItemId);
                 var listingSnap = await listingDoc.GetSnapshotAsync();
                 var listing = listingSnap.Exists ? listingSnap.ConvertTo<Listing>() : null;
-
+                
                 // Get the actual item using the ItemId from the listing
                 Item? item = null;
                 if (listing != null)
@@ -1145,7 +1493,7 @@ namespace HippoExchange
                     var itemSnap = await itemDoc.GetSnapshotAsync();
                     item = itemSnap.Exists ? itemSnap.ConvertTo<Item>() : null;
                 }
-
+                
                 // Get the borrower details for the notification
                 var borrowerDoc = db.Collection("users").Document(exchange.BorrowerId);
                 var borrowerSnap = await borrowerDoc.GetSnapshotAsync();
@@ -1597,7 +1945,6 @@ namespace HippoExchange
                                         Type = "maintenance_due",
                                         ListingId = maintenance.ItemId,
                                         CreatedUtc = DateTime.UtcNow,
-                                        Read = false,
                                         Dismissed = false
                                     };
 
@@ -2118,15 +2465,15 @@ namespace HippoExchange
                     };
 
                     await db.Collection("users").Document(user.Id).SetAsync(user);
-
+                    
                     // Generate JWT token for new user
                     var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
                     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "HippoExchange";
                     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "HippoExchangeUsers";
                     var expiryMinutes = int.Parse(builder.Configuration["Jwt:ExpiryMinutes"] ?? "60");
-
+                    
                     var token = GenerateJwtToken(user, jwtKey, jwtIssuer, jwtAudience, expiryMinutes);
-
+                    
                     return Results.Created($"/users/{user.Id}", new
                     {
                         user.Id,
@@ -2595,11 +2942,11 @@ namespace HippoExchange
                 u.Id = doc.Id;
                 return Results.Ok(new
                 {
-                    id = u.Id,
-                    email = u.Email,
-                    firstName = u.FirstName,
+                    id = u.Id, 
+                    email = u.Email, 
+                    firstName = u.FirstName, 
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim()
+                    name = $"{u.FirstName} {u.LastName}".Trim() 
                 });
             })
             .WithName("GetUserById")
@@ -2675,7 +3022,7 @@ namespace HippoExchange
     }
 
     // ---------------- Models ----------------
-
+    
     [FirestoreData]
     public class Item
     {
@@ -2717,7 +3064,7 @@ namespace HippoExchange
     {
         [FirestoreDocumentId] public string? Id { get; set; }
 
-        [FirestoreProperty("approved")] public bool Approved { get; set; } = false;
+        [FirestoreProperty("approved")] public bool? Approved { get; set; } = false;
 
         [FirestoreProperty("borrowerID")] public string BorrowerId { get; set; } = default!;
 
@@ -2732,6 +3079,22 @@ namespace HippoExchange
         [FirestoreProperty("requestCreated")] public DateTime RequestCreated { get; set; }
 
         [FirestoreProperty("requestHandled")] public DateTime? RequestHandled { get; set; }
+
+        [FirestoreProperty("title")] public string Title { get; set; } = default!;
+
+        [FirestoreProperty("type")] public string Type { get; set; } = default!;
+
+        [FirestoreProperty("dismissed")] public bool? Dismissed { get; set; } = false;
+
+        [FirestoreProperty("earlyReturnApproved")] public bool? EarlyReturnApproved { get; set; } = null;
+
+        [FirestoreProperty("returnPendingConfirmation")] public bool? ReturnPendingConfirmation { get; set; } = null;
+
+        [FirestoreProperty("returnRequestedAt")] public DateTime? ReturnRequestedAt { get; set; } = null;
+
+        [FirestoreProperty("returnConfirmed")] public bool? ReturnConfirmed { get; set; } = null;
+
+        [FirestoreProperty("returnConfirmedAt")] public DateTime? ReturnConfirmedAt { get; set; } = null;
     }
 
 
@@ -2756,7 +3119,9 @@ namespace HippoExchange
 
         [FirestoreProperty("type")] public string Type { get; set; } = default!;
 
-        [FirestoreProperty("dismissed")] public bool Dismissed { get; set; } = false;
+        [FirestoreProperty("dismissed")] public bool? Dismissed { get; set; } = false;
+
+        [FirestoreProperty("earlyReturnApproved")] public bool? EarlyReturnApproved { get; set; } = null;
     }
 
 
@@ -2892,7 +3257,7 @@ namespace HippoExchange
         [FromForm] public string? PhoneNumber { get; set; }                       // optional
         [FromForm] public string? Description { get; set; }                       // optional
     }
-
+    
     // ---- Exchange DTOs ----
     public record CreateExchangeDto(string OwnerId, string BorrowerId, string ItemId, DateTime? StartDate = null, DateTime? EndDate = null);
     public sealed class UpdateExchangeApprovalDto
@@ -2900,6 +3265,16 @@ namespace HippoExchange
         public bool Approved { get; set; }
         public DateTime? StartDate { get; set; }  // allow null when declining
         public DateTime? EndDate { get; set; }    // allow null when declining
+    }
+
+    public sealed class EarlyReturnApprovalDto
+    {
+        public bool Approved { get; set; }
+    }
+
+    public sealed class ConfirmReturnDto
+    {
+        public bool Confirmed { get; set; }
     }
 
 
@@ -2930,14 +3305,14 @@ namespace HippoExchange
         DateTime? LastMaintenanceDate,
         bool LastMaintenanceDateExplicitlyNull = false,
         string? Category = null
-    );
+    );  
 
 
 
     // ---- DocumentEntry DTOs ----
     public record CreateDocumentDto(string MaintenanceId, string Description, string Document);
     public record UpdateDocumentDto(string? Description, string? Document);
-
+    
 
     // ---- Review DTOs ----
     public record CreateReviewDto(int Rating, string RaterId, string UserId, string Description);

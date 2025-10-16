@@ -69,8 +69,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nameElement = document.getElementById('acct-name');
     const rankElement = document.getElementById('acct-rank');
     if (nameElement) {
-      // show the user's email as the primary account label
-      nameElement.textContent = user.email || user.username || user.name || 'User';
+      // Prefer first/last name over email
+      let displayName = 'User';
+      
+      // Try computed name first
+      if (user.name && String(user.name).trim()) {
+        displayName = String(user.name).trim();
+      } else {
+        // Try to compose from first/last name
+        const fn = (user.firstName || user.FirstName || '') || '';
+        const ln = (user.lastName || user.LastName || '') || '';
+        const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
+        if (parts.length > 0) {
+          displayName = parts.join(' ');
+        } else {
+          // Fall back to email only if no name is available
+          displayName = user.email || user.username || 'User';
+        }
+      }
+      
+      nameElement.textContent = displayName;
     }
     if (rankElement) {
       // always show the literal 'Member' as requested
@@ -190,16 +208,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
+      console.log('🔍 Fetching user name for ID:', userId);
+      
       // Get user info from the users endpoint
       const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
 
       if (response.ok) {
         const user = await response.json();
+        console.log('📋 User data received:', user);
 
         // Prefer explicit display name if provided
         if (user && typeof user === 'object') {
+          // First try the computed name field
           if (user.name && String(user.name).trim()) {
             const n = String(user.name).trim();
+            console.log('✅ Using computed name:', n);
             userNamesCache.set(userId, n);
             return n;
           }
@@ -210,28 +233,34 @@ document.addEventListener('DOMContentLoaded', async () => {
           const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
           if (parts.length > 0) {
             const full = parts.join(' ');
+            console.log('✅ Using first/last name:', full);
             userNamesCache.set(userId, full);
             return full;
           }
 
-          // Fall back to email
+          // Fall back to email only if no name is available
           if (user.email) {
             const e = String(user.email).trim();
+            console.log('⚠️ Falling back to email:', e);
             userNamesCache.set(userId, e);
             return e;
           }
         }
 
         // Final fallback
+        console.log('⚠️ No user data available, using generic name');
         userNamesCache.set(userId, 'User');
         return 'User';
+      } else {
+        console.warn('⚠️ Failed to fetch user data:', response.status, response.statusText);
       }
     } catch (error) {
-      console.log('Could not fetch user name:', error);
+      console.error('❌ Error fetching user name:', error);
     }
 
     // Fallback to showing user ID
     const fallbackName = `User ${userId.substring(0, 8)}...`;
+    console.log('⚠️ Using fallback name:', fallbackName);
     userNamesCache.set(userId, fallbackName);
     return fallbackName;
   }
@@ -444,19 +473,38 @@ document.addEventListener('DOMContentLoaded', async () => {
           try {
             const isArchived = (localThread.archivedBy || localThread.ArchivedBy || []).includes(me.id);
             const wantArchive = !isArchived; // toggle
-            await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
-              method: 'POST',
-              body: { userId: me.id, starred: wantArchive }
-            });
-            // update local thread archivedBy state if present, otherwise remove from list when archiving
+            
             if (wantArchive) {
-              // archive: remove from current view
-              threads = threads.filter(x => (x.id || x.Id) !== localThread.id);
+              showArchiveModal(
+                'Archive Conversation',
+                'Are you sure you want to archive this conversation? You can view it later from the Archived view.',
+                'Archive',
+                async () => {
+                  await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
+                    method: 'POST',
+                    body: { userId: me.id, starred: wantArchive }
+                  });
+                  // archive: remove from current view
+                  threads = threads.filter(x => (x.id || x.Id) !== localThread.id);
+                  await renderThreads();
+                }
+              );
             } else {
-              // unarchive: update thread and re-render
-              localThread.archivedBy = (localThread.archivedBy || []).filter(x => x !== me.id);
+              showArchiveModal(
+                'Unarchive Conversation',
+                'Are you sure you want to unarchive this conversation? It will return to your main inbox.',
+                'Unarchive',
+                async () => {
+                  await api(`/messages/threads/${encodeURIComponent(localThread.id)}/archive`, {
+                    method: 'POST',
+                    body: { userId: me.id, starred: wantArchive }
+                  });
+                  // unarchive: update thread and re-render
+                  localThread.archivedBy = (localThread.archivedBy || []).filter(x => x !== me.id);
+                  await renderThreads();
+                }
+              );
             }
-            await renderThreads();
           } catch (e) {
             console.error('Failed to toggle archive state for thread', e);
             alert('Failed to update archive state.');
@@ -632,6 +680,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     await toggleStar(selectedThread, !starred);
   });
 
+  // Custom modal functions
+  function showArchiveModal(title, message, confirmText, onConfirm) {
+    const modal = document.getElementById('archive-modal');
+    const modalTitle = document.getElementById('archive-modal-title');
+    const modalMessage = document.getElementById('archive-modal-message');
+    const confirmBtn = document.getElementById('archive-modal-confirm');
+    const cancelBtn = document.getElementById('archive-modal-cancel');
+    
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    confirmBtn.textContent = confirmText;
+    
+    // Remove existing event listeners
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    
+    // Add new event listeners
+    newConfirmBtn.addEventListener('click', () => {
+      hideArchiveModal();
+      onConfirm();
+    });
+    
+    newCancelBtn.addEventListener('click', hideArchiveModal);
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
+    
+    // Focus on confirm button for accessibility
+    setTimeout(() => newConfirmBtn.focus(), 100);
+  }
+  
+  function hideArchiveModal() {
+    const modal = document.getElementById('archive-modal');
+    modal.classList.remove('show');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+  }
+  
+  // Close modal when clicking backdrop
+  document.getElementById('archive-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'archive-modal') {
+      hideArchiveModal();
+    }
+  });
+  
+  // Close modal with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('archive-modal').classList.contains('show')) {
+      hideArchiveModal();
+    }
+  });
+
   deleteBtn.addEventListener('click', () => {
     // Archive the currently selected conversation (per-user). If none selected, show a helpful message.
     if (!selectedThread) {
@@ -644,26 +746,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const isArchived = (selectedThread.archivedBy || selectedThread.ArchivedBy || []).includes(me.id);
         if (isArchived) {
-          const ok = confirm('Unarchive this conversation? It will return to your main inbox.');
-          if (!ok) return;
-          await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
-            method: 'POST',
-            body: { userId: me.id, starred: false }
-          });
-          // update local thread state and re-render
-          selectedThread.archivedBy = (selectedThread.archivedBy || []).filter(x => x !== me.id);
-          await loadThreads();
-          hideMessage();
+          showArchiveModal(
+            'Unarchive Conversation',
+            'Are you sure you want to unarchive this conversation? It will return to your main inbox.',
+            'Unarchive',
+            async () => {
+              await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+                method: 'POST',
+                body: { userId: me.id, starred: false }
+              });
+              // update local thread state and re-render
+              selectedThread.archivedBy = (selectedThread.archivedBy || []).filter(x => x !== me.id);
+              await loadThreads();
+              hideMessage();
+            }
+          );
         } else {
-          const ok = confirm('Archive this conversation? You can view it later from the Archived view.');
-          if (!ok) return;
-          await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
-            method: 'POST',
-            body: { userId: me.id, starred: true }
-          });
-          threads = threads.filter(x => (x.id || x.Id) !== selectedThread.id);
-          hideMessage();
-          await renderThreads();
+          showArchiveModal(
+            'Archive Conversation',
+            'Are you sure you want to archive this conversation? You can view it later from the Archived view.',
+            'Archive',
+            async () => {
+              await api(`/messages/threads/${encodeURIComponent(selectedThread.id)}/archive`, {
+                method: 'POST',
+                body: { userId: me.id, starred: true }
+              });
+              threads = threads.filter(x => (x.id || x.Id) !== selectedThread.id);
+              hideMessage();
+              await renderThreads();
+            }
+          );
         }
       } catch (e) {
         console.error('Failed to archive/unarchive conversation', e);
@@ -698,6 +810,85 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ---- URL Parameter Handling ----
+  function handleUrlParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUserId = urlParams.get('userId');
+    
+    if (targetUserId) {
+      console.log('🎯 URL parameter found - userId:', targetUserId);
+      // Find and open the conversation with this user
+      setTimeout(async () => {
+        await openConversationWithUser(targetUserId);
+      }, 1000); // Wait for threads to load
+    }
+  }
+  
+  async function openConversationWithUser(userId) {
+    console.log('🔍 Looking for conversation with user:', userId);
+    
+    // Find thread that includes this user
+    const targetThread = threads.find(thread => {
+      const participants = thread.participants || thread.Participants || [];
+      return participants.includes(userId);
+    });
+    
+    if (targetThread) {
+      console.log('✅ Found conversation thread:', targetThread.id);
+      await openThread(targetThread);
+    } else {
+      console.log('⚠️ No existing conversation found with user:', userId);
+      // Could potentially create a new conversation here if needed
+    }
+  }
+
   // ---- Initial load ----
   loadThreads().catch(err => console.error(err));
+  
+  // Handle URL parameters after initial load
+  handleUrlParameters();
+
+  // Auto-refresh functionality (5 seconds)
+  let autoRefreshInterval = null;
+  
+  function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+    }
+    
+    // Set up new interval for 60 seconds (1 minute)
+    autoRefreshInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing inbox threads...');
+      loadThreads();
+    }, 60000);
+    
+    console.log('✅ Auto-refresh started for inbox (60 seconds)');
+  }
+  
+  function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+      clearInterval(autoRefreshInterval);
+      autoRefreshInterval = null;
+      console.log('⏹️ Auto-refresh stopped for inbox');
+    }
+  }
+  
+  // Start auto-refresh when page becomes visible
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      stopAutoRefresh();
+    } else {
+      startAutoRefresh();
+    }
+  }
+  
+  // Start auto-refresh initially
+  startAutoRefresh();
+  
+  // Handle page visibility changes
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+  // Clean up on page unload
+  window.addEventListener('beforeunload', stopAutoRefresh);
 });

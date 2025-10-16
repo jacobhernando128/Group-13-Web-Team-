@@ -316,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const notifType = (n.type || n.Type || '').toLowerCase();
                 const formatted = formatNotificationByType(notifType, senderName, itemTitle, n);
 
-                return {
+                const notification = {
                     id: n.id || n.Id,
                     type: notifType,
                     title: formatted.title,
@@ -330,6 +330,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     isRead: isRead(n.id || n.Id),
                     dismissed: n.dismissed || n.Dismissed || false
                 };
+                
+                console.log('📋 Created notification:', {
+                    id: notification.id,
+                    type: notification.type,
+                    title: notification.title,
+                    actionUrl: notification.actionUrl
+                });
+                
+                return notification;
             }));
 
             // Filter out dismissed notifications
@@ -357,21 +366,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'messaged':
                 return {
                     title: `New message from ${senderName}`,
-                    message: `${senderName} sent you a message. Click to view the conversation.`,
+                    message: `${senderName} sent you a message. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'message_received':
                 return {
                     title: `New Message`,
-                    message: `You have a new message from ${senderName}. Click to read.`,
+                    message: `You have a new message from ${senderName}. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'conversation_started':
                 return {
                     title: `New Conversation`,
-                    message: `${senderName} started a new conversation with you.`,
+                    message: `${senderName} started a new conversation with you. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
@@ -379,63 +388,63 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'exchange_request':
                 return {
                     title: `Borrow Request`,
-                    message: `${senderName} has requested to borrow your ${itemTitle}. Check your exchanges to approve or decline.`,
-                    actionUrl: `./listing.html?id=${listingId}`
+                    message: `${senderName} has requested to borrow your ${itemTitle}. Click to view.`,
+                    actionUrl: `./asset-hub.html?tab=pending`
                 };
 
             case 'exchange_approved':
                 return {
                     title: `Request Approved! 🎉`,
-                    message: `Great news! ${senderName} has approved your request to borrow ${itemTitle}. Click to message them to arrange pickup.`,
+                    message: `Great news! ${senderName} has approved your request to borrow ${itemTitle}. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'exchange_declined':
                 return {
                     title: `Request Declined`,
-                    message: `${senderName} has declined your request to borrow ${itemTitle}. Browse other items or contact them for more information.`,
+                    message: `${senderName} has declined your request to borrow ${itemTitle}. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
             case 'exchange_cancelled':
                 return {
                     title: `Request Cancelled`,
-                    message: `${senderName} has cancelled their request for your ${itemTitle}. The request has been withdrawn.`,
+                    message: `${senderName} has cancelled their request for your ${itemTitle}. Click to view.`,
                     actionUrl: `./asset-hub.html`
                 };
 
             case 'exchange_started':
                 return {
                     title: `Exchange Started`,
-                    message: `Your exchange for ${itemTitle} has begun. The item is now in your possession.`,
+                    message: `Your exchange for ${itemTitle} has begun. Click to view.`,
                     actionUrl: `./asset-hub.html`
                 };
 
             case 'exchange_completed':
                 return {
                     title: `Exchange Completed`,
-                    message: `Your exchange for ${itemTitle} has been completed successfully. Thank you for using Hippo Exchange!`,
+                    message: `Your exchange for ${itemTitle} has been completed successfully. Click to view.`,
                     actionUrl: `./asset-hub.html`
                 };
 
             case 'exchange_overdue':
                 return {
                     title: `Overdue Item`,
-                    message: `The item ${itemTitle} is overdue for return. Please contact ${senderName} to arrange return.`,
+                    message: `The item ${itemTitle} is overdue for return. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'exchange_returned':
                 return {
                     title: `Item Returned`,
-                    message: `${senderName} has returned your ${itemTitle}. The exchange is complete.`,
+                    message: `${senderName} has returned your ${itemTitle}. Click to view.`,
                     actionUrl: `./asset-hub.html`
                 };
 
             case 'exchange_disputed':
                 return {
                     title: `Exchange Dispute`,
-                    message: `A dispute has been reported for your exchange of ${itemTitle}. Please contact support.`,
+                    message: `A dispute has been reported for your exchange of ${itemTitle}. Click to view.`,
                     actionUrl: `./profile.html`
                 };
 
@@ -445,7 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'new_offer':
                 return {
                     title: `New Offer Received`,
-                    message: `${senderName} made an offer on your ${itemTitle}. Check your exchanges to review.`,
+                    message: `${senderName} made an offer on your ${itemTitle}. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
@@ -453,14 +462,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'offer_approved':
                 return {
                     title: `Offer Accepted! 🎉`,
-                    message: `Great news! Your offer for ${itemTitle} has been accepted. Click here to message ${senderName} for details`,
+                    message: `Great news! Your offer for ${itemTitle} has been accepted. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'offer_declined':
                 return {
                     title: `Offer Declined`,
-                    message: `Your offer for ${itemTitle} has been declined by ${senderName}.`,
+                    message: `Your offer for ${itemTitle} has been declined by ${senderName}. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
@@ -468,21 +477,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'offer_submitted':
                 return {
                     title: `Offer Sent`,
-                    message: `Your offer for ${itemTitle} has been sent successfully. You'll be notified when the owner responds.`,
+                    message: `Your offer for ${itemTitle} has been sent successfully. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
             case 'offer_cancelled':
                 return {
                     title: `Offer Cancelled`,
-                    message: `The offer for ${itemTitle} has been cancelled.`,
+                    message: `The offer for ${itemTitle} has been cancelled. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
             case 'offer_expired':
                 return {
                     title: `Offer Expired`,
-                    message: `Your offer for ${itemTitle} has expired. You can make a new offer if the item is still available.`,
+                    message: `Your offer for ${itemTitle} has expired. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
@@ -500,14 +509,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'maintenance_completed':
                 return {
                     title: `Maintenance Complete`,
-                    message: `Maintenance on your ${itemTitle} has been completed successfully.`,
+                    message: `Maintenance on your ${itemTitle} has been completed successfully. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
             case 'maintenance_overdue':
                 return {
                     title: `Maintenance Overdue`,
-                    message: `Maintenance for ${itemTitle} is overdue. Please schedule maintenance soon.`,
+                    message: `Maintenance for ${itemTitle} is overdue. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
@@ -521,14 +530,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'maintenance_scheduled':
                 return {
                     title: `Maintenance Scheduled`,
-                    message: `Maintenance for ${itemTitle} has been scheduled.`,
+                    message: `Maintenance for ${itemTitle} has been scheduled. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
             case 'maintenance_cancelled':
                 return {
                     title: `Maintenance Cancelled`,
-                    message: `Maintenance for ${itemTitle} has been cancelled.`,
+                    message: `Maintenance for ${itemTitle} has been cancelled. Click to view.`,
                     actionUrl: `./listing.html?id=${listingId}`
                 };
 
@@ -536,28 +545,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'return_reminder':
                 return {
                     title: `Return Reminder`,
-                    message: `Don't forget! ${itemTitle} is due for return soon. Contact ${senderName} to arrange return.`,
+                    message: `Don't forget! ${itemTitle} is due for return soon. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'return_due_today':
                 return {
                     title: `Return Due Today`,
-                    message: `⚠️ ${itemTitle} is due for return today! Please contact ${senderName} immediately.`,
+                    message: `⚠️ ${itemTitle} is due for return today! Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'return_overdue':
                 return {
                     title: `Return Overdue`,
-                    message: `🚨 ${itemTitle} is overdue for return. Please contact ${senderName} immediately.`,
+                    message: `🚨 ${itemTitle} is overdue for return. Click to view.`,
                     actionUrl: `./inbox.html?userId=${senderId}`
                 };
 
             case 'return_confirmed':
                 return {
                     title: `Return Confirmed`,
-                    message: `Return of ${itemTitle} has been confirmed by ${senderName}.`,
+                    message: `Return of ${itemTitle} has been confirmed by ${senderName}. Click to view.`,
                     actionUrl: `./asset-hub.html`
                 };
 
@@ -566,6 +575,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     title: `Return Disputed`,
                     message: `Return of ${itemTitle} is being disputed. Please contact support.`,
                     actionUrl: `./profile.html`
+                };
+
+            case 'early_return_request':
+                return {
+                    title: `Early Return Request`,
+                    message: `${senderName} wants to return ${itemTitle} early. Click to view.`,
+                    actionUrl: `./asset-hub.html?tab=loaned`
+                };
+
+            case 'item_returned':
+                return {
+                    title: `Item Returned`,
+                    message: `${senderName} has marked ${itemTitle} as returned. Please confirm receipt. Click to view.`,
+                    actionUrl: `./asset-hub.html?tab=loaned`
                 };
 
             // === USER & PROFILE NOTIFICATIONS ===
@@ -867,6 +890,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const type = (notification.type || notification.Type || '').toLowerCase();
         const senderId = notification.senderId || notification.SenderId;
         const listingId = notification.listingId || notification.ListingId || notification.listingID || notification.ListingID;
+        
+        console.log('🔧 generateActionUrl called:', {
+            type: type,
+            senderId: senderId,
+            listingId: listingId,
+            notification: notification
+        });
 
         switch (type) {
             // Messaging notifications
@@ -922,6 +952,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'return_confirmed':
             case 'return_disputed':
                 return senderId ? `./inbox.html?userId=${senderId}` : './asset-hub.html';
+            
+            case 'early_return_request':
+                return './asset-hub.html?tab=loaned';
+            
+            case 'item_returned':
+                return './asset-hub.html?tab=loaned';
             
             // Profile notifications
             case 'profile_updated':
@@ -983,8 +1019,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return senderId ? `./inbox.html?userId=${senderId}` : './asset-hub.html';
             
             default:
-                return listingId ? `./listing.html?id=${listingId}` : './profile.html';
+                const defaultUrl = listingId ? `./listing.html?id=${listingId}` : './profile.html';
+                console.log('🔧 generateActionUrl default case:', defaultUrl);
+                return defaultUrl;
         }
+        
+        // This should never be reached, but just in case
+        console.log('🔧 generateActionUrl fallback:', './profile.html');
+        return './profile.html';
     }
 
     // ===== UTILITY FUNCTIONS =====
@@ -1085,6 +1127,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             case 'return_disputed':
                 return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>`;
+
+            case 'early_return_request':
+                return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>`;
+
+            case 'item_returned':
+                return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>`;
 
             // === USER & PROFILE NOTIFICATIONS ===
@@ -1274,6 +1326,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             case 'return_disputed':
                 return 'text-red-700 bg-red-200';
+
+            case 'early_return_request':
+                return 'text-blue-600 bg-blue-100';
+
+            case 'item_returned':
+                return 'text-green-600 bg-green-100';
 
             // === USER & PROFILE NOTIFICATIONS ===
             case 'profile_updated':
@@ -1535,17 +1593,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add click handler for the main notification area (excluding profile link, toggle button, and accept/decline buttons)
         const notificationContent = li.querySelector('.notification-content');
         notificationContent.addEventListener('click', (e) => {
+            console.log('🔍 Notification clicked:', notification);
+            console.log('🔍 Action URL:', notification.actionUrl);
+            
             // Don't trigger if clicking on the toggle button, profile link, or accept/decline buttons
             if (e.target.closest('.toggle-read-btn') ||
                 e.target.closest('.profile-link') ||
                 e.target.closest('.accept-btn') ||
-                e.target.closest('.decline-btn')) return;
+                e.target.closest('.decline-btn')) {
+                console.log('🚫 Click blocked - clicked on excluded element');
+                return;
+            }
 
+            console.log('✅ Processing notification click');
+            
             // Mark as read and navigate
             markAsRead(notification.id);
 
             if (notification.actionUrl) {
+                console.log('🚀 Navigating to:', notification.actionUrl);
                 window.location.href = notification.actionUrl;
+            } else {
+                console.log('⚠️ No action URL found for notification');
             }
         });
 
@@ -1760,13 +1829,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🔑 User ID:', USER_ID);
     fetchNotifications();
 
-    // Auto-refresh notifications every 30 seconds
+    // Auto-refresh notifications every 60 seconds (1 minute)
     setInterval(() => {
         if (!isLoading) {
             console.log('🔄 Auto-refreshing notifications...');
             fetchNotifications();
         }
-    }, 30000);
+    }, 60000);
 });
 
 // ===== MOBILE MENU FUNCTIONALITY =====
