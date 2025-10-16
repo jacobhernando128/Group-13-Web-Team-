@@ -238,18 +238,9 @@ SOFTWARE.
 ## Contributors 
 
 ### Tennessee Technological University – CSC Capstone Group 13
-#### Web
 - Matt Hazelwood
 - Jacob Hernando
 - Joey Milton
 - Justin Nelson
 - Michael Serdar
 - Vishnu Yadali 
-
-#### Mobile
-- 
--
--
--
--
--
