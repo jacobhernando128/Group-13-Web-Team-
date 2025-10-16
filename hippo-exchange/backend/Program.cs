@@ -1703,26 +1703,37 @@ namespace HippoExchange
             });
 
 
-            // POST /maintenance
+            // Compute nextMaintenanceDate on create using (lastMaintenanceDate ?? CreatedUtc) + frequency (days).
             app.MapPost("/maintenance", async (FirestoreDb db, CreateMaintenanceDto dto) =>
             {
                 if (string.IsNullOrWhiteSpace(dto.ItemId) || string.IsNullOrWhiteSpace(dto.Description))
                     return Results.BadRequest(new { message = "ItemId and Description are required." });
 
-                string? type = string.IsNullOrWhiteSpace(dto.Type) ? null : dto.Type.Trim();
+                string? type     = string.IsNullOrWhiteSpace(dto.Type)     ? null : dto.Type.Trim();
                 string? category = string.IsNullOrWhiteSpace(dto.Category) ? null : dto.Category.Trim();
+
+                var createdUtc = DateTime.UtcNow;
+                DateTime? lastUtc = dto.LastMaintenanceDate.HasValue
+                    ? DateTime.SpecifyKind(dto.LastMaintenanceDate.Value, DateTimeKind.Utc)
+                    : (DateTime?)null;
+
+                int? freq = dto.Frequency;
+                DateTime? nextUtc = (freq.HasValue && freq.Value > 0)
+                    ? (lastUtc ?? createdUtc).AddDays(freq.Value)
+                    : (DateTime?)null;
 
                 var m = new Maintenance
                 {
-                    Id = Guid.NewGuid().ToString("n"),
-                    ItemId = dto.ItemId.Trim(),
-                    Description = dto.Description.Trim(),
-                    Frequency = dto.Frequency,       // int? (days)
-                    CreatedUtc = DateTime.UtcNow,
-                    MaintenanceHistory = new List<DateTime>(),
-                    LastMaintenanceDate = null,
-                    Type = type,
-                    Category = category
+                    Id                  = Guid.NewGuid().ToString("n"),
+                    ItemId              = dto.ItemId.Trim(),
+                    Description         = dto.Description.Trim(),
+                    Frequency           = freq,                 // int? (days)
+                    CreatedUtc          = createdUtc,
+                    MaintenanceHistory  = new List<DateTime>(),
+                    LastMaintenanceDate = lastUtc,              // may be null on create
+                    NextMaintenanceDate = nextUtc,              // NEW: computed above
+                    Type                = type,
+                    Category            = category
                 };
 
                 var docRef = db.Collection("maintenance").Document(m.Id);
@@ -1739,15 +1750,17 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Create a maintenance record";
-                op.Description = "Creates a new maintenance document. Optional fields: frequency (days), type, category. Server sets CreatedUtc.";
-                // Example body in Swagger
+                op.Description =
+                    "Creates a new maintenance document. Optional fields: frequency (days), " +
+                    "type, category, lastMaintenanceDate (UTC). The server computes nextMaintenanceDate.";
                 op.RequestBody!.Content["application/json"].Example = new Microsoft.OpenApi.Any.OpenApiObject
                 {
-                    ["itemId"] = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
-                    ["description"] = new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
-                    ["frequency"] = new Microsoft.OpenApi.Any.OpenApiInteger(90),
-                    ["type"] = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
-                    ["category"] = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
+                    ["itemId"]             = new Microsoft.OpenApi.Any.OpenApiString("abc123"),
+                    ["description"]        = new Microsoft.OpenApi.Any.OpenApiString("Quarterly inspection"),
+                    ["frequency"]          = new Microsoft.OpenApi.Any.OpenApiInteger(7),
+                    ["lastMaintenanceDate"]= new Microsoft.OpenApi.Any.OpenApiString("2025-10-01T00:00:00Z"),
+                    ["type"]               = new Microsoft.OpenApi.Any.OpenApiString("Inspection"),
+                    ["category"]           = new Microsoft.OpenApi.Any.OpenApiString("Preventive")
                 };
                 return op;
             });
