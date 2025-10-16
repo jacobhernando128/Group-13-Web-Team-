@@ -1902,7 +1902,7 @@ namespace HippoExchange
             {
                 try
                 {
-                    // Get all required maintenance records
+                    // Only check "required" maintenance records
                     var maintenanceSnaps = await db.Collection("maintenance")
                         .WhereEqualTo("type", "required")
                         .GetSnapshotAsync();
@@ -1913,36 +1913,47 @@ namespace HippoExchange
                     foreach (var maintenanceDoc in maintenanceSnaps.Documents)
                     {
                         var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
-                        
+
                         if (maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0)
                         {
-                            var lastMaintenanceDate = maintenance.LastMaintenanceDate ?? maintenance.CreatedUtc;
-                            var nextDueDate = lastMaintenanceDate.AddDays(maintenance.Frequency.Value);
-                            
-                            // Check if maintenance is due (within 1 day of due date)
+                            // Prefer persisted nextMaintenanceDate, otherwise compute it now
+                            var baseDate = maintenance.LastMaintenanceDate ?? maintenance.CreatedUtc;
+                            var computedNext = baseDate.AddDays(maintenance.Frequency.Value);
+                            var nextDueDate = maintenance.NextMaintenanceDate ?? computedNext;
+
+                            // OPTIONAL: back-fill nextMaintenanceDate if it's missing (keeps data consistent going forward)
+                            if (!maintenance.NextMaintenanceDate.HasValue)
+                            {
+                                await maintenanceDoc.Reference.UpdateAsync(new Dictionary<string, object>
+                                {
+                                    ["nextMaintenanceDate"] = nextDueDate
+                                });
+                            }
+
+                            // Due if we're within 1 day of due date (or past it)
                             if (DateTime.UtcNow >= nextDueDate.AddDays(-1))
                             {
-                                // Get item details
+                                // Load the item
                                 var itemSnap = await db.Collection("items").Document(maintenance.ItemId).GetSnapshotAsync();
                                 if (itemSnap.Exists)
                                 {
                                     var item = itemSnap.ConvertTo<Item>();
-                                    
-                                    // Create notification for the item owner
+
+                                    // Build the notification
                                     var notification = new Notification
                                     {
-                                        Id = Guid.NewGuid().ToString("n"),
-                                        SenderId = "system",
-                                        ReceiverId = item.UserId,
-                                        Message = $"Maintenance due for '{item.Title}': {maintenance.Description}",
-                                        Title = "Maintenance Due",
-                                        Type = "maintenance_due",
-                                        ListingId = maintenance.ItemId,
-                                        CreatedUtc = DateTime.UtcNow,
-                                        Dismissed = false
+                                        Id          = Guid.NewGuid().ToString("n"),
+                                        SenderId    = "system",
+                                        ReceiverId  = item.UserId,
+                                        Message     = $"Maintenance due for '{item.Title}': {maintenance.Description}",
+                                        Title       = "Maintenance Due",
+                                        Type        = "maintenance_due",
+                                        ListingId   = maintenance.ItemId,
+                                        CreatedUtc  = DateTime.UtcNow,
+                                        Dismissed   = false
                                     };
 
-                                    // Check if notification already exists for this maintenance
+                                    // Deduplicate: same receiver + type + listing and still not dismissed
                                     var existingNotification = await db.Collection("notifications")
                                         .WhereEqualTo("receiverId", item.UserId)
                                         .WhereEqualTo("type", "maintenance_due")
@@ -1950,7 +1961,7 @@ namespace HippoExchange
                                         .WhereEqualTo("dismissed", false)
                                         .GetSnapshotAsync();
 
-                                    if (!existingNotification.Any())
+                                    if (existingNotification.Documents.Count == 0)
                                     {
                                         await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
                                         notificationsCreated++;
@@ -1958,14 +1969,14 @@ namespace HippoExchange
 
                                     dueMaintenance.Add(new
                                     {
-                                        maintenanceId = maintenance.Id,
-                                        itemId = maintenance.ItemId,
-                                        itemTitle = item.Title,
-                                        description = maintenance.Description,
-                                        frequency = maintenance.Frequency,
+                                        maintenanceId       = maintenance.Id,
+                                        itemId              = maintenance.ItemId,
+                                        itemTitle           = item.Title,
+                                        description         = maintenance.Description,
+                                        frequency           = maintenance.Frequency,
                                         lastMaintenanceDate = maintenance.LastMaintenanceDate,
-                                        nextDueDate = nextDueDate,
-                                        ownerId = item.UserId
+                                        nextDueDate         = nextDueDate,
+                                        ownerId             = item.UserId
                                     });
                                 }
                             }
@@ -1991,7 +2002,10 @@ namespace HippoExchange
             .WithOpenApi(op =>
             {
                 op.Summary = "Check for due maintenance and create notifications";
-                op.Description = "Checks all required maintenance records and creates notifications for owners when maintenance is due.";
+                op.Description =
+                    "Checks all required maintenance records using nextMaintenanceDate when available; " +
+                    "falls back to (lastMaintenanceDate ?? CreatedUtc) + frequency. " +
+                    "Creates notifications for owners when maintenance is due (within 1 day).";
                 return op;
             });
 
