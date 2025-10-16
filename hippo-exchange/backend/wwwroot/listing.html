@@ -18,6 +18,92 @@
 
   <!-- App styles -->
   <link rel="stylesheet" href="./styles.css" />
+  
+  <!-- Custom styles for date inputs -->
+  <style>
+    /* Hide the native calendar icon for date inputs */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: pointer;
+    }
+    input[type="date"] {
+      position: relative;
+    }
+
+    /* Enhanced date picker styling */
+    input[type="date"]::-webkit-datetime-edit {
+      color: white;
+      font-weight: 500;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+      background: transparent;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-text {
+      color: #94a3b8;
+      padding: 0 4px;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-month-field,
+    input[type="date"]::-webkit-datetime-edit-day-field,
+    input[type="date"]::-webkit-datetime-edit-year-field {
+      color: white;
+      background: transparent;
+      border-radius: 4px;
+      padding: 2px 4px;
+      margin: 0 2px;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-month-field:focus,
+    input[type="date"]::-webkit-datetime-edit-day-field:focus,
+    input[type="date"]::-webkit-datetime-edit-year-field:focus {
+      background: rgba(59, 130, 246, 0.1);
+      outline: none;
+    }
+
+    /* Custom date picker popup styling */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      background: transparent;
+      color: transparent;
+      cursor: pointer;
+    }
+
+    /* Improve the overall date input appearance */
+    input[type="date"] {
+      color-scheme: dark;
+      background-color: rgba(30, 41, 59, 0.5);
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    input[type="date"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: rgba(30, 41, 59, 0.7);
+    }
+
+    input[type="date"]:hover {
+      border-color: #64748b;
+      background-color: rgba(30, 41, 59, 0.6);
+    }
+
+    /* Custom calendar popup styling (when opened) */
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      background: rgba(59, 130, 246, 0.1);
+      border-radius: 4px;
+    }
+  </style>
 
   <!-- Custom animations for success state -->
   <style>
@@ -270,7 +356,6 @@
           <div class="glass p-4 rounded-lg">
             <div class="flex items-baseline justify-between">
               <div>
-                <div id="price" class="text-2xl font-bold text-slate-900">$—</div>
                 <div id="condition" class="text-sm text-slate-600 mt-0.5"></div>
               </div>
             </div>
@@ -346,6 +431,8 @@
     </main>
   </div>
 
+  <!-- Global Notifications -->
+  <script defer src="./global-notifications.js"></script>
   <!-- home shell JS (menu, modal, etc.) -->
   <script defer src="./home.js"></script>
   <!-- Listing page JS -->
@@ -478,6 +565,86 @@
             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
             Delete Item
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date Selection Modal -->
+  <div id="date-selection-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="date-selection-title">
+    <div class="modal-card max-w-md">
+      <div class="modal-header border-b border-slate-700/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 id="date-selection-title" class="text-xl font-bold text-white">Select Borrowing Dates</h3>
+            <p class="text-sm text-slate-400">Choose your preferred rental period</p>
+          </div>
+        </div>
+        <button id="close-date-selection" class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-700/50" aria-label="Close">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="space-y-6">
+          <div class="text-slate-300 text-sm leading-relaxed">
+            <p>Please select the dates you would like to borrow this item. The owner will be notified of your request with these dates.</p>
+          </div>
+          
+          <!-- Scheduled Periods Warning -->
+          <div id="scheduled-periods"></div>
+          
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 gap-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-200">Start Date</label>
+                <div class="relative">
+                  <input id="start-date-input" type="date" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200" required>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-200">End Date</label>
+                <div class="relative">
+                  <input id="end-date-input" type="date" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200" required>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-sm">
+                <p class="font-semibold text-blue-300 mb-1">Return Date Reminders</p>
+                <p class="text-blue-200/80 leading-relaxed">You'll receive automatic notifications 2 days before the return date to remind you to return the item.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end pt-6 gap-3">
+          <button id="cancel-date-selection" class="px-6 py-2.5 text-slate-300 hover:text-white border border-slate-600 hover:border-slate-500 rounded-lg transition-all duration-200 hover:bg-slate-700/30">Cancel</button>
+          <button id="confirm-date-selection" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">Request Item</button>
         </div>
       </div>
     </div>

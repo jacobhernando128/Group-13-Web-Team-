@@ -135,7 +135,6 @@
               class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Loading...</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Loading...</p>
             </div>
           </div>
           <!-- Balance removed per UX request -->
@@ -174,7 +173,11 @@
             </button>
             <button id="requested-tab"
               class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
-              Requested Items (<span id="requested-count">0</span>)
+              Pending Requests (<span id="requested-count">0</span>)
+            </button>
+            <button id="loaned-tab"
+              class="px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60">
+              Loaned Out (<span id="loaned-count">0</span>)
             </button>
           </div>
         </div>
@@ -229,8 +232,8 @@
       <section id="requested-section" class="mb-8 hidden">
         <div class="glass p-4 rounded-xl mb-4">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-xl font-semibold text-slate-800">Requested Items</h3>
-            <p class="text-sm text-slate-600">Manage requests for your items</p>
+            <h3 class="text-xl font-semibold text-slate-800">Pending Requested</h3>
+            <p class="text-sm text-slate-600">Manage pending requests for your items</p>
           </div>
           <div id="requested-items-grid" class="space-y-4">
             <!-- Requested items will be populated here -->
@@ -242,6 +245,27 @@
             </svg>
             <h4 class="text-lg font-semibold mb-2">No pending requests</h4>
             <p class="text-sm">Requests for your items will appear here.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loaned Out Items Section -->
+      <section id="loaned-section" class="mb-8 hidden">
+        <div class="glass p-4 rounded-xl mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-slate-800">Loaned Out Items</h3>
+            <p class="text-sm text-slate-600">Items you've approved for borrowing</p>
+          </div>
+          <div id="loaned-items-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <!-- Loaned out items will be populated here -->
+          </div>
+          <div id="loaned-empty" class="text-center py-12 text-slate-500 hidden">
+            <svg class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <h4 class="text-lg font-semibold mb-2">No loaned out items</h4>
+            <p class="text-sm">Items you've approved for borrowing will appear here.</p>
           </div>
         </div>
       </section>
@@ -292,7 +316,7 @@
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Maintenance
+                    Add Maintenance
                   </button>
                   <button
                     class="dropdown-item cancel-request-btn w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center">
@@ -485,12 +509,12 @@
                 <label class="block text-sm text-slate-300 mb-2">Frequency</label>
                 <select id="maintenance-frequency-input" class="field w-full">
                   <option value="">Select frequency</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                  <option value="as-needed">As Needed</option>
+                  <option value="1">Daily</option>
+                  <option value="7">Weekly</option>
+                  <option value="30">Monthly</option>
+                  <option value="90">Quarterly</option>
+                  <option value="365">Yearly</option>
+                  <option value="0">As Needed</option>
                 </select>
               </div>
 
@@ -557,7 +581,10 @@
     </div>
   </div>
 
+  <!-- Global Notifications -->
+  <script defer src="./global-notifications.js"></script>
   <!-- Asset Hub JS -->
+  <script defer src="./profile-utils.js"></script>
   <script defer src="./asset-hub.js"></script>
 </body>
 
