@@ -254,6 +254,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ===== API FUNCTIONS =====
 
     /**
+     * Automatically archive read notifications that are 1+ days old
+     */
+    async function autoArchiveOldNotifications(notifications) {
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+        const readIds = loadReadIds();
+        
+        // Find notifications that are read and older than 1 day
+        const notificationsToArchive = notifications.filter(notification => {
+            const isRead = readIds.includes(notification.id);
+            const isOld = notification.timestamp < oneDayAgo;
+            const isNotDismissed = !notification.dismissed;
+            
+            return isRead && isOld && isNotDismissed;
+        });
+
+        if (notificationsToArchive.length === 0) {
+            console.log('📦 No old read notifications to archive');
+            return 0;
+        }
+
+        console.log(`📦 Auto-archiving ${notificationsToArchive.length} old read notifications`);
+
+        let archivedCount = 0;
+
+        // Archive each notification
+        for (const notification of notificationsToArchive) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/notifications/${notification.id}/dismiss`, {
+                    method: 'PUT'
+                });
+
+                if (response.ok) {
+                    console.log(`✅ Archived notification: ${notification.title}`);
+                    archivedCount++;
+                } else {
+                    console.warn(`⚠️ Failed to archive notification: ${notification.title}`);
+                }
+            } catch (error) {
+                console.error(`❌ Error archiving notification ${notification.id}:`, error);
+            }
+        }
+
+        return archivedCount;
+    }
+
+    /**
      * Fetch all notifications for the current user from backend
      */
     async function fetchNotifications() {
@@ -343,6 +389,83 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Filter out dismissed notifications
             notifications = transformedNotifications.filter(n => !n.dismissed);
+            
+            // Auto-archive old read notifications
+            const archivedCount = await autoArchiveOldNotifications(transformedNotifications);
+            
+            // Re-fetch notifications after archiving to get updated list
+            if (archivedCount > 0) {
+                console.log('🔄 Re-fetching notifications after archiving...');
+                // Re-fetch to get the updated list without archived notifications
+                const res = await fetch(`${API_BASE_URL}/notifications/receiver/${USER_ID}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (res.ok) {
+                    const updatedData = await res.json();
+                    const updatedNotifications = await Promise.all(updatedData.map(async n => {
+                        // Reuse the same transformation logic but skip already processed ones
+                        const existing = transformedNotifications.find(tn => tn.id === n.id);
+                        if (existing) return existing;
+                        
+                        // Process new notifications if any
+                        let senderName = 'User';
+                        let senderAvatar = null;
+                        let itemTitle = 'item';
+
+                        if (n.senderId || n.SenderId) {
+                            const senderId = n.senderId || n.SenderId;
+                            try {
+                                const senderRes = await fetch(`${API_BASE_URL}/users/${senderId}`);
+                                if (senderRes.ok) {
+                                    const sender = await senderRes.json();
+                                    senderName = `${sender.firstName || sender.FirstName || ''} ${sender.lastName || sender.LastName || ''}`.trim() || sender.email || sender.Email || 'User';
+                                    senderAvatar = sender.profilePicture || sender.ProfilePicture || null;
+                                }
+                            } catch (err) {
+                                console.warn('Could not fetch sender info:', err);
+                            }
+                        }
+
+                        const listingId = n.listingId || n.ListingId || n.listingID || n.ListingID;
+                        if (listingId) {
+                            try {
+                                const itemRes = await fetch(`${API_BASE_URL}/items/${listingId}`);
+                                if (itemRes.ok) {
+                                    const item = await itemRes.json();
+                                    itemTitle = item.title || item.Title || 'item';
+                                }
+                            } catch (err) {
+                                console.warn('Could not fetch item info:', err);
+                            }
+                        }
+
+                        const notifType = (n.type || n.Type || '').toLowerCase();
+                        const formatted = formatNotificationByType(notifType, senderName, itemTitle, n);
+
+                        return {
+                            id: n.id || n.Id,
+                            type: notifType,
+                            title: formatted.title,
+                            message: formatted.message,
+                            timestamp: new Date(n.createdUtc || n.CreatedUtc).getTime(),
+                            senderId: n.senderId || n.SenderId,
+                            senderName: senderName,
+                            senderAvatar: senderAvatar,
+                            listingId: listingId,
+                            actionUrl: formatted.actionUrl || generateActionUrl(n),
+                            isRead: isRead(n.id || n.Id),
+                            dismissed: n.dismissed || n.Dismissed || false
+                        };
+                    }));
+                    
+                    notifications = updatedNotifications.filter(n => !n.dismissed);
+                }
+            }
+            
             renderNotificationsList();
 
         } catch (err) {
@@ -2000,8 +2123,9 @@ function displayUserInfo(user) {
     
     // Update sidebar avatar with profile picture and fallback
     const acctAvatar = document.getElementById('acct-avatar');
-    const profilePic = user.ProfilePicture || user.profilePicture;
-    if (acctAvatar && profilePic && profilePic.trim()) {
-        acctAvatar.src = profilePic;
-    }
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
+  }
   }

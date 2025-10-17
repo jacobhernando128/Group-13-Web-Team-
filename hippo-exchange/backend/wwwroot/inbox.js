@@ -94,6 +94,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       // always show the literal 'Member' as requested
       rankElement.textContent = 'Member';
     }
+
+    const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = user.ProfilePicture || user.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
+  }
   }
 
   function clearAuthData() {

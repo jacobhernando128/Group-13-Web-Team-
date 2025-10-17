@@ -111,13 +111,12 @@ class CalendarView {
         console.warn('Could not find acct-name element');
       }
       
-      if (avatarElement) {
-        // Keep the existing avatar image, just update alt text
-        avatarElement.alt = `${userData.firstName} ${userData.lastName}`;
-        console.log('Updated avatar alt text');
-      } else {
-        console.warn('Could not find acct-avatar element');
-      }
+      const acctAvatar = document.getElementById('acct-avatar');
+  const profilePic = userData.ProfilePicture || userData.profilePicture;
+  if (acctAvatar && profilePic) {
+    acctAvatar.src = profilePic;
+    console.log('Updated profile picture:', profilePic);
+  }
     } catch (error) {
       console.error('Error loading user data:', error);
       this.showError('Failed to load user data: ' + error.message);
@@ -484,16 +483,18 @@ class CalendarView {
       this.filterCounts['all']++;
     });
 
-    // Update filter tag counts
-    Object.keys(this.filterCounts).forEach(filterType => {
-      const filterTag = document.querySelector(`[data-filter="${filterType}"]`);
-      if (filterTag) {
-        const countElement = filterTag.querySelector('.filter-count');
-        if (countElement) {
-          countElement.textContent = this.filterCounts[filterType];
-        }
+    // Update filter count display (like home page)
+    const filterCountElement = document.getElementById('filter-count');
+    if (filterCountElement) {
+      const totalEvents = this.allEvents.length;
+      if (totalEvents === 0) {
+        filterCountElement.textContent = 'No events';
+      } else if (totalEvents === 1) {
+        filterCountElement.textContent = '1 event';
+      } else {
+        filterCountElement.textContent = `${totalEvents} events`;
       }
-    });
+    }
   }
 
   updateEventCount() {
@@ -502,26 +503,54 @@ class CalendarView {
       const visibleEvents = this.currentFilter === 'all' ? this.allEvents.length : this.filterCounts[this.currentFilter];
       eventCountElement.textContent = `${visibleEvents} event${visibleEvents !== 1 ? 's' : ''}`;
     }
+
+    // Also update the filter count display
+    const filterCountElement = document.getElementById('filter-count');
+    if (filterCountElement) {
+      const visibleEvents = this.currentFilter === 'all' ? this.allEvents.length : this.filterCounts[this.currentFilter];
+      if (visibleEvents === 0) {
+        filterCountElement.textContent = 'No events';
+      } else if (visibleEvents === 1) {
+        filterCountElement.textContent = '1 event';
+      } else {
+        filterCountElement.textContent = `${visibleEvents} events`;
+      }
+    }
   }
 
   applyFilter(filterType) {
+    console.log('🔍 Applying filter:', filterType);
     this.currentFilter = filterType;
     
-    // Update active filter tag
-    document.querySelectorAll('.category-filter').forEach(tag => {
-      tag.classList.remove('active');
-    });
-    document.querySelector(`[data-filter="${filterType}"]`).classList.add('active');
+    // Update active filter tag using the same logic as home page
+    this.updateCategoryButtons(filterType);
 
     // Filter events
     if (filterType === 'all') {
       this.events = [...this.allEvents];
+      console.log('📅 Showing all events:', this.events.length);
     } else {
       this.events = this.allEvents.filter(event => event.type === filterType);
+      console.log(`📅 Filtered to ${filterType}:`, this.events.length, 'events');
+      console.log('📅 Filtered events:', this.events.map(e => ({ type: e.type, title: e.title })));
     }
 
     this.updateEventCount();
     this.renderCalendar();
+  }
+
+  updateCategoryButtons(activeCategory) {
+    const buttons = document.querySelectorAll('.category-filter');
+    buttons.forEach(button => {
+      const category = button.dataset.category;
+      if (category === activeCategory) {
+        button.classList.add('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.remove('bg-white/40', 'text-slate-700', 'hover:bg-blue-100', 'hover:text-blue-800');
+      } else {
+        button.classList.remove('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.add('bg-white/40', 'text-slate-700', 'hover:bg-blue-100', 'hover:text-blue-800');
+      }
+    });
   }
 
   async refreshData() {
@@ -571,13 +600,13 @@ class CalendarView {
       });
     }
 
-    // Filter tags
+    // Filter tags - use the same pattern as home page
     const filterTags = document.querySelectorAll('.category-filter');
     console.log('Found filter tags:', filterTags.length);
     filterTags.forEach(tag => {
-      console.log('Adding event listener to filter:', tag.dataset.filter);
+      console.log('Adding event listener to filter:', tag.dataset.category);
       tag.addEventListener('click', () => {
-        const filterType = tag.dataset.filter;
+        const filterType = tag.dataset.category;
         console.log('Filter clicked:', filterType);
         this.applyFilter(filterType);
       });
@@ -765,7 +794,7 @@ class CalendarView {
     const year = date.getFullYear();
     const month = date.getMonth();
     
-    return this.allEvents.some(event => {
+    return this.events.some(event => {
       const eventDate = new Date(event.date);
       return eventDate.getFullYear() === year && eventDate.getMonth() === month;
     });
@@ -875,8 +904,8 @@ class CalendarView {
   }
 
   getEventsForDate(date) {
-    // Use allEvents instead of filtered events to get the true count
-    const eventsForDate = this.allEvents.filter(event => {
+    // Use filtered events (this.events) to respect the current filter
+    const eventsForDate = this.events.filter(event => {
       return event.date.toDateString() === date.toDateString();
     });
     return eventsForDate;
@@ -1062,4 +1091,17 @@ class CalendarView {
 // Initialize calendar when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   window.calendarView = new CalendarView();
+});
+
+// Global event listener for filter clicks (like home page)
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('category-filter')) {
+    const category = e.target.dataset.category;
+    console.log('🖱️ Filter button clicked:', category);
+    if (window.calendarView) {
+      window.calendarView.applyFilter(category);
+    } else {
+      console.error('❌ Calendar view not found!');
+    }
+  }
 });
