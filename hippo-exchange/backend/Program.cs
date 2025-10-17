@@ -29,7 +29,7 @@ namespace HippoExchange
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenAnyIP(5000); 
-                                                             
+                                         
             });
 
             // -------- Config --------
@@ -42,8 +42,6 @@ namespace HippoExchange
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
-
-            builder.Services.AddSingleton(StorageClient.Create());
 
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
@@ -58,6 +56,7 @@ namespace HippoExchange
             }
 
             var googleCred = GoogleCredential.FromFile(credPath);
+            builder.Services.AddSingleton(StorageClient.Create(googleCred));
 
             // JWT Token Generation
             static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
@@ -96,8 +95,9 @@ namespace HippoExchange
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
-            // Add background service for return date notifications
+            // Add background services
             builder.Services.AddHostedService<ReturnDateNotificationService>();
+            builder.Services.AddHostedService<MaintenanceNotificationService>();
 
             // JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
@@ -1083,7 +1083,7 @@ namespace HippoExchange
                 var scheduledPeriods = exchanges.Documents
                     .Select(doc => doc.ConvertTo<Exchange>())
                     .Where(ex => ex.StartDate.HasValue && ex.EndDate.HasValue)
-                    .Select(ex => new {
+                    .Select(ex => new { 
                         startDate  = ex.StartDate.GetValueOrDefault(),  // ✅ removes CS8629
                         endDate    = ex.EndDate.GetValueOrDefault(),    // ✅ removes CS8629
                         borrowerId = ex.BorrowerId
@@ -1103,10 +1103,10 @@ namespace HippoExchange
                 [FromBody] UpdateExchangeApprovalDto dto) =>
             {
                 try
-                {
+            {
                     var doc  = db.Collection("exchanges").Document(id);
-                    var snap = await doc.GetSnapshotAsync();
-                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
                     // Convert once so we can safely use properties below
                     var exchange = snap.ConvertTo<Exchange>();
@@ -1120,29 +1120,29 @@ namespace HippoExchange
                     var nowUtc   = DateTime.UtcNow;
                     var approved = dto.Approved.Value;
 
-                    var updates = new Dictionary<string, object>
-                    {
+                var updates = new Dictionary<string, object>
+                {
                         ["approved"]       = approved,
-                        ["requestHandled"] = nowUtc
-                    };
+                    ["requestHandled"] = nowUtc
+                };
 
                     if (approved)
-                    {
+                {
                         // Validate and set dates on approval
-                        if (dto.StartDate is null || dto.EndDate is null)
-                            return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+                    if (dto.StartDate is null || dto.EndDate is null)
+                        return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
 
-                        var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+                    var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
                         var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
 
-                        if (endUtc <= startUtc)
-                            return Results.BadRequest(new { error = "endDate must be after startDate." });
+                    if (endUtc <= startUtc)
+                        return Results.BadRequest(new { error = "endDate must be after startDate." });
 
                         // Check scheduling conflicts for this item (simple in-memory filter)
-                        var allExchanges = await db.Collection("exchanges")
-                            .WhereEqualTo("itemID", exchange.ItemId)
-                            .GetSnapshotAsync();
-
+                    var allExchanges = await db.Collection("exchanges")
+                        .WhereEqualTo("itemID", exchange.ItemId)
+                        .GetSnapshotAsync();
+                        
                         var conflict = allExchanges.Documents
                             .Select(d => d.ConvertTo<Exchange>())
                             .Where(ex => (ex.Approved ?? false) && ex.Id != id)
@@ -1158,29 +1158,29 @@ namespace HippoExchange
                                         $"{conflict.StartDate!.Value:yyyy-MM-dd} to {conflict.EndDate!.Value:yyyy-MM-dd}. " +
                                         "Please choose a different time period."
                             });
-                        }
+                    }
 
-                        updates["startDate"] = startUtc;
+                    updates["startDate"] = startUtc;
                         updates["endDate"]   = endUtc;
 
                         // Update user counters on approval
-                        await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
-                    }
-                    else
-                    {
+                    await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
+                }
+                else
+                {
                         // Declined: clear dates
-                        updates["startDate"] = FieldValue.Delete;
+                    updates["startDate"] = FieldValue.Delete;
                         updates["endDate"]   = FieldValue.Delete;
-                    }
+                }
 
-                    await doc.UpdateAsync(updates);
+                await doc.UpdateAsync(updates);
 
                 // Send a message to the borrower about the approval decision
                 try
                 {
                     Console.WriteLine($"[DEBUG] Starting message creation for approval decision");
                     Console.WriteLine($"[DEBUG] Exchange details - BorrowerId: {exchange.BorrowerId}, OwnerId: {exchange.OwnerId}, ItemId: {exchange.ItemId}");
-                    Console.WriteLine($"[DEBUG] Decision: {(dto.Approved ? "Approved" : "Declined")}");
+                    Console.WriteLine($"[DEBUG] Decision: {(dto.Approved == true ? "Approved" : "Declined")}");
 
                     // Get owner details for the message
                     var ownerDoc = await db.Collection("users").Document(exchange.OwnerId).GetSnapshotAsync();
@@ -1239,7 +1239,7 @@ namespace HippoExchange
                     var message = new MessageDoc
                     {
                         SenderId = exchange.OwnerId,
-                        Body = dto.Approved 
+                        Body = dto.Approved == true 
                             ? $"Great! I've approved your request to borrow my item. The borrowing period is from {dto.StartDate?.ToString("yyyy-MM-dd")} to {dto.EndDate?.ToString("yyyy-MM-dd")}. Let's arrange a time to meet up!"
                             : "I'm sorry, but I can't approve your request to borrow my item at this time. Please feel free to reach out if you have any questions.",
                         SentUtc = DateTime.UtcNow
@@ -1446,7 +1446,7 @@ namespace HippoExchange
                     var updated = await doc.GetSnapshotAsync();
                     try
                     {
-                        var updatedExchange = updatedSnap.ConvertTo<Exchange>();
+                        var updatedExchange = updated.ConvertTo<Exchange>();
                         return Results.Ok(updatedExchange);
                     }
                     catch
@@ -2466,6 +2466,130 @@ namespace HippoExchange
                 return op;
             });
 
+            // GET /maintenance/calendar/{userId} - Get maintenance events for calendar
+            app.MapGet("/maintenance/calendar/{userId}", async (FirestoreDb db, string userId) =>
+            {
+                try
+                {
+                    // Get user's items first
+                    var userItemsSnap = await db.Collection("itemID")
+                        .WhereEqualTo("userID", userId)
+                        .GetSnapshotAsync();
+
+                    Console.WriteLine($"Found {userItemsSnap.Count} items for user {userId}");
+                    var maintenanceEvents = new List<object>();
+
+                    foreach (var itemDoc in userItemsSnap.Documents)
+                    {
+                        var item = itemDoc.ConvertTo<Item>();
+                        Console.WriteLine($"Processing item: {item.Title} (ID: {item.Id})");
+                        
+                        // Get maintenance for this item (only required type)
+                        var maintenanceSnaps = await db.Collection("maintenance")
+                            .WhereEqualTo("itemID", item.Id)
+                            .WhereEqualTo("type", "required")
+                            .GetSnapshotAsync();
+
+                        Console.WriteLine($"Found {maintenanceSnaps.Count} maintenance records for item {item.Id}");
+
+                        foreach (var maintenanceDoc in maintenanceSnaps.Documents)
+                        {
+                            var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
+                            Console.WriteLine($"Processing maintenance: {maintenance.Description}, Frequency: {maintenance.Frequency}, Type: {maintenance.Type}");
+                            
+                            // Use nextMaintenanceDate directly for required maintenance
+                            if (maintenance.NextMaintenanceDate.HasValue)
+                            {
+                                var nextDueDate = maintenance.NextMaintenanceDate.Value;
+                                
+                                // Only show maintenance that's due within 30 days (for calendar view)
+                                if (DateTime.UtcNow >= nextDueDate.AddDays(-30))
+                                {
+                                    maintenanceEvents.Add(new
+                                    {
+                                        id = $"maintenance-{maintenance.Id}",
+                                        title = $"Maintenance: {item.Title}",
+                                        description = maintenance.Description,
+                                        date = nextDueDate,
+                                        type = "required-maintenance",
+                                        itemId = item.Id,
+                                        itemTitle = item.Title,
+                                        maintenanceId = maintenance.Id,
+                                        category = maintenance.Category,
+                                        frequency = maintenance.Frequency,
+                                        lastMaintenanceDate = maintenance.LastMaintenanceDate,
+                                        nextMaintenanceDate = nextDueDate
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    return Results.Ok(maintenanceEvents);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error getting maintenance calendar events: {ex.Message}");
+                    return Results.Problem($"Error getting maintenance calendar events: {ex.Message}");
+                }
+            })
+            .WithName("GetMaintenanceCalendar")
+            .WithTags("Maintenance")
+            .Produces<List<object>>(StatusCodes.Status200OK, "application/json")
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Get maintenance calendar events for a user";
+                op.Description = "Returns all maintenance events for items owned by the specified user";
+                return op;
+            });
+
+            // POST /maintenance/{id}/complete - Mark maintenance as completed and update dates
+            app.MapPost("/maintenance/{id}/complete", async (FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    var maintenanceDoc = await db.Collection("maintenance").Document(id).GetSnapshotAsync();
+                    if (!maintenanceDoc.Exists)
+                    {
+                        return Results.NotFound(new { message = "Maintenance record not found." });
+                    }
+
+                    var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
+                    var completedDate = DateTime.UtcNow;
+
+                    // Update lastMaintenanceDate to now
+                    // Calculate nextMaintenanceDate as completedDate + frequency
+                    var nextMaintenanceDate = maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0
+                        ? completedDate.AddDays(maintenance.Frequency.Value)
+                        : (DateTime?)null;
+
+                    // Add to maintenance history
+                    var updatedHistory = maintenance.MaintenanceHistory ?? new List<DateTime>();
+                    updatedHistory.Add(completedDate);
+
+                    await maintenanceDoc.Reference.UpdateAsync(new Dictionary<string, object>
+                    {
+                        ["lastMaintenanceDate"] = completedDate,
+                        ["nextMaintenanceDate"] = nextMaintenanceDate ?? DateTime.UtcNow,
+                        ["maintenanceHistory"] = updatedHistory
+                    });
+
+                    return Results.Ok(new
+                    {
+                        message = "Maintenance completed successfully",
+                        lastMaintenanceDate = completedDate,
+                        nextMaintenanceDate = nextMaintenanceDate,
+                        maintenanceHistory = updatedHistory
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error completing maintenance: {ex.Message}");
+                    return Results.Problem($"Error completing maintenance: {ex.Message}");
+                }
+            });
+
             // POST /maintenance/check-due - Check for due maintenance and create notifications
             app.MapPost("/maintenance/check-due", async (FirestoreDb db) =>
             {
@@ -2482,7 +2606,7 @@ namespace HippoExchange
                     foreach (var maintenanceDoc in maintenanceSnaps.Documents)
                     {
                         var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
-
+                        
                         if (maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0)
                         {
                             // Prefer persisted nextMaintenanceDate, otherwise compute it now
@@ -2499,15 +2623,15 @@ namespace HippoExchange
                                 });
                             }
 
-                            // Due if we're within 1 day of due date (or past it)
-                            if (DateTime.UtcNow >= nextDueDate.AddDays(-1))
+                            // Due if we're within 2 days of due date (or past it)
+                            if (DateTime.UtcNow >= nextDueDate.AddDays(-2))
                             {
                                 // Load the item
                                 var itemSnap = await db.Collection("items").Document(maintenance.ItemId).GetSnapshotAsync();
                                 if (itemSnap.Exists)
                                 {
                                     var item = itemSnap.ConvertTo<Item>();
-
+                                    
                                     // Build the notification
                                     var notification = new Notification
                                     {
@@ -3527,11 +3651,11 @@ namespace HippoExchange
                 u.Id = doc.Id;
                 return Results.Ok(new
                 {
-                    id = u.Id,
-                    email = u.Email,
-                    firstName = u.FirstName,
+                    id = u.Id, 
+                    email = u.Email, 
+                    firstName = u.FirstName, 
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim()
+                    name = $"{u.FirstName} {u.LastName}".Trim() 
                 });
             })
             .WithName("GetUserById")
@@ -3996,6 +4120,73 @@ namespace HippoExchange
     public record StarDto(string UserId, bool Starred);
     public record ArchiveParticipantDto(string UserId);
 
+    // Background service for maintenance notifications
+    public class MaintenanceNotificationService : BackgroundService
+    {
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<MaintenanceNotificationService> _logger;
+        private readonly TimeSpan _checkInterval = TimeSpan.FromHours(6); // Check every 6 hours
+
+        public MaintenanceNotificationService(IServiceProvider serviceProvider, ILogger<MaintenanceNotificationService> logger)
+        {
+            _serviceProvider = serviceProvider;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Maintenance Notification Service started");
+            
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    _logger.LogInformation("Checking for due maintenance notifications...");
+                    
+                    using (var scope = _serviceProvider.CreateScope())
+                    {
+                        var db = scope.ServiceProvider.GetRequiredService<FirestoreDb>();
+                        
+                        // Call the maintenance check endpoint
+                        var httpClient = new HttpClient();
+                        var response = await httpClient.PostAsync("http://localhost:5000/maintenance/check-due", null, stoppingToken);
+                        
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var result = await response.Content.ReadAsStringAsync();
+                            _logger.LogInformation($"Maintenance check completed: {result}");
+                        }
+                        else
+                        {
+                            _logger.LogWarning($"Maintenance check failed: {response.StatusCode}");
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Maintenance Notification Service is stopping");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error checking maintenance notifications");
+                }
+
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Maintenance Notification Service is stopping");
+                    break;
+                }
+            }
+        }
+    }
+
     // Background service for return date notifications
     public class ReturnDateNotificationService : BackgroundService
     {
@@ -4019,12 +4210,27 @@ namespace HippoExchange
                 {
                     await CheckForUpcomingReturnDates();
                 }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Return Date Notification Service is stopping");
+                    break;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error occurred while checking for upcoming return dates");
                 }
 
-                await Task.Delay(_checkInterval, stoppingToken);
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Return Date Notification Service is stopping");
+                    break;
+                }
             }
         }
 
@@ -4044,12 +4250,12 @@ namespace HippoExchange
                     .GetSnapshotAsync();
 
                 var upcomingExchanges = exchangesSnapshot
-                    .Where(doc =>
+                    .Where(doc => 
                     {
                         var exchange = doc.ConvertTo<Exchange>();
-                        return exchange?.EndDate != null &&
-                            exchange.EndDate >= tomorrow &&
-                            exchange.EndDate <= twoDaysFromNow;
+                        return exchange?.EndDate != null && 
+                               exchange.EndDate >= tomorrow && 
+                               exchange.EndDate <= twoDaysFromNow;
                     })
                     .ToList();
 
@@ -4070,10 +4276,10 @@ namespace HippoExchange
                     if (existingNotification.Count > 0)
                     {
                         var recent = existingNotification.Documents.FirstOrDefault(d =>
-                        {
+                            {
                             var n = d.ConvertTo<Notification>();
                             return n.CreatedUtc > DateTime.UtcNow.AddDays(-1);
-                        });
+                            });
                         if (recent != null) continue;
                     }
 

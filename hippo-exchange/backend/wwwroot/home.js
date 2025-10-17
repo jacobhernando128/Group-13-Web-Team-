@@ -389,10 +389,10 @@ document.addEventListener('DOMContentLoaded', () => {
     buttons.forEach(button => {
       const category = button.dataset.category;
       if (category === activeCategory) {
-        button.classList.add('active', 'bg-blue-500', 'text-white', 'shadow-md');
-        button.classList.remove('bg-white/40', 'text-slate-700');
+        button.classList.add('active', 'bg-blue-100', 'text-blue-800', 'border-blue-400', 'shadow-sm');
+        button.classList.remove('bg-white/40', 'text-slate-700', 'bg-blue-500', 'text-white', 'shadow-md');
       } else {
-        button.classList.remove('active', 'bg-blue-500', 'text-white', 'shadow-md');
+        button.classList.remove('active', 'bg-blue-100', 'text-blue-800', 'border-blue-400', 'shadow-sm', 'bg-blue-500', 'text-white', 'shadow-md');
         button.classList.add('bg-white/40', 'text-slate-700');
       }
     });

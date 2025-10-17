@@ -154,8 +154,9 @@ class CalendarView {
       // Load real data from database with enhanced data fetching
 
       // Load borrowed items (items I'm borrowing) - use borrower endpoint
-      console.log('📅 Fetching borrowed items for user:', this.currentUser.id);
-      const borrowedResponse = await fetch(`/exchanges/borrower/${this.currentUser.id}`, {
+      const userId = this.currentUser.id || this.currentUser.userId || this.currentUser.Id;
+      console.log('📅 Fetching borrowed items for user:', userId);
+      const borrowedResponse = await fetch(`/exchanges/borrower/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       console.log('📅 Borrowed items response status:', borrowedResponse.status);
@@ -164,15 +165,26 @@ class CalendarView {
         console.log('📦 Loaded borrowed items:', this.borrowedItems.length, this.borrowedItems);
         
         // Enhance borrowed items with additional data
+        try {
         await this.enhanceBorrowedItemsData();
+        } catch (error) {
+          console.warn('Enhancement failed, using basic data:', error);
+        }
+        
+        // Ensure all borrowed items have required fields
+        this.borrowedItems.forEach(item => {
+          item.Title = item.Title || item.title || item.itemTitle || 'Unknown Item';
+          item.OwnerName = item.OwnerName || item.ownerName || 'Unknown Owner';
+          console.log('📦 Final borrowed item data:', item);
+        });
       } else {
         console.warn('Failed to load borrowed items:', borrowedResponse.status, await borrowedResponse.text());
         this.borrowedItems = [];
       }
 
       // Load loaned items (items I own that are loaned out) - use owner endpoint
-      console.log('📅 Fetching loaned items for user:', this.currentUser.id);
-      const loanedResponse = await fetch(`/exchanges/owner/${this.currentUser.id}`, {
+      console.log('📅 Fetching loaned items for user:', userId);
+      const loanedResponse = await fetch(`/exchanges/owner/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       console.log('📅 Loaned items response status:', loanedResponse.status);
@@ -181,7 +193,18 @@ class CalendarView {
         console.log('📦 Loaded loaned items:', this.loanedItems.length, this.loanedItems);
         
         // Enhance loaned items with additional data
+        try {
         await this.enhanceLoanedItemsData();
+        } catch (error) {
+          console.warn('Enhancement failed, using basic data:', error);
+        }
+        
+        // Ensure all loaned items have required fields
+        this.loanedItems.forEach(item => {
+          item.Title = item.Title || item.title || item.itemTitle || 'Unknown Item';
+          item.BorrowerName = item.BorrowerName || item.borrowerName || 'Unknown Borrower';
+          console.log('📦 Final loaned item data:', item);
+        });
       } else {
         console.warn('Failed to load loaned items:', loanedResponse.status, await loanedResponse.text());
         this.loanedItems = [];
@@ -190,7 +213,7 @@ class CalendarView {
       // For maintenance, we need to get user's items first, then get maintenance for each
       await this.loadMaintenanceData();
 
-      this.processEvents();
+      await this.processEvents();
       this.updateFilterCounts();
       this.updateEventCount();
     } catch (error) {
@@ -275,56 +298,37 @@ class CalendarView {
     try {
       const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
       
-      // Get user's items first
-      console.log('📅 Fetching user items for maintenance:', this.currentUser.id);
-      const itemsResponse = await fetch(`/users/${this.currentUser.id}/items`, {
+      // Use the new maintenance calendar endpoint
+      const userId = this.currentUser.id || this.currentUser.userId || this.currentUser.Id;
+      console.log('📅 Fetching maintenance calendar data for user:', userId);
+      const maintenanceResponse = await fetch(`/maintenance/calendar/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      console.log('📅 User items response status:', itemsResponse.status);
+      console.log('📅 Maintenance calendar response status:', maintenanceResponse.status);
       
-      if (itemsResponse.ok) {
-        const userItems = await itemsResponse.json();
-        console.log('📦 Loaded user items:', userItems.length, userItems);
-        
-        // Load maintenance for each item with enhanced data
-        this.maintenanceItems = [];
-        for (const item of userItems) {
-          try {
-            // Ensure we have the item title
-            const itemTitle = item.title || item.Title || item.name || 'Unknown Item';
-            
-            const maintenanceResponse = await fetch(`/maintenance/item/${item.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
             if (maintenanceResponse.ok) {
-              const itemMaintenance = await maintenanceResponse.json();
-              if (itemMaintenance && itemMaintenance.length > 0) {
-                // Enhance maintenance data with item information
-                const enhancedMaintenance = itemMaintenance.map(maintenance => ({
-                  ...maintenance,
-                  itemTitle: itemTitle,
-                  itemId: item.id,
-                  // Add more descriptive maintenance information
-                  description: maintenance.description || `${maintenance.type} maintenance for ${itemTitle}`,
-                  frequency: maintenance.frequency || 'As needed'
-                }));
-                
-                this.maintenanceItems.push({
-                  ...item,
-                  Title: itemTitle,
-                  maintenanceHistory: enhancedMaintenance
-                });
-                
-                console.log('🔧 Enhanced maintenance for item:', itemTitle, 'with', enhancedMaintenance.length, 'records');
-              }
-            }
-          } catch (error) {
-            console.warn(`Failed to load maintenance for item ${item.id}:`, error);
-          }
-        }
-        console.log('🔧 Loaded maintenance items:', this.maintenanceItems.length);
+        const maintenanceEvents = await maintenanceResponse.json();
+        console.log('🔧 Loaded maintenance events:', maintenanceEvents.length, maintenanceEvents);
+        
+        // Convert maintenance events to the expected format
+        this.maintenanceItems = maintenanceEvents.map(event => ({
+          id: event.maintenanceId,
+          Title: event.itemTitle,
+          itemId: event.itemId,
+          maintenanceHistory: [{
+            id: event.maintenanceId,
+            description: event.description,
+            category: event.category,
+            frequency: event.frequency,
+            nextMaintenanceDate: event.nextMaintenanceDate,
+            lastMaintenanceDate: event.lastMaintenanceDate,
+            type: event.type
+          }]
+        }));
+        
+        console.log('🔧 Converted maintenance events to items:', this.maintenanceItems.length);
       } else {
-        console.warn('Failed to load user items:', itemsResponse.status);
+        console.warn('Failed to load maintenance calendar data:', maintenanceResponse.status);
         this.maintenanceItems = [];
       }
     } catch (error) {
@@ -334,7 +338,7 @@ class CalendarView {
   }
 
 
-  processEvents() {
+  async processEvents() {
     this.events = [];
     this.allEvents = [];
 
@@ -350,11 +354,24 @@ class CalendarView {
     console.log('🔍 Maintenance items data:', this.maintenanceItems);
 
     // Process borrowed items (return dates)
-    this.borrowedItems.forEach(item => {
+    for (const item of this.borrowedItems) {
       console.log('🔍 Processing borrowed item:', item);
       if (item.endDate) {
-        // Use the title field that should now be populated by the backend
-        const itemTitle = item.Title || item.title || item.itemTitle || item.itemName || item.name || item.item?.title || item.item?.name || 'Unknown Item';
+        // Fetch item details to get the title
+        let itemTitle = 'Unknown Item';
+        try {
+          const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+          const itemResponse = await fetch(`/items/${item.itemId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (itemResponse.ok) {
+            const itemData = await itemResponse.json();
+            itemTitle = itemData.title || itemData.Title || 'Unknown Item';
+          }
+        } catch (error) {
+          console.warn('Failed to fetch item details for borrowed item:', error);
+        }
+        
         console.log('🔍 Extracting item title for borrowed item:', { item, extractedTitle: itemTitle });
         const event = {
           id: `borrowed-${item.id}`,
@@ -371,14 +388,27 @@ class CalendarView {
       } else {
         console.log('⚠️ Borrowed item missing endDate:', item);
       }
-    });
+    }
 
     // Process loaned items (return dates)
-    this.loanedItems.forEach(item => {
+    for (const item of this.loanedItems) {
       console.log('🔍 Processing loaned item:', item);
       if (item.endDate) {
-        // Use the title field that should now be populated by the backend
-        const itemTitle = item.Title || item.title || item.itemTitle || item.itemName || item.name || item.item?.title || item.item?.name || 'Unknown Item';
+        // Fetch item details to get the title
+        let itemTitle = 'Unknown Item';
+        try {
+          const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+          const itemResponse = await fetch(`/items/${item.itemId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (itemResponse.ok) {
+            const itemData = await itemResponse.json();
+            itemTitle = itemData.title || itemData.Title || 'Unknown Item';
+          }
+        } catch (error) {
+          console.warn('Failed to fetch item details for loaned item:', error);
+        }
+        
         console.log('🔍 Extracting item title for loaned item:', { item, extractedTitle: itemTitle });
         const event = {
           id: `loaned-${item.id}`,
@@ -395,7 +425,7 @@ class CalendarView {
       } else {
         console.log('⚠️ Loaned item missing endDate:', item);
       }
-    });
+    }
 
     // Process maintenance items (only required maintenance)
     this.maintenanceItems.forEach(item => {
@@ -404,20 +434,24 @@ class CalendarView {
         console.log('🔧 Item has maintenance history:', item.maintenanceHistory.length, 'records');
         item.maintenanceHistory.forEach(maintenance => {
           console.log('🔧 Processing maintenance record:', maintenance);
-          if (maintenance.date && maintenance.type === 'required') {
+          // Check for nextMaintenanceDate and type 'required-maintenance' (from new API)
+          const maintenanceDate = maintenance.nextMaintenanceDate || maintenance.date;
+          const maintenanceType = maintenance.type;
+          
+          if (maintenanceDate && (maintenanceType === 'required-maintenance' || maintenanceType === 'required')) {
             const itemTitle = item.Title || item.title || item.itemName || item.name || item.itemTitle || 'Unknown Item';
             console.log('🔍 Extracting item title for maintenance item:', { item, extractedTitle: itemTitle });
             
             // Create more descriptive maintenance event
-            const maintenanceType = maintenance.maintenanceType || maintenance.type || 'General';
+            const category = maintenance.category || 'General';
             const frequency = maintenance.frequency || 'As needed';
             
             const event = {
               id: `maintenance-${item.id}-${maintenance.id}`,
-              date: new Date(maintenance.date),
+              date: new Date(maintenanceDate),
               type: 'required-maintenance',
               title: `Maintenance: ${itemTitle}`,
-              description: `${maintenanceType} maintenance for ${itemTitle} (${frequency})`,
+              description: `${category} maintenance for ${itemTitle} (${frequency})`,
               color: 'orange',
               item: item,
               maintenance: maintenance
@@ -599,8 +633,8 @@ class CalendarView {
         localStorage.removeItem('userToken');
         localStorage.removeItem('userData');
         window.location.href = './Login.html';
-      });
-    }
+    });
+  }
 
     // Mobile menu
     const menuButton = document.getElementById('menu-button');
@@ -921,7 +955,7 @@ class CalendarView {
             <p class="text-slate-800 font-semibold text-green-600">$${event.maintenance.cost.toFixed(2)}</p>
           </div>
         `;
-      }
+    }
     }
 
     detailsHTML += '</div>';
