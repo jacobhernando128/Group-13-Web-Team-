@@ -34,8 +34,8 @@
         </p>
 
         <div class="mt-10 glass p-6 md:p-8 inline-flex items-center gap-4">
-          <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo"
-            class="h-24 w-24 rounded-full object-cover border-4 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-2xl"
+          <img id="hippo-logo" src="hippo-exchange-logo.png" alt="Hippo Exchange Logo"
+            class="h-24 w-24 rounded-full object-cover border-4 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-2xl cursor-pointer transition-transform hover:scale-105"
             onerror="this.style.display='none'" />
           <div>
             <h2 class="text-2xl font-bold text-slate-800">Join the herd</h2>
@@ -194,6 +194,103 @@
 
   <!-- Page script -->
   <script defer src="./login.v4.js" data-api=""></script>
+  
+  <!-- Hippo Clicker Easter Egg -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      let clickCount = 0;
+      const logo = document.getElementById('hippo-logo');
+      const maxClicks = 5;
+      
+      if (logo) {
+        logo.addEventListener('click', function(e) {
+          e.preventDefault();
+          clickCount++;
+          
+          // Add visual feedback
+          logo.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            logo.style.transform = '';
+          }, 150);
+          
+          // Show progress
+          if (clickCount < maxClicks) {
+            console.log(`🦛 Hippo click ${clickCount}/${maxClicks} - Keep clicking!`);
+            
+            // Show subtle visual feedback
+            const feedback = document.createElement('div');
+            feedback.textContent = `${clickCount}/${maxClicks}`;
+            feedback.style.position = 'absolute';
+            feedback.style.top = '10px';
+            feedback.style.right = '10px';
+            feedback.style.background = 'rgba(0, 0, 0, 0.7)';
+            feedback.style.color = 'white';
+            feedback.style.padding = '4px 8px';
+            feedback.style.borderRadius = '4px';
+            feedback.style.fontSize = '12px';
+            feedback.style.fontWeight = 'bold';
+            feedback.style.zIndex = '1000';
+            feedback.style.pointerEvents = 'none';
+            document.body.appendChild(feedback);
+            
+            setTimeout(() => {
+              if (document.body.contains(feedback)) {
+                document.body.removeChild(feedback);
+              }
+            }, 1000);
+          } else {
+            // Easter egg triggered!
+            console.log('🎉 Easter egg activated! Redirecting to Hippo Clicker Game...');
+            
+            // Show celebration message
+            const celebration = document.createElement('div');
+            celebration.innerHTML = '🎉 EASTER EGG FOUND! 🦛<br>Redirecting to Hippo Clicker Game...';
+            celebration.style.position = 'fixed';
+            celebration.style.top = '50%';
+            celebration.style.left = '50%';
+            celebration.style.transform = 'translate(-50%, -50%)';
+            celebration.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            celebration.style.color = 'white';
+            celebration.style.padding = '20px 30px';
+            celebration.style.borderRadius = '15px';
+            celebration.style.fontSize = '18px';
+            celebration.style.fontWeight = 'bold';
+            celebration.style.textAlign = 'center';
+            celebration.style.zIndex = '10000';
+            celebration.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.3)';
+            celebration.style.animation = 'pulse 0.5s ease-in-out';
+            document.body.appendChild(celebration);
+            
+            // Add pulse animation
+            const style = document.createElement('style');
+            style.textContent = `
+              @keyframes pulse {
+                0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+                50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+                100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+              }
+            `;
+            document.head.appendChild(style);
+            
+            // Redirect after a short delay
+            setTimeout(() => {
+              window.location.href = './hippo_clicker.html';
+            }, 2000);
+          }
+        });
+        
+        // Reset click count after 5 seconds of inactivity
+        let resetTimeout;
+        logo.addEventListener('click', function() {
+          clearTimeout(resetTimeout);
+          resetTimeout = setTimeout(() => {
+            clickCount = 0;
+            console.log('🦛 Click counter reset');
+          }, 5000);
+        });
+      }
+    });
+  </script>
 </body>
 
 </html>

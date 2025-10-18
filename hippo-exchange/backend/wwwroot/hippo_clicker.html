@@ -82,31 +82,31 @@
   <div class="blob blob-1"></div>
   <div class="blob blob-2"></div>
 
-  <main class="relative z-10 flex flex-col items-center justify-start pt-10 pb-20 px-6 space-y-8">
-    <!-- Back button -->
-    <div class="w-full max-w-6xl flex justify-start">
-      <button onclick="window.location.href='./Login.html'" 
-        class="glass px-4 py-2 rounded-lg text-white hover:bg-white/20 transition-all duration-200 flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        Back to Login
-      </button>
-    </div>
-    
-    <!-- Top section -->
-    <section class="text-center w-full max-w-5xl">
-      <img src="hippo-exchange-logo.png" alt="Hippo Logo" id="hippo"
-        class="mx-auto w-48 h-48 cursor-pointer transition-transform hover:scale-105 active:scale-95 rounded-full shadow-xl" />
-      <h1 class="text-5xl font-extrabold mt-4 text-white drop-shadow">Hippo Clicker</h1>
-      <p class="text-slate-200 mt-2 mb-4">
-        Click the hippo to earn <span class="font-semibold text-pink-200">items</span>!
-      </p>
-      <div class="text-white text-3xl font-bold"><span id="items">0</span> items</div>
-      <p class="text-sm text-slate-300 mt-1">
-        Generating <span id="ips">0</span> items/sec
-      </p>
-    </section>
+   <main class="relative z-10 flex flex-col items-center justify-start pt-10 pb-20 px-6 space-y-8">
+     <!-- Back to Login Button -->
+     <div class="w-full max-w-6xl flex justify-start">
+       <button onclick="window.location.href='./Login.html'" 
+               class="btn flex items-center gap-2">
+         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+         </svg>
+         Back to Login
+       </button>
+     </div>
+
+     <!-- Top section -->
+     <section class="text-center w-full max-w-5xl">
+       <img src="hippo-exchange-logo.png" alt="Hippo Logo" id="hippo"
+         class="mx-auto w-48 h-48 cursor-pointer transition-transform hover:scale-105 active:scale-95 rounded-full shadow-xl" />
+       <h1 class="text-5xl font-extrabold mt-4 text-white drop-shadow">Hippo Clicker</h1>
+       <p class="text-slate-200 mt-2 mb-4">
+         Click the hippo to earn <span class="font-semibold text-pink-200">items</span>!
+       </p>
+       <div class="text-white text-3xl font-bold"><span id="items">0</span> items</div>
+       <p class="text-sm text-slate-300 mt-1">
+         Generating <span id="ips">0</span> items/sec
+       </p>
+     </section>
 
     <!-- Main Game Panels -->
     <div class="grid md:grid-cols-2 gap-6 w-full max-w-6xl">
