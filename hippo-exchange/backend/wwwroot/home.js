@@ -1,4 +1,109 @@
 // home.js — Backend API powered grid
+
+// Geocoding cache to avoid repeated API calls
+const geocodingCache = new Map();
+
+// Location loading screen functions
+function showLocationLoadingScreen() {
+  // Create loading overlay if it doesn't exist
+  let loadingOverlay = document.getElementById('location-loading-overlay');
+  if (!loadingOverlay) {
+    loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'location-loading-overlay';
+    loadingOverlay.innerHTML = `
+      <div class="location-loading-content">
+        <div class="location-loading-spinner"></div>
+        <h3>Filtering by location...</h3>
+        <p>Finding items within your selected area</p>
+      </div>
+    `;
+    document.body.appendChild(loadingOverlay);
+  }
+  
+  // Show the loading screen
+  loadingOverlay.style.display = 'flex';
+  loadingOverlay.classList.add('active');
+}
+
+function hideLocationLoadingScreen() {
+  const loadingOverlay = document.getElementById('location-loading-overlay');
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove('active');
+    setTimeout(() => {
+      loadingOverlay.style.display = 'none';
+    }, 300);
+  }
+}
+
+// Location persistence functions (moved outside DOMContentLoaded scope)
+function saveLocationFilter(locationFilter) {
+  console.log('Saving location filter:', locationFilter);
+  
+  if (locationFilter) {
+    const filterData = JSON.stringify(locationFilter);
+    const displayData = JSON.stringify({
+      cityText: document.getElementById('header-location').textContent,
+      inputValue: document.getElementById('location-input')?.value || ''
+    });
+    
+    console.log('Saving filter data:', filterData);
+    console.log('Saving display data:', displayData);
+    
+    localStorage.setItem('hippo_location_filter', filterData);
+    localStorage.setItem('hippo_location_display', displayData);
+    
+    console.log('Location filter saved successfully');
+  } else {
+    console.log('Clearing location filter from localStorage');
+    localStorage.removeItem('hippo_location_filter');
+    localStorage.removeItem('hippo_location_display');
+  }
+}
+
+function loadLocationFilter() {
+  try {
+    // Debug: Check all localStorage keys
+    console.log('All localStorage keys:', Object.keys(localStorage));
+    
+    const saved = localStorage.getItem('hippo_location_filter');
+    console.log('Checking for saved location filter:', saved);
+    
+    if (saved) {
+      currentLocationFilter = JSON.parse(saved);
+      console.log('✅ Loaded saved location filter:', currentLocationFilter);
+      
+      // Restore display information
+      const displayInfo = localStorage.getItem('hippo_location_display');
+      console.log('Checking for saved display info:', displayInfo);
+      
+      if (displayInfo) {
+        const display = JSON.parse(displayInfo);
+        console.log('Parsed display info:', display);
+        
+        const headerEl = document.getElementById('header-location');
+        console.log('Header element found:', !!headerEl);
+        
+        if (headerEl) {
+          headerEl.textContent = display.cityText;
+          console.log('✅ Updated header text to:', display.cityText);
+        } else {
+          console.error('❌ Header element not found!');
+        }
+      }
+      
+      console.log('🎯 Location filter will be applied after data loads');
+      return currentLocationFilter;
+    } else {
+      console.log('ℹ️ No saved location filter found in localStorage');
+    }
+  } catch (error) {
+    console.error('❌ Error loading saved location filter:', error);
+    localStorage.removeItem('hippo_location_filter');
+    localStorage.removeItem('hippo_location_display');
+  }
+  return null;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Only run on Home.html page
   if (!window.location.pathname.includes('Home.html')) {
@@ -67,15 +172,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Search functionality
   const searchInput = document.getElementById('search-input');
   let searchTimeout = null;
-  let currentSearchQuery = '';
 
-  function performSearch(query) {
+  async function performSearch(query) {
     currentSearchQuery = query.trim();
 
     // Reset pagination when searching
     paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
     
     let filteredItems = allListings;
+
+    // Apply location filter first
+    filteredItems = await filterByLocation(filteredItems, currentLocationFilter);
 
     if (currentCategory !== 'all') {
       filteredItems = filteredItems.filter(item => {
@@ -130,28 +237,31 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(searchTimeout);
       }
 
-      searchTimeout = setTimeout(() => {
-        performSearch(query);
+      searchTimeout = setTimeout(async () => {
+        await performSearch(query);
       }, 300);
     });
 
-    searchInput.addEventListener('keydown', (e) => {
+    searchInput.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         if (searchTimeout) {
           clearTimeout(searchTimeout);
         }
-        performSearch(e.target.value);
+        await performSearch(e.target.value);
       }
     });
   }
 
   const PLACEHOLDER_IMG = 'https://placehold.co/600x400/ffffff/111111?text=Listing+Image';
 
-  let currentCategory = 'all';
-  let allListings = [];
-  let paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
-  let isLoadingMore = false;
+let currentCategory = 'all';
+let allListings = [];
+let paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
+let isLoadingMore = false;
+let currentLocationFilter = null; // Store current location filter
+let currentSearchQuery = ''; // Store current search query globally
+
 
   // Map backend category names to frontend category buttons
   function mapCategoryName(backendCategory) {
@@ -168,6 +278,117 @@ document.addEventListener('DOMContentLoaded', () => {
       'Food': 'other' // Map to other
     };
     return categoryMap[backendCategory] || 'other';
+  }
+
+  // Calculate distance between two coordinates using Haversine formula
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  // Filter items by location with caching for better performance
+  async function filterByLocation(items, locationFilter) {
+    if (!locationFilter || !locationFilter.lat || !locationFilter.lng) {
+      console.log('No location filter applied, showing all items');
+      return items;
+    }
+    
+    const { lat, lng, radius } = locationFilter;
+    console.log(`Filtering items by location: lat=${lat}, lng=${lng}, radius=${radius}mi`);
+    console.log(`Total items to filter: ${items.length}`);
+    
+    const filteredItems = [];
+    const itemsToGeocode = [];
+    
+    // First pass: check cache and collect items that need geocoding
+    for (const item of items) {
+      // If item has no location string, include it (for items that ship)
+      if (!item.location && !item.locationLabel) {
+        console.log(`Item "${item.title}" has no location, including it`);
+        filteredItems.push(item);
+        continue;
+      }
+      
+      const itemLocation = item.location || item.locationLabel;
+      const cacheKey = itemLocation.toLowerCase().trim();
+      
+      if (geocodingCache.has(cacheKey)) {
+        const cachedCoords = geocodingCache.get(cacheKey);
+        const distance = calculateDistance(lat, lng, cachedCoords.lat, cachedCoords.lon);
+        
+        if (distance <= radius) {
+          console.log(`✅ Item "${item.title}" (cached) is ${distance.toFixed(1)}mi away (within ${radius}mi radius)`);
+          filteredItems.push(item);
+        } else {
+          console.log(`❌ Item "${item.title}" (cached) is ${distance.toFixed(1)}mi away (outside ${radius}mi radius)`);
+        }
+      } else {
+        itemsToGeocode.push(item);
+      }
+    }
+    
+    console.log(`Found ${itemsToGeocode.length} items that need geocoding`);
+    
+    // Batch geocode remaining items (limit to 3 concurrent requests to avoid rate limiting)
+    const batchSize = 3;
+    for (let i = 0; i < itemsToGeocode.length; i += batchSize) {
+      const batch = itemsToGeocode.slice(i, i + batchSize);
+      
+      const geocodePromises = batch.map(async (item) => {
+        const itemLocation = item.location || item.locationLabel;
+        console.log(`Geocoding item location: "${itemLocation}"`);
+        
+        try {
+          const itemCoords = await geocode(itemLocation);
+          console.log(`Geocoding result for "${itemLocation}":`, itemCoords);
+          
+          if (itemCoords) {
+            // Cache the result
+            const cacheKey = itemLocation.toLowerCase().trim();
+            geocodingCache.set(cacheKey, { lat: itemCoords.lat, lon: itemCoords.lon });
+            
+            const distance = calculateDistance(lat, lng, itemCoords.lat, itemCoords.lon);
+            const isWithinRadius = distance <= radius;
+            
+            console.log(`Distance from "${item.title}" to selected location: ${distance.toFixed(1)}mi (radius: ${radius}mi)`);
+            
+            if (isWithinRadius) {
+              console.log(`✅ Item "${item.title}" is ${distance.toFixed(1)}mi away (within ${radius}mi radius)`);
+              return item;
+            } else {
+              console.log(`❌ Item "${item.title}" is ${distance.toFixed(1)}mi away (outside ${radius}mi radius)`);
+              return null;
+            }
+          } else {
+            // If geocoding fails, include the item (better to show than hide)
+            console.log(`⚠️ Could not geocode location for item "${item.title}": ${itemLocation} - including it anyway`);
+            return item;
+          }
+        } catch (error) {
+          console.error(`❌ Error geocoding location for item "${item.title}":`, error);
+          // If geocoding fails, include the item (better to show than hide)
+          return item;
+        }
+      });
+      
+      const batchResults = await Promise.all(geocodePromises);
+      filteredItems.push(...batchResults.filter(item => item !== null));
+      
+      // Small delay between batches to be respectful to the API
+      if (i + batchSize < itemsToGeocode.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    console.log(`🎯 Location filter result: ${filteredItems.length}/${items.length} items within ${radius}mi radius`);
+    return filteredItems;
   }
 
   const formatPrice = (val) =>
@@ -325,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function filterByCategory(category) {
+  async function filterByCategory(category) {
     currentCategory = category;
     console.log(`Filtering by category: ${category}`);
 
@@ -333,6 +554,9 @@ document.addEventListener('DOMContentLoaded', () => {
     paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
     
     let filteredItems = allListings;
+
+    // Apply location filter first
+    filteredItems = await filterByLocation(filteredItems, currentLocationFilter);
 
     if (category !== 'all') {
       filteredItems = filteredItems.filter(item => {
@@ -518,8 +742,63 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       console.log(`Final listings after filtering: ${allListings.length} available items`);
-      render(allListings);
+      
+      // Apply current filters (location, category, search) to the loaded items
+      let filteredItems = allListings;
+      filteredItems = await filterByLocation(filteredItems, currentLocationFilter);
+      
+      if (currentCategory !== 'all') {
+        filteredItems = filteredItems.filter(item => {
+          if (item.categories && Array.isArray(item.categories)) {
+            return item.categories.some(cat => 
+              cat.toLowerCase() === currentCategory.toLowerCase() ||
+              mapCategoryName(cat).toLowerCase() === currentCategory.toLowerCase()
+            );
+          }
+          if (item.category) {
+            return item.category.toLowerCase() === currentCategory.toLowerCase() ||
+                   mapCategoryName(item.category).toLowerCase() === currentCategory.toLowerCase();
+          }
+          return false;
+        });
+      }
+      
+      if (currentSearchQuery) {
+        const searchTerm = currentSearchQuery.toLowerCase();
+        filteredItems = filteredItems.filter(item => {
+          const title = (item.title || '').toLowerCase();
+          const description = (item.description || '').toLowerCase();
+          const location = (item.location || item.locationLabel || '').toLowerCase();
+
+          let categoryMatch = false;
+          if (item.categories && Array.isArray(item.categories)) {
+            categoryMatch = item.categories.some(cat => 
+              cat.toLowerCase().includes(searchTerm)
+            );
+          } else if (item.category) {
+            categoryMatch = item.category.toLowerCase().includes(searchTerm);
+          }
+
+          return title.includes(searchTerm) ||
+            description.includes(searchTerm) ||
+            categoryMatch ||
+            location.includes(searchTerm);
+        });
+      }
+      
+      render(filteredItems);
       updateLoadMoreButton();
+      
+      // If we have a saved location filter, apply it after initial load
+      if (currentLocationFilter && !loadMore) {
+        console.log('Applying saved location filter after initial load:', currentLocationFilter);
+        // Re-apply filters with saved location immediately
+        if (currentSearchQuery) {
+          await performSearch(currentSearchQuery);
+        } else {
+          await filterByCategory(currentCategory);
+        }
+      }
 
     } catch (err) {
       console.error('Failed to load listings from API:', err);
@@ -545,13 +824,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  document.addEventListener('click', (e) => {
+  document.addEventListener('click', async (e) => {
     if (e.target.classList.contains('category-filter')) {
       const category = e.target.dataset.category;
-      filterByCategory(category);
+      await filterByCategory(category);
     }
   });
 
+  // Load saved location filter after DOM elements are available
+  loadLocationFilter();
+  
+  // Load data and apply any saved location filter
   load();
 
   // Auto-refresh functionality (5 seconds)
@@ -597,6 +880,92 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Clean up on page unload
   window.addEventListener('beforeunload', stopAutoRefresh);
+
+  // Apply button event listener (moved inside DOMContentLoaded scope)
+  applyBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const milesText = radiusEl.value || '40 mi';
+      let cityText = inputEl.value && inputEl.value.trim() ? inputEl.value.trim() : 'Custom location';
+      let lat, lng;
+
+      // Ensure map is initialized
+      ensureMap();
+
+      if (cityText && cityText !== lastGeocodedQuery && cityText !== 'Custom location') {
+        const result = await geocode(cityText);
+        if (result) {
+          setMapTo(result.lat, result.lon);
+          cityText = result.display_name.split(',').slice(0, 2).join(',');
+          lastGeocodedQuery = inputEl.value.trim();
+          lat = result.lat;
+          lng = result.lon;
+        } else {
+          // If geocoding fails, use current marker position
+          if (marker) {
+            const pos = marker.getLatLng();
+            lat = pos.lat;
+            lng = pos.lng;
+          }
+        }
+      } else {
+        // Use current marker position
+        if (marker) {
+          const pos = marker.getLatLng();
+          lat = pos.lat;
+          lng = pos.lng;
+        } else {
+          // Fallback to default position
+          lat = defaultPos.lat;
+          lng = defaultPos.lng;
+        }
+      }
+
+      // Update circle radius
+      const miles = (milesText || '40').split(' ')[0];
+      circle?.setRadius(milesToMeters(miles));
+
+      // Set the location filter
+      const radius = parseFloat(miles);
+      currentLocationFilter = { lat, lng, radius };
+      
+      const shortCity = cityText.split(',').slice(0, 2).join(',');
+      updateHeader(shortCity, milesText);
+      
+      // Save the location filter to localStorage
+      saveLocationFilter(currentLocationFilter);
+      
+      console.log('Applied location filter:', currentLocationFilter);
+      
+      // Close modal immediately
+      console.log('Closing location modal...');
+      modal.classList.remove('active');
+      
+      // Show loading screen
+      showLocationLoadingScreen();
+      
+      // Re-apply filters and re-render in background
+      try {
+        if (currentSearchQuery) {
+          await performSearch(currentSearchQuery);
+        } else {
+          await filterByCategory(currentCategory);
+        }
+      } catch (filterError) {
+        console.error('Error applying location filter:', filterError);
+      } finally {
+        // Hide loading screen
+        hideLocationLoadingScreen();
+      }
+      
+    } catch (error) {
+      console.error('Error applying location filter:', error);
+      // Close modal and hide loading screen on error
+      modal.classList.remove('active');
+      hideLocationLoadingScreen();
+    }
+  });
 });
 
 // Authentication and user data functions
@@ -679,10 +1048,20 @@ function displayUserInfo(user) {
   }
 
   const acctAvatar = document.getElementById('acct-avatar');
-  const profilePic = user.ProfilePicture || user.profilePicture;
-  if (acctAvatar && profilePic) {
-    acctAvatar.src = profilePic;
-    console.log('Updated profile picture:', profilePic);
+  if (acctAvatar) {
+    const profilePic = user.ProfilePicture || user.profilePicture;
+    if (window.generateProfilePictureHTML) {
+      acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
+      console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+    } else {
+      // Fallback if utility function not available
+      if (profilePic && profilePic.trim()) {
+        acctAvatar.innerHTML = `<img src="${profilePic}" alt="Profile picture" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm" style="display: none;">${(user?.FirstName || user?.firstName || user?.email || 'U').charAt(0).toUpperCase()}</div>`;
+      } else {
+        const firstLetter = (user?.FirstName || user?.firstName || user?.email || 'U').charAt(0).toUpperCase();
+        acctAvatar.innerHTML = `<div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">${firstLetter}</div>`;
+      }
+    }
   }
 }
 
@@ -691,6 +1070,7 @@ function clearAuthData() {
   localStorage.removeItem('hippo_token');
   localStorage.removeItem('userToken');
   localStorage.removeItem('userData');
+  // Keep location filter when signing out - it's user preference, not auth data
   sessionStorage.removeItem('userToken');
   sessionStorage.removeItem('userData');
   
@@ -719,10 +1099,12 @@ const openBtn = document.getElementById('open-location');
 const modal = document.getElementById('location-modal');
 const closeModalBtn = document.getElementById('close-location');
 const applyBtn = document.getElementById('apply-location');
+const clearBtn = document.getElementById('clear-location');
 const inputEl = document.getElementById('location-input');
 const radiusEl = document.getElementById('radius-select');
 const headerEl = document.getElementById('header-location');
 const geoBtn = document.getElementById('geo-btn');
+const shareLocationBtn = document.getElementById('share-location-btn');
 
 let map, marker, circle;
 let lastGeocodedQuery = '';
@@ -756,6 +1138,32 @@ openBtn?.addEventListener('click', () => {
   modal.classList.add('active');
   ensureMap();
   setTimeout(() => map.invalidateSize(), 100);
+  
+  // Restore saved location in modal if available
+  const displayInfo = localStorage.getItem('hippo_location_display');
+  if (displayInfo) {
+    try {
+      const display = JSON.parse(displayInfo);
+      if (display.inputValue && inputEl) {
+        inputEl.value = display.inputValue;
+      }
+      
+      // Restore radius if we have a saved location filter
+      if (currentLocationFilter && radiusEl) {
+        radiusEl.value = `${currentLocationFilter.radius} mi`;
+        if (circle) {
+          circle.setRadius(milesToMeters(currentLocationFilter.radius));
+        }
+      }
+      
+      // Set map to saved location
+      if (currentLocationFilter && map && marker) {
+        setMapTo(currentLocationFilter.lat, currentLocationFilter.lng);
+      }
+    } catch (error) {
+      console.error('Error restoring location modal state:', error);
+    }
+  }
 });
 closeModalBtn?.addEventListener('click', () => modal.classList.remove('active'));
 modal?.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
@@ -816,29 +1224,126 @@ geoBtn?.addEventListener('click', () => {
   });
 });
 
+shareLocationBtn?.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by this browser.');
+    return;
+  }
+  
+  shareLocationBtn.disabled = true;
+  shareLocationBtn.innerHTML = `
+    <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+    Getting Location...
+  `;
+  
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      ensureMap();
+      setMapTo(latitude, longitude);
+      lastGeocodedQuery = '';
+      
+      // Reverse geocode to get address
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.display_name) {
+            const address = data.display_name.split(',').slice(0, 2).join(',');
+            inputEl.value = address;
+            lastGeocodedQuery = address;
+          }
+        })
+        .catch(error => {
+          console.error('Reverse geocoding failed:', error);
+        })
+        .finally(() => {
+          shareLocationBtn.disabled = false;
+          shareLocationBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z" />
+            </svg>
+            Share My Location
+          `;
+        });
+    },
+    (error) => {
+      console.error('Geolocation error:', error);
+      let errorMessage = 'Unable to get your location. ';
+      switch(error.code) {
+        case error.PERMISSION_DENIED:
+          errorMessage += 'Please allow location access and try again.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          errorMessage += 'Location information is unavailable.';
+          break;
+        case error.TIMEOUT:
+          errorMessage += 'Location request timed out.';
+          break;
+        default:
+          errorMessage += 'An unknown error occurred.';
+          break;
+      }
+      alert(errorMessage);
+      
+      shareLocationBtn.disabled = false;
+      shareLocationBtn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z" />
+        </svg>
+        Share My Location
+      `;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 300000 // 5 minutes
+    }
+  );
+});
+
 function updateHeader(cityText, milesText) {
   headerEl.textContent = `${cityText} — ${milesText}`;
-  document.querySelectorAll('#listings-grid [data-field="location"]').forEach(n => n.textContent = cityText);
+  // Don't change item locations anymore - just update the header
 }
 
-applyBtn?.addEventListener('click', async () => {
-  const milesText = radiusEl.value || '40 mi';
-  let cityText = inputEl.value && inputEl.value.trim() ? inputEl.value.trim() : 'Custom location';
 
-  if (cityText && cityText !== lastGeocodedQuery) {
-    const result = await geocode(cityText);
-    if (result) {
-      ensureMap();
-      setMapTo(result.lat, result.lon);
-      cityText = result.display_name.split(',').slice(0, 2).join(',');
-      lastGeocodedQuery = inputEl.value.trim();
-    }
-  } else {
-    const miles = (milesText || '40').split(' ')[0];
-    circle?.setRadius(milesToMeters(miles));
+clearBtn?.addEventListener('click', async () => {
+  // Clear the location filter
+  currentLocationFilter = null;
+  
+  // Clear saved location from localStorage
+  saveLocationFilter(null);
+  
+  // Reset the header to show all items
+  headerEl.textContent = 'All locations';
+  
+  // Clear the input and reset map
+  inputEl.value = '';
+  lastGeocodedQuery = '';
+  
+  if (map) {
+    setMapTo(defaultPos.lat, defaultPos.lng);
   }
-
-  const shortCity = cityText.split(',').slice(0, 2).join(',');
-  updateHeader(shortCity, milesText);
+  
+  // Close modal immediately
   modal.classList.remove('active');
+  
+  // Show loading screen
+  showLocationLoadingScreen();
+  
+  // Re-apply filters and re-render in background
+  try {
+    if (currentSearchQuery) {
+      await performSearch(currentSearchQuery);
+    } else {
+      await filterByCategory(currentCategory);
+    }
+  } catch (error) {
+    console.error('Error clearing location filter:', error);
+  } finally {
+    // Hide loading screen
+    hideLocationLoadingScreen();
+  }
 });

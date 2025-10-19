@@ -73,10 +73,14 @@
         }
 
             .review .avatar {
-                width: 42px;
-                height: 42px;
+                width: 48px;
+                height: 48px;
                 border-radius: 9999px;
                 overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                align-self: start;
             }
 
         .pill {
@@ -255,7 +259,7 @@
 
                         <div class="md:col-span-2">
                             <label for="bio" class="field-label">Bio</label>
-                            <textarea id="bio" class="input field-textarea" placeholder="Tell others a little about youâ€¦"></textarea>
+                            <textarea id="bio" class="input field-textarea" placeholder="Tell others a little about yourself"></textarea>
                             <div class="flex items-center justify-between mt-2">
                                 <span class="field-help">A short blurb helps build trust.</span>
                                 <span id="bio-counter" class="text-xs text-slate-500">0 / 500</span>

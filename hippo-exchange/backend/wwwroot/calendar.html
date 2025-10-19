@@ -122,8 +122,9 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar"
-              class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <div id="acct-avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+              <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover rounded-full" />
+            </div>
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
             </div>
@@ -292,6 +293,7 @@
     </div>
   </div>
 
+  <script defer src="./profile-utils.js"></script>
   <script src="calendar.js"></script>
 </body>
 

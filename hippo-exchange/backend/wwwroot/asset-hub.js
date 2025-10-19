@@ -1,6 +1,9 @@
 // Asset Hub JavaScript functionality
 class AssetHub {
     constructor() {
+        // API Configuration
+        this.API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+        
         this.currentUser = null;
         this.currentUserId = null;
         this.ownedItems = [];
@@ -10,6 +13,9 @@ class AssetHub {
         this.currentEditingItem = null;
         this.currentDeletingItem = null;
         this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
+        this.editCurrentPhotos = []; // Store current photos for editing
+        this.editNewPhotos = []; // Store new photos to be uploaded
+        this.editNewPhotoFiles = []; // Store new photo files
         this.autoRefreshInterval = null; // Auto-refresh interval
         this.earlyReturnRequestInProgress = false; // Prevent duplicate early return requests
 
@@ -322,6 +328,7 @@ class AssetHub {
         // Check authentication first
         await this.checkAuthAndLoadUser();
         this.setupEventListeners();
+        this.setupGlobalFunctions();
         
         // Handle URL parameters
         this.handleUrlParameters();
@@ -357,7 +364,7 @@ class AssetHub {
 
     async checkDueMaintenance() {
         try {
-            const response = await fetch('http://localhost:5000/maintenance/check-due', {
+            const response = await fetch(`${this.API_BASE_URL}/maintenance/check-due`, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json'
@@ -423,7 +430,7 @@ class AssetHub {
 
         try {
             // Verify token with backend
-            const response = await fetch('http://localhost:5000/auth/me', {
+            const response = await fetch(`${this.API_BASE_URL}/auth/me`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -484,10 +491,20 @@ class AssetHub {
 
         // Update sidebar avatar with profile picture and fallback
         const acctAvatar = document.getElementById('acct-avatar');
-        const profilePic = user?.ProfilePicture || user?.profilePicture;
-        if (acctAvatar && profilePic && profilePic.trim()) {
-            acctAvatar.src = profilePic;
-            console.log('Updated profile picture:', profilePic);
+        if (acctAvatar) {
+            const profilePic = user?.ProfilePicture || user?.profilePicture;
+            if (window.generateProfilePictureHTML) {
+                acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
+                console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+            } else {
+                // Fallback if utility function not available
+                if (profilePic && profilePic.trim()) {
+                    acctAvatar.innerHTML = `<img src="${profilePic}" alt="Profile picture" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm" style="display: none;">${(user?.FirstName || user?.firstName || user?.email || 'U').charAt(0).toUpperCase()}</div>`;
+                } else {
+                    const firstLetter = (user?.FirstName || user?.firstName || user?.email || 'U').charAt(0).toUpperCase();
+                    acctAvatar.innerHTML = `<div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">${firstLetter}</div>`;
+                }
+            }
         }
     }
 
@@ -495,7 +512,7 @@ class AssetHub {
     async fetchFreshUserData(userId, token) {
         try {
             console.log('🔄 Fetching fresh user data for:', userId);
-            const response = await fetch(`http://localhost:5000/users/${userId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/users/${userId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -554,6 +571,12 @@ class AssetHub {
         document.getElementById('close-edit-item').addEventListener('click', () => this.closeEditModal());
         document.getElementById('cancel-edit-item').addEventListener('click', () => this.closeEditModal());
         document.getElementById('edit-item-form').addEventListener('submit', (e) => this.handleEditSubmit(e));
+        
+        // Photo management in edit modal
+        document.getElementById('edit-add-photos-btn').addEventListener('click', () => {
+            document.getElementById('edit-photo-upload').click();
+        });
+        document.getElementById('edit-photo-upload').addEventListener('change', (e) => this.handleEditPhotoUpload(e));
         
         // Close edit modal when clicking outside (on overlay)
         document.getElementById('edit-item-modal').addEventListener('click', (e) => {
@@ -787,7 +810,7 @@ class AssetHub {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
 
             // Load owned items - fetch all items and filter by current user
-            const ownedResponse = await fetch('http://localhost:5000/items', {
+            const ownedResponse = await fetch(`${this.API_BASE_URL}/items`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -850,7 +873,7 @@ class AssetHub {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             console.log('🔍 Fetching borrowed items for user:', this.currentUserId);
 
-            const response = await fetch(`http://localhost:5000/exchanges/borrower/${this.currentUserId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/borrower/${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -874,7 +897,7 @@ class AssetHub {
                     
                     try {
                         console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
-                        const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
+                        const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
                                 'Accept': 'application/json'
@@ -889,7 +912,7 @@ class AssetHub {
                             let ownerName = 'Unknown Owner';
                             try {
                                 console.log('🔍 Fetching owner details for:', exchange.OwnerId || exchange.ownerId);
-                                const ownerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
+                                const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
                                         'Accept': 'application/json'
@@ -943,7 +966,7 @@ class AssetHub {
                             let ownerName = 'Unknown Owner';
                             try {
                                 console.log('🔍 Fetching owner details for fallback:', exchange.OwnerId || exchange.ownerId);
-                                const ownerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
+                                const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
                                         'Accept': 'application/json'
@@ -984,7 +1007,7 @@ class AssetHub {
                         let ownerName = 'Unknown Owner';
                         try {
                             console.log('🔍 Fetching owner details for error fallback:', exchange.OwnerId || exchange.ownerId);
-                            const ownerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
+                            const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                 headers: {
                                     'Authorization': `Bearer ${token}`,
                                     'Accept': 'application/json'
@@ -1159,7 +1182,7 @@ class AssetHub {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             console.log('🔍 Fetching requested items for user:', this.currentUserId);
 
-            const response = await fetch(`http://localhost:5000/exchanges/owner/${this.currentUserId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/owner/${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -1198,7 +1221,7 @@ class AssetHub {
                 for (const exchange of pendingExchanges) {
                     try {
                         console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
-                        const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
+                        const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
                                 'Accept': 'application/json'
@@ -1214,7 +1237,7 @@ class AssetHub {
                             let borrowerAvatar = null;
                             try {
                                 console.log('🔍 Fetching borrower details for:', exchange.BorrowerId || exchange.borrowerId);
-                                const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
+                                const borrowerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
                                         'Accept': 'application/json'
@@ -1275,7 +1298,7 @@ class AssetHub {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             console.log('🔍 Fetching loaned out items for user:', this.currentUserId);
 
-            const response = await fetch(`http://localhost:5000/exchanges/owner/${this.currentUserId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/owner/${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -1300,7 +1323,7 @@ class AssetHub {
                 for (const exchange of approvedExchanges) {
                     try {
                         console.log('🔍 Fetching item details for loaned exchange:', exchange.ItemId || exchange.itemId);
-                        const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
+                        const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
                                 'Accept': 'application/json'
@@ -1316,7 +1339,7 @@ class AssetHub {
                             let borrowerAvatar = null;
                             try {
                                 console.log('🔍 Fetching borrower details for loaned item:', exchange.BorrowerId || exchange.borrowerId);
-                                const borrowerResponse = await fetch(`http://localhost:5000/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
+                                const borrowerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
                                         'Accept': 'application/json'
@@ -1336,7 +1359,7 @@ class AssetHub {
                             // Check for early return request notifications
                             let hasEarlyReturnRequest = false;
                             try {
-                                const notificationsResponse = await fetch(`http://35.209.4.180:5000/notifications/user/${this.currentUserId}`, {
+                                const notificationsResponse = await fetch(`${this.API_BASE_URL}/notifications/user/${this.currentUserId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
                                         'Accept': 'application/json'
@@ -1553,7 +1576,7 @@ class AssetHub {
             console.log('📤 Exchange ID:', request.exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${request.exchangeId}/approval`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${request.exchangeId}/approval`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1647,7 +1670,7 @@ class AssetHub {
             console.log('📤 Requesting early return for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/request-early-return`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/request-early-return`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1662,6 +1685,11 @@ class AssetHub {
             if (response.ok) {
                 const result = await response.json();
                 console.log('✅ Early return request sent successfully:', result);
+                
+                // Send inbox message to the item owner
+                console.log('🔄 About to send early return message for exchange:', exchangeId);
+                await this.sendEarlyReturnMessage(exchangeId);
+                console.log('🔄 Early return message sending completed');
                 
                 this.showSuccess('Early return request sent successfully!');
                 
@@ -1690,6 +1718,153 @@ class AssetHub {
         }
     }
 
+    async sendEarlyReturnMessage(exchangeId) {
+        try {
+            console.log('📤 Starting early return message process for exchange:', exchangeId);
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            if (!token) {
+                console.error('❌ No authentication token found');
+                return;
+            }
+
+            if (!this.currentUserId) {
+                console.error('❌ No current user ID found');
+                return;
+            }
+            
+            // Get exchange details to find the item owner
+            console.log('📤 Fetching exchange details...');
+            const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!exchangeResponse.ok) {
+                console.error('❌ Could not fetch exchange details:', exchangeResponse.status, exchangeResponse.statusText);
+                return;
+            }
+
+            const exchange = await exchangeResponse.json();
+            console.log('📤 Exchange details:', exchange);
+            
+            const ownerId = exchange.OwnerId || exchange.ownerId;
+            const itemId = exchange.ItemId || exchange.itemId;
+
+            if (!ownerId) {
+                console.error('❌ No owner ID found for exchange');
+                return;
+            }
+
+            console.log('📤 Owner ID:', ownerId, 'Item ID:', itemId);
+
+            // Get item details for the message
+            console.log('📤 Fetching item details...');
+            const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let itemTitle = 'an item';
+            if (itemResponse.ok) {
+                const item = await itemResponse.json();
+                itemTitle = item.title || item.Title || 'an item';
+                console.log('📤 Item title:', itemTitle);
+            } else {
+                console.warn('⚠️ Could not fetch item details, using default title');
+            }
+
+            // Create message thread using the same approach as listing page
+            console.log('📤 Creating message thread...');
+            const threadData = {
+                participantIds: [this.currentUserId, ownerId],
+                itemId: itemId,
+                subject: `Early Return Request: ${itemTitle}`
+            };
+
+            console.log('📤 Thread data:', threadData);
+            console.log('📤 Making request to:', `${this.API_BASE_URL}/messages/threads`);
+
+            const threadResponse = await fetch(`${this.API_BASE_URL}/messages/threads`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(threadData)
+            });
+
+            console.log('📥 Thread response status:', threadResponse.status);
+
+            if (!threadResponse.ok) {
+                console.warn('⚠️ Failed to create message thread:', threadResponse.status);
+                const errorText = await threadResponse.text();
+                console.error('❌ Thread creation error:', errorText);
+                return;
+            }
+
+            const threadResult = await threadResponse.json();
+            console.log('✅ Message thread created successfully:', threadResult);
+
+            // Send initial message in the thread
+            if (threadResult.id) {
+                await this.sendInitialMessage(threadResult.id, itemTitle, this.currentUser);
+            }
+
+        } catch (error) {
+            console.error('❌ Error sending early return message:', error);
+        }
+    }
+
+    // Send initial message in the thread (matching listing page approach)
+    async sendInitialMessage(threadId, itemTitle, sender) {
+        try {
+            console.log('📝 Sending initial message in thread...');
+
+            // Get sender's display name
+            const senderName = sender?.FirstName && sender?.LastName
+                ? `${sender.FirstName} ${sender.LastName}`
+                : sender?.email || 'Someone';
+
+            // Prepare initial message
+            const messageData = {
+                body: `Hi! I'd like to request an early return for "${itemTitle}". I no longer need it and would like to return it to you. Please let me know if this works for you.`,
+                senderId: sender?.Id || sender?.id || sender?.userId || this.currentUserId
+            };
+
+            console.log('📤 Sending initial message data:', messageData);
+            console.log('📤 Making message request to:', `${this.API_BASE_URL}/messages/threads/${threadId}/messages`);
+
+            const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('hippo_token')}`
+                },
+                body: JSON.stringify(messageData)
+            });
+
+            console.log('📥 Message response status:', messageResponse.status);
+
+            if (!messageResponse.ok) {
+                console.warn('⚠️ Failed to send initial message:', messageResponse.status);
+                return;
+            }
+
+            const messageResult = await messageResponse.json();
+            console.log('✅ Initial message sent successfully:', messageResult);
+
+        } catch (error) {
+            console.warn('⚠️ Error sending initial message:', error);
+        }
+    }
+
     // Note: handleMarkAsReturned method removed
     // Borrowers can no longer mark items as returned directly
     // They must request early returns, which owners must approve
@@ -1713,7 +1888,7 @@ class AssetHub {
             console.log('📤 Requesting item back early for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-item-back-early`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/request-item-back-early`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1777,7 +1952,7 @@ class AssetHub {
             console.log('📤 Exchange ID:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/confirm-return`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/confirm-return`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1793,6 +1968,9 @@ class AssetHub {
             if (response.ok) {
                 const updatedExchange = await response.json();
                 console.log('✅ Return confirmation processed successfully:', updatedExchange);
+                
+                // Send inbox message to the borrower about the return confirmation
+                await this.sendReturnConfirmationMessage(exchangeId, isConfirm);
                 
                 this.showSuccess(`Return ${action}ed successfully!`);
                 
@@ -1823,6 +2001,133 @@ class AssetHub {
         }
     }
 
+    async sendReturnConfirmationMessage(exchangeId, isConfirm) {
+        try {
+            console.log('📤 Starting return confirmation message process for exchange:', exchangeId, 'isConfirm:', isConfirm);
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            if (!token) {
+                console.error('❌ No authentication token found');
+                return;
+            }
+
+            if (!this.currentUserId) {
+                console.error('❌ No current user ID found');
+                return;
+            }
+            
+            // Get exchange details to find the borrower
+            console.log('📤 Fetching exchange details...');
+            const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!exchangeResponse.ok) {
+                console.error('❌ Could not fetch exchange details:', exchangeResponse.status, exchangeResponse.statusText);
+                return;
+            }
+
+            const exchange = await exchangeResponse.json();
+            console.log('📤 Exchange details:', exchange);
+            
+            const borrowerId = exchange.BorrowerId || exchange.borrowerId;
+            const itemId = exchange.ItemId || exchange.itemId;
+
+            if (!borrowerId) {
+                console.error('❌ No borrower ID found for exchange');
+                return;
+            }
+
+            console.log('📤 Borrower ID:', borrowerId, 'Item ID:', itemId);
+
+            // Get item details for the message
+            console.log('📤 Fetching item details...');
+            const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let itemTitle = 'the item';
+            if (itemResponse.ok) {
+                const item = await itemResponse.json();
+                itemTitle = item.title || item.Title || 'the item';
+                console.log('📤 Item title:', itemTitle);
+            } else {
+                console.warn('⚠️ Could not fetch item details, using default title');
+            }
+
+            // Find existing thread with the borrower
+            console.log('📤 Looking for existing thread with borrower...');
+            const existingThreadsResponse = await fetch(`${this.API_BASE_URL}/messages/threads?userId=${this.currentUserId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let threadId;
+            if (existingThreadsResponse.ok) {
+                const threads = await existingThreadsResponse.json();
+                console.log('📤 Existing threads:', threads);
+                
+                const existingThread = threads.find(t => 
+                    t.participantIds && t.participantIds.includes(borrowerId)
+                );
+                if (existingThread) {
+                    threadId = existingThread.id || existingThread.Id;
+                    console.log('📤 Found existing thread:', threadId);
+                }
+            } else {
+                console.warn('⚠️ Could not fetch existing threads:', existingThreadsResponse.status);
+            }
+
+            if (!threadId) {
+                console.error('❌ Could not find thread for return confirmation message');
+                return;
+            }
+
+            // Send the confirmation message
+            const messageText = isConfirm 
+                ? `Thank you! I've confirmed that I received "${itemTitle}" back from you. The return is now complete.`
+                : `I need to dispute the return of "${itemTitle}". There seems to be an issue with the item or the return process. Please contact me to resolve this.`;
+
+            console.log('📤 Sending confirmation message to thread:', threadId);
+            const messageData = {
+                senderId: this.currentUserId,
+                body: messageText
+            };
+            
+            console.log('📤 Message data:', messageData);
+
+            const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(messageData)
+            });
+
+            console.log('📥 Message response status:', messageResponse.status);
+
+            if (!messageResponse.ok) {
+                console.warn('⚠️ Failed to send confirmation message:', messageResponse.status);
+                return;
+            }
+
+            const messageResult = await messageResponse.json();
+            console.log('✅ Return confirmation message sent successfully:', messageResult);
+
+        } catch (error) {
+            console.error('❌ Error sending return confirmation message:', error);
+        }
+    }
 
     async handleEarlyReturnAction(exchangeId, isApprove) {
         const action = isApprove ? 'approve' : 'decline';
@@ -1847,7 +2152,7 @@ class AssetHub {
             console.log('📤 Exchange ID:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/early-return`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/early-return`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1863,6 +2168,9 @@ class AssetHub {
             if (response.ok) {
                 const updatedExchange = await response.json();
                 console.log('✅ Early return processed successfully:', updatedExchange);
+                
+                // Send inbox message to the borrower about the approval/decline
+                await this.sendEarlyReturnResponseMessage(exchangeId, isApprove);
                 
                 this.showSuccess(`Early return request ${action}d successfully!`);
                 
@@ -1890,6 +2198,134 @@ class AssetHub {
             console.error(`❌ Error ${action}ing early return request:`, error);
             console.error('❌ Error details:', error.message);
             this.showError(`An error occurred while ${action}ing the early return request: ${error.message}`);
+        }
+    }
+
+    async sendEarlyReturnResponseMessage(exchangeId, isApprove) {
+        try {
+            console.log('📤 Starting early return response message process for exchange:', exchangeId, 'isApprove:', isApprove);
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            if (!token) {
+                console.error('❌ No authentication token found');
+                return;
+            }
+
+            if (!this.currentUserId) {
+                console.error('❌ No current user ID found');
+                return;
+            }
+            
+            // Get exchange details to find the borrower
+            console.log('📤 Fetching exchange details...');
+            const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!exchangeResponse.ok) {
+                console.error('❌ Could not fetch exchange details:', exchangeResponse.status, exchangeResponse.statusText);
+                return;
+            }
+
+            const exchange = await exchangeResponse.json();
+            console.log('📤 Exchange details:', exchange);
+            
+            const borrowerId = exchange.BorrowerId || exchange.borrowerId;
+            const itemId = exchange.ItemId || exchange.itemId;
+
+            if (!borrowerId) {
+                console.error('❌ No borrower ID found for exchange');
+                return;
+            }
+
+            console.log('📤 Borrower ID:', borrowerId, 'Item ID:', itemId);
+
+            // Get item details for the message
+            console.log('📤 Fetching item details...');
+            const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let itemTitle = 'the item';
+            if (itemResponse.ok) {
+                const item = await itemResponse.json();
+                itemTitle = item.title || item.Title || 'the item';
+                console.log('📤 Item title:', itemTitle);
+            } else {
+                console.warn('⚠️ Could not fetch item details, using default title');
+            }
+
+            // Find existing thread with the borrower
+            console.log('📤 Looking for existing thread with borrower...');
+            const existingThreadsResponse = await fetch(`${this.API_BASE_URL}/messages/threads?userId=${this.currentUserId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            let threadId;
+            if (existingThreadsResponse.ok) {
+                const threads = await existingThreadsResponse.json();
+                console.log('📤 Existing threads:', threads);
+                
+                const existingThread = threads.find(t => 
+                    t.participantIds && t.participantIds.includes(borrowerId)
+                );
+                if (existingThread) {
+                    threadId = existingThread.id || existingThread.Id;
+                    console.log('📤 Found existing thread:', threadId);
+                }
+            } else {
+                console.warn('⚠️ Could not fetch existing threads:', existingThreadsResponse.status);
+            }
+
+            if (!threadId) {
+                console.error('❌ Could not find thread for early return response message');
+                return;
+            }
+
+            // Send the response message
+            const messageText = isApprove 
+                ? `Great! I've approved your early return request for "${itemTitle}". Please return it when convenient, and I'll confirm receipt once I receive it.`
+                : `I'm sorry, but I cannot approve the early return request for "${itemTitle}" at this time. Please keep it until the original return date.`;
+
+            console.log('📤 Sending response message to thread:', threadId);
+            const messageData = {
+                senderId: this.currentUserId,
+                body: messageText
+            };
+            
+            console.log('📤 Message data:', messageData);
+
+            const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(messageData)
+            });
+
+            console.log('📥 Message response status:', messageResponse.status);
+
+            if (!messageResponse.ok) {
+                console.warn('⚠️ Failed to send response message:', messageResponse.status);
+                return;
+            }
+
+            const messageResult = await messageResponse.json();
+            console.log('✅ Early return response message sent successfully:', messageResult);
+
+        } catch (error) {
+            console.error('❌ Error sending early return response message:', error);
         }
     }
 
@@ -2416,7 +2852,7 @@ class AssetHub {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             if (!token) return;
 
-            const response = await fetch('http://localhost:5000/users/me', {
+            const response = await fetch(`${this.API_BASE_URL}/users/me`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -2498,17 +2934,11 @@ class AssetHub {
         availableInput.value = availableValue;
         locationInput.value = locationValue;
 
-        // Show photo upload indicator if item has photos
-        const photoIndicator = document.getElementById('photo-upload-indicator');
-        const photoCount = document.getElementById('photo-count');
-        const photos = item.Pictures || item.pictures || item.Images || item.images || [];
-
-        if (photos.length > 0) {
-            photoIndicator.classList.remove('hidden');
-            photoCount.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'} uploaded`;
-        } else {
-            photoIndicator.classList.add('hidden');
-        }
+        // Load and display current photos
+        this.editCurrentPhotos = item.Pictures || item.pictures || item.Images || item.images || [];
+        this.editNewPhotos = [];
+        this.editNewPhotoFiles = [];
+        this.renderEditPhotos();
 
         console.log('✅ Form populated successfully');
 
@@ -2557,7 +2987,10 @@ class AssetHub {
             console.log('🔧 Edit modal closed');
         }
         
-        document.getElementById('photo-upload-indicator').classList.add('hidden');
+        // Reset photo management
+        this.editCurrentPhotos = [];
+        this.editNewPhotos = [];
+        this.editNewPhotoFiles = [];
         this.currentEditingItem = null;
     }
 
@@ -2573,12 +3006,19 @@ class AssetHub {
             condition: document.getElementById('edit-item-condition-input').value,
             available: document.getElementById('edit-item-available-input').value === 'true',
             location: document.getElementById('edit-item-location-input').value,
+            pictures: this.editCurrentPhotos, // Updated photos list
             ownerId: this.currentEditingItem.ownerId || this.currentEditingItem.userId
         };
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/items/${this.currentEditingItem.id}`, {
+            
+            // If there are new photos to upload, handle them first
+            if (this.editNewPhotoFiles.length > 0) {
+                await this.uploadNewPhotos();
+            }
+            
+            const response = await fetch(`${this.API_BASE_URL}/items/${this.currentEditingItem.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2609,6 +3049,158 @@ class AssetHub {
         }
     }
 
+    renderEditPhotos() {
+        const photosGrid = document.getElementById('edit-photos-grid');
+        const newPhotosGrid = document.getElementById('edit-new-photos-grid');
+        const newPhotosSection = document.getElementById('edit-new-photos');
+        const photoCount = document.getElementById('edit-photo-count');
+
+        // Update photo count
+        photoCount.textContent = this.editCurrentPhotos.length;
+
+        // Render current photos
+        photosGrid.innerHTML = '';
+        this.editCurrentPhotos.forEach((photo, index) => {
+            const photoItem = document.createElement('div');
+            photoItem.className = 'relative group bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
+            photoItem.innerHTML = `
+                <div class="relative aspect-square">
+                    <img src="${photo}" alt="Current photo ${index + 1}" 
+                         class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200"></div>
+                    <button type="button" 
+                            class="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
+                            onclick="window.assetHub.removeEditCurrentPhoto(${index})"
+                            title="Remove photo">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            photosGrid.appendChild(photoItem);
+        });
+
+        // Render new photos
+        if (this.editNewPhotos.length > 0) {
+            newPhotosSection.classList.remove('hidden');
+            newPhotosGrid.innerHTML = '';
+            this.editNewPhotos.forEach((photo, index) => {
+                const photoItem = document.createElement('div');
+                photoItem.className = 'relative group bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
+                photoItem.innerHTML = `
+                    <div class="relative aspect-square">
+                        <img src="${photo}" alt="New photo ${index + 1}" 
+                             class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200"></div>
+                        <button type="button" 
+                                class="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
+                                onclick="window.assetHub.removeEditNewPhoto(${index})"
+                                title="Remove photo">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                `;
+                newPhotosGrid.appendChild(photoItem);
+            });
+        } else {
+            newPhotosSection.classList.add('hidden');
+        }
+    }
+
+    handleEditPhotoUpload(e) {
+        const files = Array.from(e.target.files);
+
+        // Validation
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        const MAX_FILES = 10;
+        const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+        if (files.length > MAX_FILES) {
+            this.showError(`Maximum ${MAX_FILES} photos allowed`);
+            e.target.value = '';
+            return;
+        }
+
+        const invalidFiles = files.filter(file =>
+            file.size > MAX_SIZE || !ALLOWED_TYPES.includes(file.type)
+        );
+
+        if (invalidFiles.length > 0) {
+            this.showError('Some files are too large (max 5MB) or invalid format (JPG/PNG only)');
+            e.target.value = '';
+            return;
+        }
+
+        // Store files and create preview URLs
+        this.editNewPhotoFiles = files;
+        this.editNewPhotos = files.map(file => URL.createObjectURL(file));
+        this.renderEditPhotos();
+
+        this.showSuccess(`✅ ${files.length} photo${files.length > 1 ? 's' : ''} added`);
+        e.target.value = '';
+    }
+
+    removeEditCurrentPhoto(index) {
+        this.editCurrentPhotos.splice(index, 1);
+        this.renderEditPhotos();
+        this.showSuccess('Photo removed');
+    }
+
+    removeEditNewPhoto(index) {
+        this.editNewPhotos.splice(index, 1);
+        this.editNewPhotoFiles.splice(index, 1);
+        this.renderEditPhotos();
+        this.showSuccess('Photo removed');
+    }
+
+    async uploadNewPhotos() {
+        const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+        const uploadedUrls = [];
+
+        for (const file of this.editNewPhotoFiles) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${this.API_BASE_URL}/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    uploadedUrls.push(result.url);
+                } else {
+                    throw new Error(`Failed to upload ${file.name}`);
+                }
+            } catch (error) {
+                console.error('Error uploading photo:', error);
+                throw new Error(`Failed to upload ${file.name}`);
+            }
+        }
+
+        // Add uploaded URLs to current photos
+        this.editCurrentPhotos.push(...uploadedUrls);
+        
+        // Clear new photos
+        this.editNewPhotos = [];
+        this.editNewPhotoFiles = [];
+        
+        return uploadedUrls;
+    }
+
+    // Make functions globally available for onclick handlers
+    setupGlobalFunctions() {
+        window.removeEditCurrentPhoto = (index) => this.removeEditCurrentPhoto(index);
+        window.removeEditNewPhoto = (index) => this.removeEditNewPhoto(index);
+    }
+
     openDeleteModal(item) {
         this.currentDeletingItem = item;
         document.getElementById('delete-modal').classList.add('active');
@@ -2624,7 +3216,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/items/${this.currentDeletingItem.id}`, {
+            const response = await fetch(`${this.API_BASE_URL}/items/${this.currentDeletingItem.id}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2858,7 +3450,7 @@ class AssetHub {
     async loadMaintenanceHistory(itemId) {
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/maintenance?itemId=${itemId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/maintenance?itemId=${itemId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -2903,7 +3495,7 @@ class AssetHub {
     async loadItemMaintenance(itemId) {
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/maintenance?itemId=${itemId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/maintenance?itemId=${itemId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Accept': 'application/json'
@@ -3060,7 +3652,7 @@ class AssetHub {
     async deleteMaintenanceEntry(maintenanceId) {
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/maintenance/${maintenanceId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/maintenance/${maintenanceId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -3150,7 +3742,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch('http://localhost:5000/maintenance', {
+            const response = await fetch(`${this.API_BASE_URL}/maintenance`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -3176,7 +3768,7 @@ class AssetHub {
                             formData.append('maintenanceId', createdMaintenance.id || createdMaintenance.Id);
                             formData.append('Description', `Receipt for ${description}`);
 
-                            const receiptRes = await fetch('http://localhost:5000/documents', {
+                            const receiptRes = await fetch(`${this.API_BASE_URL}/documents`, {
                                 method: 'POST',
                                 body: formData
                             });
@@ -3301,7 +3893,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            const response = await fetch(`http://localhost:5000/exchanges/${item.exchangeId}`, {
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${item.exchangeId}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,

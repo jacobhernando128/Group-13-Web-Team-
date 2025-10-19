@@ -90,6 +90,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const videoUpload = document.getElementById('video-upload');
     const photoCount = document.getElementById('photo-count');
     const videoCount = document.getElementById('video-count');
+    const photosPreview = document.getElementById('photos-preview');
+    const videosPreview = document.getElementById('videos-preview');
+    const photosGrid = document.getElementById('photos-grid');
+    const videosGrid = document.getElementById('videos-grid');
 
     // Maintenance elements
     const addMaintenanceBtn = document.getElementById('add-maintenance-btn');
@@ -174,6 +178,109 @@ document.addEventListener('DOMContentLoaded', async () => {
             previewHero.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-sm">No image</div>';
         }
     }
+
+    function renderMediaPreview() {
+        // Render photos
+        if (uploadedPhotos.length > 0) {
+            photosPreview.classList.remove('hidden');
+            photosGrid.innerHTML = '';
+            
+            uploadedPhotos.forEach((photoUrl, index) => {
+                const photoItem = document.createElement('div');
+                photoItem.className = 'relative group bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
+                photoItem.innerHTML = `
+                    <div class="relative aspect-square">
+                        <img src="${photoUrl}" alt="Uploaded photo ${index + 1}" 
+                             class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200"></div>
+                        <button type="button" 
+                                class="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
+                                onclick="removePhoto(${index})"
+                                title="Remove photo">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <p class="text-white text-xs font-medium truncate">${uploadedPhotoFiles[index]?.name || `Photo ${index + 1}`}</p>
+                        </div>
+                    </div>
+                `;
+                photosGrid.appendChild(photoItem);
+            });
+        } else {
+            photosPreview.classList.add('hidden');
+        }
+
+        // Render videos
+        if (uploadedVideos.length > 0) {
+            videosPreview.classList.remove('hidden');
+            videosGrid.innerHTML = '';
+            
+            uploadedVideos.forEach((videoUrl, index) => {
+                const videoItem = document.createElement('div');
+                videoItem.className = 'relative group bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
+                videoItem.innerHTML = `
+                    <div class="relative">
+                        <video src="${videoUrl}" 
+                               class="w-full h-40 object-cover"
+                               controls>
+                            Your browser does not support the video tag.
+                        </video>
+                        <button type="button" 
+                                class="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
+                                onclick="removeVideo(${index})"
+                                title="Remove video">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <p class="text-white text-xs font-medium truncate">${uploadedVideoFiles[index]?.name || `Video ${index + 1}`}</p>
+                        </div>
+                    </div>
+                `;
+                videosGrid.appendChild(videoItem);
+            });
+        } else {
+            videosPreview.classList.add('hidden');
+        }
+    }
+
+    function removePhoto(index) {
+        // Remove from arrays
+        uploadedPhotos.splice(index, 1);
+        uploadedPhotoFiles.splice(index, 1);
+        
+        // Update counters
+        photoCount.textContent = uploadedPhotos.length;
+        
+        // Re-render previews
+        renderMediaPreview();
+        updatePreview();
+        
+        // Show success message
+        showMessage('Photo removed', 'info');
+    }
+
+    function removeVideo(index) {
+        // Remove from arrays
+        uploadedVideos.splice(index, 1);
+        uploadedVideoFiles.splice(index, 1);
+        
+        // Update counters
+        videoCount.textContent = uploadedVideos.length;
+        
+        // Re-render previews
+        renderMediaPreview();
+        
+        // Show success message
+        showMessage('Video removed', 'info');
+    }
+
+    // Make functions globally available for onclick handlers
+    window.removePhoto = removePhoto;
+    window.removeVideo = removeVideo;
 
     function showStep(step) {
         if (step === 1) {
@@ -579,6 +686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         uploadedPhotoFiles = files;
         uploadedPhotos = files.map(file => URL.createObjectURL(file));
         photoCount.textContent = uploadedPhotos.length;
+        renderMediaPreview();
         updatePreview();
 
         showMessage(`✅ ${files.length} photo${files.length > 1 ? 's' : ''} uploaded`, 'success');
@@ -606,6 +714,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         uploadedVideoFiles = files;
         uploadedVideos = files.map(file => URL.createObjectURL(file));
         videoCount.textContent = uploadedVideos.length;
+        renderMediaPreview();
 
         if (files.length > 0) {
             showMessage('✅ Video uploaded', 'success');
@@ -753,6 +862,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize
     updateProgress();
     updatePreview();
+    renderMediaPreview();
     renderMaintenanceEntries();
 
     console.log('✅ Create listing page initialized');

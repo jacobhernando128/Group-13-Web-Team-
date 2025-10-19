@@ -448,6 +448,7 @@ async function displayReviews(reviews) {
 
         // Fetch reviewer info
         let reviewerName = 'Marketplace User';
+        let reviewerProfilePic = null;
         if (raterId) {
             try {
                 const response = await fetch(`http://localhost:5000/users/${raterId}`, {
@@ -458,6 +459,7 @@ async function displayReviews(reviews) {
                     const firstName = reviewer.FirstName || reviewer.firstName || '';
                     const lastName = reviewer.LastName || reviewer.lastName || '';
                     reviewerName = `${firstName} ${lastName}`.trim() || 'Marketplace User';
+                    reviewerProfilePic = reviewer.ProfilePicture || reviewer.profilePicture || null;
                 }
             } catch (error) {
                 console.error('Error fetching reviewer info:', error);
@@ -469,7 +471,7 @@ async function displayReviews(reviews) {
 
         reviewArticle.innerHTML = `
             <div class="avatar ring-2 ring-white/60">
-                ${generateProfilePictureHTML(null, {FirstName: reviewerName.split(' ')[0], LastName: reviewerName.split(' ')[1]}, 'lg')}
+                ${generateProfilePictureHTML(reviewerProfilePic, {FirstName: reviewerName.split(' ')[0], LastName: reviewerName.split(' ')[1]}, 'lg')}
             </div>
             <div>
                 <div class="flex items-center gap-3 mb-2">
@@ -584,7 +586,7 @@ function updateProfilePicturePreviewWithImage(imageUrl) {
     if (!preview) return;
 
     // Use the utility function for consistent profile picture display
-    const profilePictureHTML = generateProfilePictureHTML(imageUrl, null, '2xl');
+    const profilePictureHTML = generateProfilePictureHTML(imageUrl, null, '2xl', 'w-full h-full');
     
     preview.innerHTML = `
         ${profilePictureHTML}
@@ -602,7 +604,7 @@ function updateProfilePicturePreview(pictureUrl, user = null) {
     if (!preview) return;
 
     // Use the utility function for consistent profile picture display
-    const profilePictureHTML = generateProfilePictureHTML(pictureUrl, user, '2xl');
+    const profilePictureHTML = generateProfilePictureHTML(pictureUrl, user, '2xl', 'w-full h-full');
     
     // Add the upload overlay to the profile picture
     preview.innerHTML = `

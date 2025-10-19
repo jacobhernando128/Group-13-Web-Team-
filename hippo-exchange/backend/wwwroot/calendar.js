@@ -112,11 +112,21 @@ class CalendarView {
       }
       
       const acctAvatar = document.getElementById('acct-avatar');
-  const profilePic = userData.ProfilePicture || userData.profilePicture;
-  if (acctAvatar && profilePic) {
-    acctAvatar.src = profilePic;
-    console.log('Updated profile picture:', profilePic);
-  }
+      if (acctAvatar) {
+        const profilePic = userData.ProfilePicture || userData.profilePicture;
+        if (window.generateProfilePictureHTML) {
+          acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, userData, 'md');
+          console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+        } else {
+          // Fallback if utility function not available
+          if (profilePic && profilePic.trim()) {
+            acctAvatar.innerHTML = `<img src="${profilePic}" alt="Profile picture" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm" style="display: none;">${(userData?.FirstName || userData?.firstName || userData?.email || 'U').charAt(0).toUpperCase()}</div>`;
+          } else {
+            const firstLetter = (userData?.FirstName || userData?.firstName || userData?.email || 'U').charAt(0).toUpperCase();
+            acctAvatar.innerHTML = `<div class="w-full h-full rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">${firstLetter}</div>`;
+          }
+        }
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
       this.showError('Failed to load user data: ' + error.message);

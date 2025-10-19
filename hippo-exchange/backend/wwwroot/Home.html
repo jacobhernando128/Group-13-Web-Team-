@@ -93,8 +93,8 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar"
-              class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <div id="acct-avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+            </div>
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
             </div>
@@ -124,7 +124,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span id="header-location">Cookeville, TN — 40 mi</span>
+            <span id="header-location">All locations</span>
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -231,6 +231,12 @@
                 </svg>
                 <input id="location-input" type="text" placeholder="Algood, Tennessee" />
               </div>
+              <button id="share-location-btn" class="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z" />
+                </svg>
+                Share My Location
+              </button>
             </div>
             <div>
               <label class="block text-sm text-slate-300 mb-2">Radius</label>
@@ -252,7 +258,8 @@
                 </svg>
               </button>
             </div>
-            <div class="flex justify-end pt-2">
+            <div class="flex justify-between pt-2">
+              <button id="clear-location" class="btn-ghost">Clear Filter</button>
               <button id="apply-location" class="btn-primary">Apply</button>
             </div>
           </div>
@@ -261,6 +268,8 @@
 
       <!-- Global Notifications -->
       <script defer src="./global-notifications.js"></script>
+      <!-- Profile Utils -->
+      <script defer src="./profile-utils.js"></script>
       <!-- Home JS -->
       <script defer src="./home.js"></script>
 </body>

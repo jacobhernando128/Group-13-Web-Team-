@@ -45,6 +45,9 @@ function generateProfilePictureHTML(profilePic, user, size = 'md', className = '
     
     const sizeClass = sizeClasses[size] || sizeClasses.md;
     
+    // Use custom className if provided, otherwise use size class
+    const finalSizeClass = className ? className : sizeClass;
+    
     // Get first letter from user data
     let firstLetter = '';
     if (user) {
@@ -66,16 +69,16 @@ function generateProfilePictureHTML(profilePic, user, size = 'md', className = '
         return `
             <img src="${profilePic}" 
                  alt="Profile picture" 
-                 class="${sizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg object-cover ${className}"
+                 class="${finalSizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg object-cover"
                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-            <div class="${sizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold ${className}" style="display: none;">
+            <div class="${finalSizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold" style="display: none;">
                 ${firstLetter || '?'}
             </div>
         `;
     } else {
         // No profile picture, show first letter
         return `
-            <div class="${sizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold ${className}">
+            <div class="${finalSizeClass} rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold">
                 ${firstLetter || '?'}
             </div>
         `;
