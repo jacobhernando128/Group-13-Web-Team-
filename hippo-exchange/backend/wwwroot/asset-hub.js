@@ -11,8 +11,276 @@ class AssetHub {
         this.currentDeletingItem = null;
         this.currentMaintenanceReceipts = []; // Store receipt files for current maintenance entry
         this.autoRefreshInterval = null; // Auto-refresh interval
+        this.earlyReturnRequestInProgress = false; // Prevent duplicate early return requests
 
         this.init();
+        
+        // Add test function to global scope for debugging
+        window.testAssetHubButtons = () => {
+            console.log('🧪 Testing Asset Hub buttons...');
+            const ownedItems = this.ownedItems;
+            if (ownedItems.length > 0) {
+                console.log('🧪 Found owned items:', ownedItems);
+                const firstItem = ownedItems[0];
+                console.log('🧪 Testing with first item:', firstItem);
+                
+                // Test edit modal
+                console.log('🧪 Testing edit modal...');
+                this.openEditModal(firstItem);
+                
+                // Test maintenance modal after a delay
+                setTimeout(() => {
+                    console.log('🧪 Testing maintenance modal...');
+                    this.openMaintenanceModal(firstItem);
+                }, 2000);
+            } else {
+                console.log('🧪 No owned items found to test with');
+            }
+        };
+        
+        // Add simple modal test function
+        window.testModal = () => {
+            console.log('🧪 Testing modal directly...');
+            
+            // Wait for DOM to be ready
+            setTimeout(() => {
+                const modal = document.getElementById('maintenance-modal');
+                console.log('🧪 Looking for modal with ID: maintenance-modal');
+                console.log('🧪 All elements with modal in ID:', document.querySelectorAll('[id*="modal"]'));
+                
+                if (modal) {
+                    console.log('🧪 Modal found:', modal);
+                    console.log('🧪 Modal current display:', window.getComputedStyle(modal).display);
+                    console.log('🧪 Modal current classes:', modal.className);
+                    
+                    // Force modal to be visible
+                    modal.style.display = 'flex';
+                    modal.style.position = 'fixed';
+                    modal.style.top = '0';
+                    modal.style.left = '0';
+                    modal.style.width = '100%';
+                    modal.style.height = '100%';
+                    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                    modal.style.zIndex = '9999';
+                    modal.classList.add('active');
+                    
+                    console.log('🧪 Modal should be visible now');
+                    console.log('🧪 Modal new display:', window.getComputedStyle(modal).display);
+                    console.log('🧪 Modal new classes:', modal.className);
+                } else {
+                    console.log('🧪 Modal not found!');
+                    console.log('🧪 Available modals:', document.querySelectorAll('[id*="modal"]'));
+                    
+                    // Try to find any modal
+                    const allModals = document.querySelectorAll('.modal-overlay');
+                    console.log('🧪 All modal overlays found:', allModals);
+                    
+                    if (allModals.length > 0) {
+                        console.log('🧪 Found modal overlays, trying first one...');
+                        const firstModal = allModals[0];
+                        firstModal.style.display = 'flex';
+                        firstModal.style.position = 'fixed';
+                        firstModal.style.top = '0';
+                        firstModal.style.left = '0';
+                        firstModal.style.width = '100%';
+                        firstModal.style.height = '100%';
+                        firstModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                        firstModal.style.zIndex = '9999';
+                        firstModal.classList.add('active');
+                        console.log('🧪 First modal should be visible now');
+                    }
+                }
+            }, 100);
+        };
+        
+        // Add function to check modal HTML
+        window.checkModalHTML = () => {
+            console.log('🔍 Checking modal HTML...');
+            const modal = document.getElementById('maintenance-modal');
+            if (modal) {
+                console.log('✅ Modal HTML found:', modal);
+                console.log('🔍 Modal HTML content:', modal.outerHTML.substring(0, 200) + '...');
+                console.log('🔍 Modal current display:', window.getComputedStyle(modal).display);
+                console.log('🔍 Modal current visibility:', window.getComputedStyle(modal).visibility);
+                console.log('🔍 Modal current opacity:', window.getComputedStyle(modal).opacity);
+                console.log('🔍 Modal current z-index:', window.getComputedStyle(modal).zIndex);
+            } else {
+                console.log('❌ Modal HTML not found!');
+                console.log('🔍 All elements with "maintenance" in ID:', document.querySelectorAll('[id*="maintenance"]'));
+                console.log('🔍 All elements with "modal" in ID:', document.querySelectorAll('[id*="modal"]'));
+                console.log('🔍 All modal-overlay elements:', document.querySelectorAll('.modal-overlay'));
+            }
+        };
+        
+        // Add function to close modal
+        window.closeModal = () => {
+            console.log('🚪 Closing modal...');
+            if (window.assetHub) {
+                window.assetHub.closeMaintenanceModal();
+            } else {
+                console.log('🚪 AssetHub instance not found, trying direct close...');
+                const modal = document.getElementById('maintenance-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.style.zIndex = '-1';
+                    modal.classList.remove('active');
+                    console.log('🚪 Modal closed directly');
+                }
+            }
+        };
+        
+        // Add function to close edit modal
+        window.closeEditModal = () => {
+            console.log('🚪 Closing edit modal...');
+            if (window.assetHub) {
+                window.assetHub.closeEditModal();
+            } else {
+                console.log('🚪 AssetHub instance not found, trying direct close...');
+                const modal = document.getElementById('edit-item-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.style.zIndex = '-1';
+                    modal.classList.remove('active');
+                    console.log('🚪 Edit modal closed directly');
+                }
+            }
+        };
+        
+        // Add function to force show modal
+        window.forceShowModal = () => {
+            console.log('🚀 Force showing modal...');
+            const modal = document.getElementById('maintenance-modal');
+            if (modal) {
+                console.log('🚀 Modal found, forcing visibility...');
+                
+                // Remove all possible hiding classes
+                modal.classList.remove('hidden');
+                modal.classList.remove('invisible');
+                modal.classList.remove('opacity-0');
+                
+                // Force all visibility styles
+                modal.style.display = 'flex';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.width = '100vw';
+                modal.style.height = '100vh';
+                modal.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                modal.style.zIndex = '99999';
+                modal.style.pointerEvents = 'auto';
+                
+                // Add active class
+                modal.classList.add('active');
+                
+                console.log('🚀 Modal should be visible now!');
+                console.log('🚀 Modal display:', window.getComputedStyle(modal).display);
+                console.log('🚀 Modal visibility:', window.getComputedStyle(modal).visibility);
+                console.log('🚀 Modal opacity:', window.getComputedStyle(modal).opacity);
+            } else {
+                console.log('🚀 Modal not found!');
+            }
+        };
+        
+        // Add function to check all maintenance buttons
+        window.checkMaintenanceButtons = () => {
+            console.log('🔍 Checking all maintenance buttons...');
+            const maintenanceButtons = document.querySelectorAll('.maintenance-btn');
+            console.log('🔍 Found maintenance buttons:', maintenanceButtons.length);
+            
+            maintenanceButtons.forEach((btn, index) => {
+                console.log(`🔍 Button ${index + 1}:`, btn);
+                console.log(`🔍 Button ${index + 1} data-item-id:`, btn.getAttribute('data-item-id'));
+                console.log(`🔍 Button ${index + 1} classes:`, btn.className);
+                console.log(`🔍 Button ${index + 1} attributes:`, btn.attributes);
+            });
+        };
+        
+        // Add function to force-set data-item-id on all buttons
+        window.fixButtonDataIds = () => {
+            console.log('🔧 Fixing data-item-id on all buttons...');
+            
+            // Find all item cards
+            const itemCards = document.querySelectorAll('.item-card');
+            console.log('🔧 Found item cards:', itemCards.length);
+            
+            itemCards.forEach((card, cardIndex) => {
+                // Try to find the item ID from the card's data attributes or other elements
+                const itemId = card.getAttribute('data-item-id') || 
+                              card.querySelector('[data-item-id]')?.getAttribute('data-item-id') ||
+                              `item-${cardIndex}`;
+                
+                console.log(`🔧 Processing card ${cardIndex + 1}, item ID:`, itemId);
+                
+                // Set data-item-id on all buttons in this card
+                const editBtn = card.querySelector('.edit-btn');
+                const maintenanceBtn = card.querySelector('.maintenance-btn');
+                const deleteBtn = card.querySelector('.delete-btn');
+                
+                if (editBtn) {
+                    editBtn.setAttribute('data-item-id', itemId);
+                    console.log(`🔧 Set data-item-id on edit button:`, itemId);
+                }
+                if (maintenanceBtn) {
+                    maintenanceBtn.setAttribute('data-item-id', itemId);
+                    console.log(`🔧 Set data-item-id on maintenance button:`, itemId);
+                }
+                if (deleteBtn) {
+                    deleteBtn.setAttribute('data-item-id', itemId);
+                    console.log(`🔧 Set data-item-id on delete button:`, itemId);
+                }
+            });
+            
+            console.log('🔧 Finished fixing button data-item-id attributes');
+        };
+        
+        // Add global event delegation as backup
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('edit-btn')) {
+                console.log('🔧 Global edit button click detected!');
+                const itemId = e.target.getAttribute('data-item-id');
+                console.log('🔧 Item ID from button:', itemId);
+                console.log('🔧 Available owned items:', this.ownedItems);
+                
+                const item = this.ownedItems.find(i => i.id === itemId);
+                if (item) {
+                    console.log('🔧 Found item for edit:', item);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔧 About to call openEditModal...');
+                    this.openEditModal(item);
+                    console.log('🔧 openEditModal called');
+                } else {
+                    console.log('🔧 Item not found for edit');
+                }
+            }
+            
+            if (e.target.classList.contains('maintenance-btn')) {
+                console.log('🔧 Global maintenance button click detected!');
+                console.log('🔧 Clicked button element:', e.target);
+                console.log('🔧 Button attributes:', e.target.attributes);
+                const itemId = e.target.getAttribute('data-item-id');
+                console.log('🔧 Item ID from button:', itemId);
+                console.log('🔧 Available owned items:', this.ownedItems);
+                
+                const item = this.ownedItems.find(i => i.id === itemId);
+                if (item) {
+                    console.log('🔧 Found item for maintenance:', item);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔧 About to call openMaintenanceModal...');
+                    this.openMaintenanceModal(item);
+                    console.log('🔧 openMaintenanceModal called');
+                } else {
+                    console.log('🔧 Item not found for maintenance');
+                }
+            }
+        });
     }
     
     handleUrlParameters() {
@@ -286,6 +554,13 @@ class AssetHub {
         document.getElementById('close-edit-item').addEventListener('click', () => this.closeEditModal());
         document.getElementById('cancel-edit-item').addEventListener('click', () => this.closeEditModal());
         document.getElementById('edit-item-form').addEventListener('submit', (e) => this.handleEditSubmit(e));
+        
+        // Close edit modal when clicking outside (on overlay)
+        document.getElementById('edit-item-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'edit-item-modal') {
+                this.closeEditModal();
+            }
+        });
 
         // Delete modal
         document.getElementById('close-delete').addEventListener('click', () => this.closeDeleteModal());
@@ -294,6 +569,13 @@ class AssetHub {
 
         // Maintenance modal
         document.getElementById('close-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
+        
+        // Close modal when clicking outside (on overlay)
+        document.getElementById('maintenance-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'maintenance-modal') {
+                this.closeMaintenanceModal();
+            }
+        });
         
         // ===== CROSS-PAGE SYNC =====
         // Listen for global refresh events from other pages
@@ -309,7 +591,10 @@ class AssetHub {
             this.loadUserAssets();
         });
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
-        document.getElementById('maintenance-form').addEventListener('submit', (e) => this.handleMaintenanceSubmit(e));
+        document.getElementById('maintenance-form').addEventListener('submit', (e) => {
+            console.log('🔧 Form submit event triggered');
+            this.handleMaintenanceSubmit(e);
+        });
 
         // Receipt upload functionality
         const receiptUploadBtn = document.getElementById('receipt-upload-btn');
@@ -581,6 +866,12 @@ class AssetHub {
                 // Fetch actual item details and owner names for each exchange
                 const borrowedItems = [];
                 for (const exchange of exchanges) {
+                    // Handle null/undefined exchanges
+                    if (!exchange) {
+                        console.warn('⚠️ Skipping null/undefined exchange');
+                        continue;
+                    }
+                    
                     try {
                         console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
                         const itemResponse = await fetch(`http://localhost:5000/items/${exchange.ItemId || exchange.itemId}`, {
@@ -629,18 +920,18 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
+                                status: (exchange?.Approved === true || exchange?.approved === true) ? 'Approved' : ((exchange?.Approved === false || exchange?.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || exchange.approved || false
+                                approved: exchange?.Approved || exchange?.approved || false
                             };
                             
                             console.log('🔍 Creating borrowed item:', {
                                 title: borrowedItem.title,
                                 approved: borrowedItem.approved,
                                 status: borrowedItem.status,
-                                exchangeApproved: exchange.Approved,
-                                exchangeApprovedLower: exchange.approved,
+                                exchangeApproved: exchange?.Approved,
+                                exchangeApprovedLower: exchange?.approved,
                                 exchangeId: exchange.Id || exchange.id
                             });
                             
@@ -680,10 +971,10 @@ class AssetHub {
                                 ownerId: exchange.OwnerId || exchange.ownerId,
                                 ownerName: ownerName,
                                 borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                                status: (exchange.Approved === true || exchange.approved === true) ? 'Approved' : ((exchange.Approved === false || exchange.approved === false) ? 'Denied' : 'Pending'),
+                                status: (exchange?.Approved === true || exchange?.approved === true) ? 'Approved' : ((exchange?.Approved === false || exchange?.approved === false) ? 'Denied' : 'Pending'),
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                approved: exchange.Approved || exchange.approved || false
+                                approved: exchange?.Approved || exchange?.approved || false
                             });
                         }
                     } catch (itemError) {
@@ -721,10 +1012,10 @@ class AssetHub {
                             ownerId: exchange.OwnerId || exchange.ownerId,
                             ownerName: ownerName,
                             borrowerId: exchange.BorrowerId || exchange.borrowerId,
-                            status: exchange.Approved ? 'Approved' : 'Pending',
+                            status: exchange?.Approved ? 'Approved' : 'Pending',
                             startDate: exchange.StartDate || exchange.startDate,
                             endDate: exchange.EndDate || exchange.endDate,
-                            approved: exchange.Approved || exchange.approved || false
+                            approved: exchange?.Approved || exchange?.approved || false
                         });
                     }
                 }
@@ -886,8 +1177,8 @@ class AssetHub {
                 exchanges.forEach((exchange, index) => {
                     console.log(`📋 Exchange ${index + 1}:`, {
                         id: exchange.Id || exchange.id,
-                        approved: exchange.Approved,
-                        approved_lower: exchange.approved,
+                        approved: exchange?.Approved,
+                        approved_lower: exchange?.approved,
                         ownerId: exchange.OwnerId || exchange.ownerId,
                         borrowerId: exchange.BorrowerId || exchange.borrowerId,
                         itemId: exchange.ItemId || exchange.itemId
@@ -896,7 +1187,7 @@ class AssetHub {
 
                 // Filter for pending requests (not approved/declined)
                 const pendingExchanges = exchanges.filter(exchange => 
-                    !exchange.approved && !exchange.Approved
+                    !exchange?.approved && !exchange?.Approved
                 );
 
                 console.log('📋 Pending exchanges after filtering:', pendingExchanges);
@@ -999,7 +1290,7 @@ class AssetHub {
 
                 // Filter for approved exchanges (loaned out items)
                 const approvedExchanges = exchanges.filter(exchange => 
-                    (exchange.approved === true || exchange.Approved === true)
+                    (exchange?.approved === true || exchange?.Approved === true)
                 );
 
                 console.log('📋 Approved exchanges (loaned out):', approvedExchanges);
@@ -1042,6 +1333,28 @@ class AssetHub {
                                 console.warn('⚠️ Could not fetch borrower details for loaned item:', borrowerError);
                             }
 
+                            // Check for early return request notifications
+                            let hasEarlyReturnRequest = false;
+                            try {
+                                const notificationsResponse = await fetch(`http://35.209.4.180:5000/notifications/user/${this.currentUserId}`, {
+                                    headers: {
+                                        'Authorization': `Bearer ${token}`,
+                                        'Accept': 'application/json'
+                                    }
+                                });
+
+                                if (notificationsResponse.ok) {
+                                    const notifications = await notificationsResponse.json();
+                                    hasEarlyReturnRequest = notifications.some(notification => 
+                                        notification.type === 'early_return_request' && 
+                                        !notification.dismissed &&
+                                        notification.listingId === (exchange.ItemId || exchange.itemId)
+                                    );
+                                }
+                            } catch (notificationError) {
+                                console.warn('⚠️ Could not check for early return requests:', notificationError);
+                            }
+
                             loanedItems.push({
                                 id: exchange.Id || exchange.id,
                                 exchangeId: exchange.Id || exchange.id,
@@ -1057,7 +1370,8 @@ class AssetHub {
                                 borrowerAvatar: borrowerAvatar,
                                 startDate: exchange.StartDate || exchange.startDate,
                                 endDate: exchange.EndDate || exchange.endDate,
-                                requestCreated: exchange.RequestCreated || exchange.requestCreated
+                                requestCreated: exchange.RequestCreated || exchange.requestCreated,
+                                hasEarlyReturnRequest: hasEarlyReturnRequest
                             });
                         }
                     } catch (itemError) {
@@ -1260,7 +1574,14 @@ class AssetHub {
                 this.showSuccess(`Request ${action}d successfully!`);
                 
                 // Remove the request from the list
-                this.requestedItems = this.requestedItems.filter(req => req.id !== request.id);
+                console.log('🔍 Before filtering - requestedItems count:', this.requestedItems.length);
+                console.log('🔍 Request ID to remove:', request.id);
+                this.requestedItems = this.requestedItems.filter(req => {
+                    const shouldKeep = req.id !== request.id;
+                    console.log('🔍 Checking request:', req.id, 'vs', request.id, 'keep:', shouldKeep);
+                    return shouldKeep;
+                });
+                console.log('🔍 After filtering - requestedItems count:', this.requestedItems.length);
                 this.renderRequestedItems();
                 
                 // Always refresh borrowed items to update status for both approved and denied items
@@ -1301,6 +1622,12 @@ class AssetHub {
     }
 
     async handleEarlyReturnRequest(exchangeId) {
+        // Prevent multiple simultaneous requests
+        if (this.earlyReturnRequestInProgress) {
+            console.log('⚠️ Early return request already in progress, ignoring duplicate click');
+            return;
+        }
+
         const confirmed = await this.showConfirmation(
             'Request Early Return',
             'Are you sure you want to request early return for this item?'
@@ -1312,6 +1639,7 @@ class AssetHub {
         }
         
         console.log('✅ User confirmed the early return request, proceeding...');
+        this.earlyReturnRequestInProgress = true;
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -1319,7 +1647,7 @@ class AssetHub {
             console.log('📤 Requesting early return for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-early-return`, {
+            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/request-early-return`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1357,29 +1685,35 @@ class AssetHub {
             console.error('❌ Error requesting early return:', error);
             console.error('❌ Error details:', error.message);
             this.showError(`An error occurred while requesting early return: ${error.message}`);
+        } finally {
+            this.earlyReturnRequestInProgress = false;
         }
     }
 
-    async handleMarkAsReturned(exchangeId) {
+    // Note: handleMarkAsReturned method removed
+    // Borrowers can no longer mark items as returned directly
+    // They must request early returns, which owners must approve
+
+    async handleRequestItemBackEarly(exchangeId) {
         const confirmed = await this.showConfirmation(
-            'Mark as Returned',
-            'Are you sure you want to mark this item as returned? The owner will need to confirm receipt.'
+            'Request Item Back Early',
+            'Are you sure you want to request this item back early? This will send a message to the borrower.'
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled marking item as returned');
+            console.log('❌ User cancelled the request item back early');
             return;
         }
         
-        console.log('✅ User confirmed marking item as returned, proceeding...');
+        console.log('✅ User confirmed the request item back early, proceeding...');
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            console.log('📤 Marking item as returned for exchange:', exchangeId);
+            console.log('📤 Requesting item back early for exchange:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/mark-returned`, {
+            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/request-item-back-early`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1393,13 +1727,13 @@ class AssetHub {
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('✅ Item marked as returned successfully:', result);
+                console.log('✅ Request item back early sent successfully:', result);
                 
-                this.showSuccess('Item marked as returned! Waiting for owner confirmation.');
+                this.showSuccess('Request to get item back early sent successfully!');
                 
-                // Refresh the borrowed items to update the status
-                this.borrowedItems = await this.getBorrowedItems();
-                this.renderBorrowedItems();
+                // Refresh the loaned items to update the status
+                this.loanedItems = await this.getLoanedItems();
+                this.renderLoanedItems();
                 this.updateCounts();
                 
                 // Trigger global refresh for notifications and other pages
@@ -1411,12 +1745,12 @@ class AssetHub {
                 const errorText = await response.text();
                 console.error('❌ API Error Response:', errorText);
                 console.error('❌ Response Status:', response.status);
-                this.showError(`Failed to mark item as returned: ${errorText}`);
+                this.showError(`Failed to request item back early: ${errorText}`);
             }
         } catch (error) {
-            console.error('❌ Error marking item as returned:', error);
+            console.error('❌ Error requesting item back early:', error);
             console.error('❌ Error details:', error.message);
-            this.showError(`An error occurred while marking item as returned: ${error.message}`);
+            this.showError(`An error occurred while requesting item back early: ${error.message}`);
         }
     }
 
@@ -1489,6 +1823,7 @@ class AssetHub {
         }
     }
 
+
     async handleEarlyReturnAction(exchangeId, isApprove) {
         const action = isApprove ? 'approve' : 'decline';
         const confirmed = await this.showConfirmation(
@@ -1512,7 +1847,7 @@ class AssetHub {
             console.log('📤 Exchange ID:', exchangeId);
             console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`http://localhost:5000/exchanges/${exchangeId}/early-return`, {
+            const response = await fetch(`http://35.209.4.180:5000/exchanges/${exchangeId}/early-return`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1669,6 +2004,49 @@ class AssetHub {
         const viewBtn = card.querySelector('.view-btn');
         const deleteBtn = card.querySelector('.delete-btn');
         const maintenanceBtn = card.querySelector('.maintenance-btn');
+        
+        // Immediately set data-item-id on all buttons when found
+        if (editBtn) {
+            editBtn.setAttribute('data-item-id', item.id);
+            console.log('🔧 Set data-item-id on edit button:', item.id);
+        }
+        if (maintenanceBtn) {
+            maintenanceBtn.setAttribute('data-item-id', item.id);
+            console.log('🔧 Set data-item-id on maintenance button:', item.id);
+        }
+        if (deleteBtn) {
+            deleteBtn.setAttribute('data-item-id', item.id);
+            console.log('🔧 Set data-item-id on delete button:', item.id);
+        }
+        
+        console.log('🔍 Found buttons for item:', item.title);
+        console.log('🔍 Edit button:', editBtn);
+        console.log('🔍 View button:', viewBtn);
+        console.log('🔍 Delete button:', deleteBtn);
+        console.log('🔍 Maintenance button:', maintenanceBtn);
+        
+        // Test if buttons are clickable
+        if (editBtn) {
+            console.log('🔍 Edit button classes:', editBtn.className);
+            console.log('🔍 Edit button display style:', window.getComputedStyle(editBtn).display);
+        }
+        if (maintenanceBtn) {
+            console.log('🔍 Maintenance button classes:', maintenanceBtn.className);
+            console.log('🔍 Maintenance button display style:', window.getComputedStyle(maintenanceBtn).display);
+        }
+        
+        // Add a global test function for this specific item
+        window.testButtons = () => {
+            console.log('🧪 Testing buttons for item:', item.title);
+            if (editBtn) {
+                console.log('🧪 Clicking edit button...');
+                editBtn.click();
+            }
+            if (maintenanceBtn) {
+                console.log('🧪 Clicking maintenance button...');
+                maintenanceBtn.click();
+            }
+        };
 
 
         // Dropdown functionality
@@ -1696,7 +2074,7 @@ class AssetHub {
         }
 
         console.log('🔍 Creating card for item:', item.title, 'with type:', type);
-        
+
         if (type === 'owned') {
             console.log('🔍 Processing owned item:', item.title);
             // Hide cancel request button for owned items
@@ -1725,7 +2103,6 @@ class AssetHub {
                 const isPendingReturn = item.returnPendingConfirmation === true;
                 const canRequestEarlyReturn = isApproved && !isReturned && !isPendingReturn && 
                     item.endDate && new Date() < new Date(item.endDate);
-                const canMarkReturned = isApproved && !isReturned && !isPendingReturn;
                 
                 if (canRequestEarlyReturn) {
                     // Add early return request button
@@ -1748,26 +2125,9 @@ class AssetHub {
                     });
                 }
                 
-                if (canMarkReturned) {
-                    // Add mark as returned button
-                    const markReturnedBtn = document.createElement('button');
-                    markReturnedBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
-                    markReturnedBtn.innerHTML = `
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        Mark as Returned
-                    `;
-                    
-                    dropdownMenu.appendChild(markReturnedBtn);
-                    
-                    markReturnedBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (dropdownMenu) dropdownMenu.classList.remove('show');
-                        this.handleMarkAsReturned(item.exchangeId || item.id);
-                    });
-                }
+                // Note: Borrowers cannot mark items as returned directly
+                // They can only request early returns, which the owner must approve
+                // The owner will then confirm receipt when they actually receive the item
             }
         } else if (type === 'loaned') {
             // For loaned items, add early return approval buttons and return confirmation buttons
@@ -1786,6 +2146,9 @@ class AssetHub {
                 
                 // Check if there's a pending return confirmation
                 const isPendingReturn = item.returnPendingConfirmation === true;
+                
+                // Check if there's a pending early return request (stored in item data)
+                const hasEarlyReturnRequest = item.hasEarlyReturnRequest === true;
                 
                 if (isPendingReturn) {
                     // Add return confirmation buttons
@@ -1823,7 +2186,7 @@ class AssetHub {
                         if (dropdownMenu) dropdownMenu.classList.remove('show');
                         this.handleConfirmReturn(item.exchangeId || item.id, false);
                     });
-                } else {
+                } else if (hasEarlyReturnRequest) {
                     // Add early return approval buttons (for early return requests)
                     const earlyReturnApproveBtn = document.createElement('button');
                     earlyReturnApproveBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
@@ -1859,30 +2222,91 @@ class AssetHub {
                         if (dropdownMenu) dropdownMenu.classList.remove('show');
                         this.handleEarlyReturnAction(item.exchangeId || item.id, false);
                     });
+                } else {
+                    // Add "Request Item Back Early" button for loaned out items
+                    const requestBackBtn = document.createElement('button');
+                    requestBackBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center';
+                    requestBackBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Request Item Back Early
+                    `;
+                    
+                    dropdownMenu.appendChild(requestBackBtn);
+                    
+                    requestBackBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleRequestItemBackEarly(item.exchangeId || item.id);
+                    });
                 }
             }
             
             if (editBtn) {
+                console.log('🔧 Setting up edit button for item:', item.title);
+                editBtn.style.display = 'block';
+                
+                // Add data attributes for event delegation
+                editBtn.setAttribute('data-item-id', item.id);
+                editBtn.setAttribute('data-action', 'edit');
+                
+                // Use multiple event binding approaches
+                editBtn.onclick = (e) => {
+                    console.log('🔧 Edit button clicked for item:', item);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (dropdownMenu) dropdownMenu.classList.remove('show');
+                    this.openEditModal(item);
+                };
+                
                 editBtn.addEventListener('click', (e) => {
+                    console.log('🔧 Edit button addEventListener triggered for item:', item);
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
                     this.openEditModal(item);
                 });
+            } else {
+                console.log('❌ Edit button not found for owned item:', item);
             }
             if (deleteBtn) {
-                deleteBtn.addEventListener('click', (e) => {
+                console.log('🔧 Setting up delete button for item:', item.title);
+                deleteBtn.style.display = 'block';
+                
+                // Use a more direct approach
+                deleteBtn.onclick = (e) => {
+                    console.log('🔧 Delete button clicked for item:', item);
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
                     this.openDeleteModal(item);
-                });
+                };
             }
             // Show maintenance button for owned items
             if (maintenanceBtn) {
+                console.log('🔧 Found maintenance button for owned item:', item.title);
                 maintenanceBtn.style.display = 'block';
-                maintenanceBtn.addEventListener('click', (e) => {
+                
+                // Add data attributes for event delegation
+                maintenanceBtn.setAttribute('data-item-id', item.id);
+                maintenanceBtn.setAttribute('data-action', 'maintenance');
+                
+                console.log('🔧 Set data-item-id on maintenance button:', item.id);
+                console.log('🔧 Maintenance button data-item-id after setting:', maintenanceBtn.getAttribute('data-item-id'));
+                
+                // Use multiple event binding approaches
+                maintenanceBtn.onclick = (e) => {
                     console.log('🔧 Maintenance button clicked for item:', item);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (dropdownMenu) dropdownMenu.classList.remove('show');
+                    this.openMaintenanceModal(item);
+                };
+                
+                maintenanceBtn.addEventListener('click', (e) => {
+                    console.log('🔧 Maintenance button addEventListener triggered for item:', item);
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
@@ -2015,6 +2439,15 @@ class AssetHub {
 
         console.log('🔍 Opening edit modal for item:', item);
         console.log('🔍 Item keys:', Object.keys(item));
+        
+        // Check if modal exists
+        const editModal = document.getElementById('edit-item-modal');
+        if (!editModal) {
+            console.error('❌ Edit modal not found!');
+            alert('Edit modal not found. Please refresh the page.');
+            return;
+        }
+        console.log('✅ Edit modal found:', editModal);
 
         // Wait a moment to ensure DOM is ready
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -2080,19 +2513,50 @@ class AssetHub {
         console.log('✅ Form populated successfully');
 
         // Show the modal
-        const modal = document.getElementById('edit-item-modal');
-        if (modal) {
-            modal.classList.add('active');
+        const showModal = document.getElementById('edit-item-modal');
+        if (showModal) {
+            // Reset all inline styles first
+            showModal.style.display = '';
+            showModal.style.visibility = '';
+            showModal.style.opacity = '';
+            showModal.style.zIndex = '';
+            
+            // Add active class
+            showModal.classList.add('active');
+            
+            // Force modal to be visible
+            showModal.style.display = 'flex';
+            showModal.style.position = 'fixed';
+            showModal.style.top = '0';
+            showModal.style.left = '0';
+            showModal.style.width = '100%';
+            showModal.style.height = '100%';
+            showModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            showModal.style.zIndex = '9999';
+            
             console.log('✅ Modal shown');
-            console.log('🔍 Modal classes:', modal.className);
-            console.log('🔍 Modal style display:', modal.style.display);
+            console.log('🔍 Modal classes:', showModal.className);
+            console.log('🔍 Modal style display:', showModal.style.display);
         } else {
             console.error('❌ Modal element not found!');
         }
     }
 
     closeEditModal() {
-        document.getElementById('edit-item-modal').classList.remove('active');
+        const modal = document.getElementById('edit-item-modal');
+        if (modal) {
+            // Remove active class
+            modal.classList.remove('active');
+            
+            // Force hide with inline styles
+            modal.style.display = 'none';
+            modal.style.visibility = 'hidden';
+            modal.style.opacity = '0';
+            modal.style.zIndex = '-1';
+            
+            console.log('🔧 Edit modal closed');
+        }
+        
         document.getElementById('photo-upload-indicator').classList.add('hidden');
         this.currentEditingItem = null;
     }
@@ -2194,6 +2658,7 @@ class AssetHub {
         this.currentMaintenanceItem = item;
 
         console.log('🔧 Opening maintenance modal for item:', item);
+        console.log('🔧 Current maintenance item set to:', this.currentMaintenanceItem);
 
         // Check if maintenance form exists
         const maintenanceForm = document.getElementById('maintenance-form');
@@ -2246,16 +2711,62 @@ class AssetHub {
         const maintenanceModal = document.getElementById('maintenance-modal');
         if (!maintenanceModal) {
             console.error('❌ Maintenance modal not found!');
-            this.showError('Maintenance modal not found. Please refresh the page.');
+            alert('Maintenance modal not found. Please refresh the page.');
             return;
         }
         
         console.log('🔧 Showing maintenance modal');
+        console.log('🔧 Modal element:', maintenanceModal);
+        console.log('🔧 Modal classes before:', maintenanceModal.className);
+        
+        // Reset all inline styles first
+        maintenanceModal.style.display = '';
+        maintenanceModal.style.visibility = '';
+        maintenanceModal.style.opacity = '';
+        maintenanceModal.style.zIndex = '';
+        
+        // Add active class
         maintenanceModal.classList.add('active');
+        
+        // Force modal to be visible with all necessary styles
+        maintenanceModal.style.display = 'flex';
+        maintenanceModal.style.position = 'fixed';
+        maintenanceModal.style.top = '0';
+        maintenanceModal.style.left = '0';
+        maintenanceModal.style.width = '100%';
+        maintenanceModal.style.height = '100%';
+        maintenanceModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        maintenanceModal.style.zIndex = '9999';
+        
+        console.log('🔧 Modal classes after:', maintenanceModal.className);
+        console.log('🔧 Modal style display:', maintenanceModal.style.display);
+        console.log('🔧 Modal style position:', maintenanceModal.style.position);
+        console.log('🔧 Modal style z-index:', maintenanceModal.style.zIndex);
+        
+        // Test if modal is visible
+        setTimeout(() => {
+            const computedStyle = window.getComputedStyle(maintenanceModal);
+            console.log('🔧 Modal display style:', computedStyle.display);
+            console.log('🔧 Modal visibility:', computedStyle.visibility);
+            console.log('🔧 Modal opacity:', computedStyle.opacity);
+        }, 100);
     }
 
     closeMaintenanceModal() {
-        document.getElementById('maintenance-modal').classList.remove('active');
+        const modal = document.getElementById('maintenance-modal');
+        if (modal) {
+            // Remove active class
+            modal.classList.remove('active');
+            
+            // Force hide with inline styles
+            modal.style.display = 'none';
+            modal.style.visibility = 'hidden';
+            modal.style.opacity = '0';
+            modal.style.zIndex = '-1';
+            
+            console.log('🔧 Maintenance modal closed');
+        }
+        
         document.getElementById('maintenance-form').reset();
         this.currentMaintenanceReceipts = [];
         document.getElementById('receipt-preview').innerHTML = '';
@@ -2574,8 +3085,14 @@ class AssetHub {
 
     async handleMaintenanceSubmit(e) {
         e.preventDefault();
+        console.log('🔧 Form submission started');
 
-        if (!this.currentMaintenanceItem) return;
+        if (!this.currentMaintenanceItem) {
+            console.log('❌ No current maintenance item set');
+            return;
+        }
+        
+        console.log('🔧 Current maintenance item:', this.currentMaintenanceItem);
 
         // Get maintenance type, category, frequency and description
         const maintenanceType = document.querySelector('input[name="maintenance-type"]:checked')?.value;

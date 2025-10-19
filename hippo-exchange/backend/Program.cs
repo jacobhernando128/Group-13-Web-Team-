@@ -29,7 +29,7 @@ namespace HippoExchange
             builder.WebHost.ConfigureKestrel(options =>
             {
                 options.ListenAnyIP(5000); 
-                                                             
+                                         
             });
 
             // -------- Config --------
@@ -42,8 +42,6 @@ namespace HippoExchange
                 Environment.GetEnvironmentVariable("FIRESTORE_DATABASE_ID")
                 ?? builder.Configuration["GoogleCloud:DatabaseId"]
                 ?? "(default)";
-
-            builder.Services.AddSingleton(StorageClient.Create());
 
             var credPath =
                 Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS")
@@ -58,6 +56,7 @@ namespace HippoExchange
             }
 
             var googleCred = GoogleCredential.FromFile(credPath);
+            builder.Services.AddSingleton(StorageClient.Create(googleCred));
 
             // JWT Token Generation
             static string GenerateJwtToken(UserAuth user, string jwtKey, string jwtIssuer, string jwtAudience, int expiryMinutes)
@@ -96,8 +95,9 @@ namespace HippoExchange
             // You can pass credentials to StorageClient:
             builder.Services.AddSingleton(_ => StorageClient.Create(googleCred));
 
-            // Add background service for return date notifications
+            // Add background services
             builder.Services.AddHostedService<ReturnDateNotificationService>();
+            builder.Services.AddHostedService<MaintenanceNotificationService>();
 
             // JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
@@ -918,7 +918,52 @@ namespace HippoExchange
                 var snaps = await db.Collection("exchanges")
                                     .WhereEqualTo("ownerID", ownerId)
                                     .GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
+                
+                var exchanges = new List<Exchange>();
+                foreach (var snap in snaps)
+                {
+                    var exchange = snap.ConvertTo<Exchange>();
+                    
+                    // Fetch item details to get the title
+                    if (!string.IsNullOrEmpty(exchange.ItemId))
+                    {
+                        try
+                        {
+                            var itemSnap = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
+                            if (itemSnap.Exists)
+                            {
+                                var item = itemSnap.ConvertTo<Item>();
+                                exchange.Title = item.Title;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error fetching item {exchange.ItemId}: {ex.Message}");
+                        }
+                    }
+                    
+                    // Fetch borrower details to get the name
+                    if (!string.IsNullOrEmpty(exchange.BorrowerId))
+                    {
+                        try
+                        {
+                            var borrowerSnap = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
+                            if (borrowerSnap.Exists)
+                            {
+                                var borrower = borrowerSnap.ConvertTo<UserAuth>();
+                                exchange.BorrowerName = $"{borrower.FirstName} {borrower.LastName}";
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error fetching borrower {exchange.BorrowerId}: {ex.Message}");
+                        }
+                    }
+                    
+                    exchanges.Add(exchange);
+                }
+                
+                return Results.Ok(exchanges);
             })
             .WithName("GetExchangesByOwner")
             .WithTags("Exchanges")
@@ -937,7 +982,52 @@ namespace HippoExchange
                 var snaps = await db.Collection("exchanges")
                                     .WhereEqualTo("borrowerID", borrowerId)
                                     .GetSnapshotAsync();
-                return Results.Ok(snaps.Select(s => s.ConvertTo<Exchange>()));
+                
+                var exchanges = new List<Exchange>();
+                foreach (var snap in snaps)
+                {
+                    var exchange = snap.ConvertTo<Exchange>();
+                    
+                    // Fetch item details to get the title
+                    if (!string.IsNullOrEmpty(exchange.ItemId))
+                    {
+                        try
+                        {
+                            var itemSnap = await db.Collection("items").Document(exchange.ItemId).GetSnapshotAsync();
+                            if (itemSnap.Exists)
+                            {
+                                var item = itemSnap.ConvertTo<Item>();
+                                exchange.Title = item.Title;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error fetching item {exchange.ItemId}: {ex.Message}");
+                        }
+                    }
+                    
+                    // Fetch owner details to get the name
+                    if (!string.IsNullOrEmpty(exchange.OwnerId))
+                    {
+                        try
+                        {
+                            var ownerSnap = await db.Collection("users").Document(exchange.OwnerId).GetSnapshotAsync();
+                            if (ownerSnap.Exists)
+                            {
+                                var owner = ownerSnap.ConvertTo<UserAuth>();
+                                exchange.OwnerName = $"{owner.FirstName} {owner.LastName}";
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error fetching owner {exchange.OwnerId}: {ex.Message}");
+                        }
+                    }
+                    
+                    exchanges.Add(exchange);
+                }
+                
+                return Results.Ok(exchanges);
             })
             .WithName("GetExchangesByBorrower")
             .WithTags("Exchanges")
@@ -993,7 +1083,7 @@ namespace HippoExchange
                 var scheduledPeriods = exchanges.Documents
                     .Select(doc => doc.ConvertTo<Exchange>())
                     .Where(ex => ex.StartDate.HasValue && ex.EndDate.HasValue)
-                    .Select(ex => new {
+                    .Select(ex => new { 
                         startDate  = ex.StartDate.GetValueOrDefault(),  // ✅ removes CS8629
                         endDate    = ex.EndDate.GetValueOrDefault(),    // ✅ removes CS8629
                         borrowerId = ex.BorrowerId
@@ -1013,10 +1103,10 @@ namespace HippoExchange
                 [FromBody] UpdateExchangeApprovalDto dto) =>
             {
                 try
-                {
+            {
                     var doc  = db.Collection("exchanges").Document(id);
-                    var snap = await doc.GetSnapshotAsync();
-                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
+                var snap = await doc.GetSnapshotAsync();
+                if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
                     // Convert once so we can safely use properties below
                     var exchange = snap.ConvertTo<Exchange>();
@@ -1030,29 +1120,29 @@ namespace HippoExchange
                     var nowUtc   = DateTime.UtcNow;
                     var approved = dto.Approved.Value;
 
-                    var updates = new Dictionary<string, object>
-                    {
+                var updates = new Dictionary<string, object>
+                {
                         ["approved"]       = approved,
-                        ["requestHandled"] = nowUtc
-                    };
+                    ["requestHandled"] = nowUtc
+                };
 
                     if (approved)
-                    {
+                {
                         // Validate and set dates on approval
-                        if (dto.StartDate is null || dto.EndDate is null)
-                            return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
+                    if (dto.StartDate is null || dto.EndDate is null)
+                        return Results.BadRequest(new { error = "startDate and endDate are required when approving." });
 
-                        var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
+                    var startUtc = DateTime.SpecifyKind(dto.StartDate.Value, DateTimeKind.Utc);
                         var endUtc   = DateTime.SpecifyKind(dto.EndDate.Value,   DateTimeKind.Utc);
 
-                        if (endUtc <= startUtc)
-                            return Results.BadRequest(new { error = "endDate must be after startDate." });
+                    if (endUtc <= startUtc)
+                        return Results.BadRequest(new { error = "endDate must be after startDate." });
 
                         // Check scheduling conflicts for this item (simple in-memory filter)
-                        var allExchanges = await db.Collection("exchanges")
-                            .WhereEqualTo("itemID", exchange.ItemId)
-                            .GetSnapshotAsync();
-
+                    var allExchanges = await db.Collection("exchanges")
+                        .WhereEqualTo("itemID", exchange.ItemId)
+                        .GetSnapshotAsync();
+                        
                         var conflict = allExchanges.Documents
                             .Select(d => d.ConvertTo<Exchange>())
                             .Where(ex => (ex.Approved ?? false) && ex.Id != id)
@@ -1068,32 +1158,123 @@ namespace HippoExchange
                                         $"{conflict.StartDate!.Value:yyyy-MM-dd} to {conflict.EndDate!.Value:yyyy-MM-dd}. " +
                                         "Please choose a different time period."
                             });
-                        }
+                    }
 
-                        updates["startDate"] = startUtc;
+                    updates["startDate"] = startUtc;
                         updates["endDate"]   = endUtc;
 
                         // Update user counters on approval
-                        await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
+                    await UpdateUserCounters(db, exchange.OwnerId, exchange.BorrowerId, true);
+                }
+                else
+                {
+                        // Declined: clear dates
+                    updates["startDate"] = FieldValue.Delete;
+                        updates["endDate"]   = FieldValue.Delete;
+                }
+
+                await doc.UpdateAsync(updates);
+
+                // Send a message to the borrower about the approval decision
+                try
+                {
+                    Console.WriteLine($"[DEBUG] Starting message creation for approval decision");
+                    Console.WriteLine($"[DEBUG] Exchange details - BorrowerId: {exchange.BorrowerId}, OwnerId: {exchange.OwnerId}, ItemId: {exchange.ItemId}");
+                    Console.WriteLine($"[DEBUG] Decision: {(dto.Approved == true ? "Approved" : "Declined")}");
+
+                    // Get owner details for the message
+                    var ownerDoc = await db.Collection("users").Document(exchange.OwnerId).GetSnapshotAsync();
+                    var ownerName = "The owner";
+                    if (ownerDoc.Exists)
+                    {
+                        var owner = ownerDoc.ConvertTo<UserAuth>();
+                        ownerName = $"{owner.FirstName} {owner.LastName}".Trim();
+                        if (string.IsNullOrEmpty(ownerName))
+                            ownerName = owner.Email;
+                        Console.WriteLine($"[DEBUG] Owner name: {ownerName}");
                     }
                     else
                     {
-                        // Declined: clear dates
-                        updates["startDate"] = FieldValue.Delete;
-                        updates["endDate"]   = FieldValue.Delete;
+                        Console.WriteLine($"[DEBUG] Owner document not found for ID: {exchange.OwnerId}");
                     }
 
-                    await doc.UpdateAsync(updates);
+                    // Find or create message thread between borrower and owner for this item
+                    Console.WriteLine($"[DEBUG] Searching for existing message thread...");
+                    var threadQuery = await db.Collection("messageThreads")
+                        .WhereEqualTo("itemID", exchange.ItemId)
+                        .WhereArrayContains("participants", exchange.BorrowerId)
+                        .WhereArrayContains("participants", exchange.OwnerId)
+                        .Limit(1)
+                        .GetSnapshotAsync();
 
-                    var updatedSnap = await doc.GetSnapshotAsync();
-                    try
+                    string threadId;
+                    if (threadQuery.Count > 0)
                     {
-                        return Results.Ok(updatedSnap.ConvertTo<Exchange>());
+                        threadId = threadQuery[0].Id;
+                        Console.WriteLine($"[DEBUG] Found existing thread: {threadId}");
                     }
-                    catch
+                    else
                     {
-                        return Results.Ok(new { message = "Exchange updated successfully", id });
+                        Console.WriteLine($"[DEBUG] No existing thread found, creating new one...");
+                        // Create new thread
+                        var thread = new MessageThread
+                        {
+                            Participants = new List<string> { exchange.BorrowerId, exchange.OwnerId },
+                            CanonicalKey = CanonicalKeyFor(new[] { exchange.BorrowerId, exchange.OwnerId, exchange.ItemId }),
+                            Subject = "Item Exchange",
+                            UpdatedUtc = DateTime.UtcNow,
+                            LastMessagePreview = null,
+                            LastReadBy = new Dictionary<string, DateTime>(),
+                            StarredBy = new List<string>(),
+                            ItemId = exchange.ItemId
+                        };
+
+                        var threadDoc = await db.Collection("messageThreads").AddAsync(thread);
+                        threadId = threadDoc.Id;
+                        Console.WriteLine($"[DEBUG] Created new thread: {threadId}");
                     }
+
+                    // Send message about approval decision
+                    Console.WriteLine($"[DEBUG] Sending message to thread: {threadId}");
+                    var message = new MessageDoc
+                    {
+                        SenderId = exchange.OwnerId,
+                        Body = dto.Approved == true 
+                            ? $"Great! I've approved your request to borrow my item. The borrowing period is from {dto.StartDate?.ToString("yyyy-MM-dd")} to {dto.EndDate?.ToString("yyyy-MM-dd")}. Let's arrange a time to meet up!"
+                            : "I'm sorry, but I can't approve your request to borrow my item at this time. Please feel free to reach out if you have any questions.",
+                        SentUtc = DateTime.UtcNow
+                    };
+
+                    await db.Collection("messageThreads").Document(threadId).Collection("messages").AddAsync(message);
+                    Console.WriteLine($"[DEBUG] Message sent successfully");
+
+                    // Update thread with new message preview
+                    var threadRef = db.Collection("messageThreads").Document(threadId);
+                    await threadRef.UpdateAsync(new Dictionary<string, object>
+                    {
+                        ["lastMessagePreview"] = Preview(message.Body),
+                        ["updatedUtc"] = message.SentUtc,
+                        [$"lastReadBy.{message.SenderId}"] = message.SentUtc
+                    });
+                    Console.WriteLine($"[DEBUG] Thread updated successfully");
+                }
+                catch (Exception msgEx)
+                {
+                    Console.WriteLine($"[ERROR] Could not send message for approval decision: {msgEx.Message}");
+                    Console.WriteLine($"[ERROR] Stack trace: {msgEx.StackTrace}");
+                    // Don't fail the whole request if message sending fails
+                }
+
+                var updated = await doc.GetSnapshotAsync();
+                try
+                {
+                return Results.Ok(updated.ConvertTo<Exchange>());
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error converting updated exchange: {ex.Message}");
+                    return Results.Ok(new { message = "Exchange updated successfully", id = id });
+                }
                 }
                 catch (Exception ex)
                 {
@@ -1149,11 +1330,123 @@ namespace HippoExchange
 
                     await doc.UpdateAsync(updates);
 
-                    // Try to return the updated model; if conversion fails, return a simple OK message
-                    var updatedSnap = await doc.GetSnapshotAsync();
+                    // Send a message to the borrower about the early return decision
                     try
                     {
-                        var updatedExchange = updatedSnap.ConvertTo<Exchange>();
+                        Console.WriteLine($"[DEBUG] Starting message creation for early return decision");
+                        Console.WriteLine($"[DEBUG] Exchange details - BorrowerId: {exchange.BorrowerId}, OwnerId: {exchange.OwnerId}, ItemId: {exchange.ItemId}");
+                        Console.WriteLine($"[DEBUG] Decision: {(dto.Approved ? "Approved" : "Declined")}");
+
+                        // Get owner details for the message
+                        var ownerDoc = await db.Collection("users").Document(exchange.OwnerId).GetSnapshotAsync();
+                        var ownerName = "The owner";
+                        if (ownerDoc.Exists)
+                        {
+                            var owner = ownerDoc.ConvertTo<UserAuth>();
+                            ownerName = $"{owner.FirstName} {owner.LastName}".Trim();
+                            if (string.IsNullOrEmpty(ownerName))
+                                ownerName = owner.Email;
+                            Console.WriteLine($"[DEBUG] Owner name: {ownerName}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] Owner document not found for ID: {exchange.OwnerId}");
+                        }
+
+                        // Find message thread between borrower and owner for this item
+                        Console.WriteLine($"[DEBUG] Searching for existing message thread...");
+                        var threadQuery = await db.Collection("messageThreads")
+                            .WhereEqualTo("itemID", exchange.ItemId)
+                            .WhereArrayContains("participants", exchange.BorrowerId)
+                            .WhereArrayContains("participants", exchange.OwnerId)
+                            .Limit(1)
+                            .GetSnapshotAsync();
+
+                        if (threadQuery.Count > 0)
+                        {
+                            var threadId = threadQuery[0].Id;
+                            Console.WriteLine($"[DEBUG] Found existing thread: {threadId}");
+                            
+                            // Send message about early return decision
+                            Console.WriteLine($"[DEBUG] Sending decision message to thread: {threadId}");
+                            var message = new MessageDoc
+                            {
+                                SenderId = exchange.OwnerId,
+                                Body = dto.Approved 
+                                    ? "Great! I've approved your early return request. Let's arrange a time to meet up so you can return the item."
+                                    : "I'm sorry, but I can't approve the early return request at this time. Please return the item by the original due date.",
+                                SentUtc = DateTime.UtcNow
+                            };
+
+                            await db.Collection("messageThreads").Document(threadId).Collection("messages").AddAsync(message);
+                            Console.WriteLine($"[DEBUG] Decision message sent successfully");
+
+                            // Update thread with new message preview
+                            var threadRef = db.Collection("messageThreads").Document(threadId);
+                            await threadRef.UpdateAsync(new Dictionary<string, object>
+                            {
+                                ["lastMessagePreview"] = Preview(message.Body),
+                                ["updatedUtc"] = message.SentUtc,
+                                [$"lastReadBy.{message.SenderId}"] = message.SentUtc
+                            });
+                            Console.WriteLine($"[DEBUG] Thread updated successfully");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] No existing thread found for early return decision - creating new thread");
+                            // Create new thread if none exists
+                            var thread = new MessageThread
+                            {
+                                Participants = new List<string> { exchange.BorrowerId, exchange.OwnerId },
+                                CanonicalKey = CanonicalKeyFor(new[] { exchange.BorrowerId, exchange.OwnerId, exchange.ItemId }),
+                                Subject = "Item Exchange",
+                                UpdatedUtc = DateTime.UtcNow,
+                                LastMessagePreview = null,
+                                LastReadBy = new Dictionary<string, DateTime>(),
+                                StarredBy = new List<string>(),
+                                ItemId = exchange.ItemId
+                            };
+
+                            var threadDoc = await db.Collection("messageThreads").AddAsync(thread);
+                            var threadId = threadDoc.Id;
+                            Console.WriteLine($"[DEBUG] Created new thread for decision: {threadId}");
+                            
+                            // Send message about early return decision
+                            Console.WriteLine($"[DEBUG] Sending decision message to new thread: {threadId}");
+                            var message = new MessageDoc
+                            {
+                                SenderId = exchange.OwnerId,
+                                Body = dto.Approved 
+                                    ? "Great! I've approved your early return request. Let's arrange a time to meet up so you can return the item."
+                                    : "I'm sorry, but I can't approve the early return request at this time. Please return the item by the original due date.",
+                                SentUtc = DateTime.UtcNow
+                            };
+
+                            await db.Collection("messageThreads").Document(threadId).Collection("messages").AddAsync(message);
+                            Console.WriteLine($"[DEBUG] Decision message sent successfully to new thread");
+
+                            // Update thread with new message preview
+                            var threadRef = db.Collection("messageThreads").Document(threadId);
+                            await threadRef.UpdateAsync(new Dictionary<string, object>
+                            {
+                                ["lastMessagePreview"] = Preview(message.Body),
+                                ["updatedUtc"] = message.SentUtc,
+                                [$"lastReadBy.{message.SenderId}"] = message.SentUtc
+                            });
+                            Console.WriteLine($"[DEBUG] New thread updated successfully");
+                        }
+                    }
+                    catch (Exception msgEx)
+                    {
+                        Console.WriteLine($"[ERROR] Could not send message for early return decision: {msgEx.Message}");
+                        Console.WriteLine($"[ERROR] Stack trace: {msgEx.StackTrace}");
+                        // Don't fail the whole request if message sending fails
+                    }
+
+                    var updated = await doc.GetSnapshotAsync();
+                    try
+                    {
+                        var updatedExchange = updated.ConvertTo<Exchange>();
                         return Results.Ok(updatedExchange);
                     }
                     catch
@@ -1180,7 +1473,181 @@ namespace HippoExchange
                 return op;
             });
 
+            // POST /exchanges/{id}/request-item-back-early — owner requests item back early
+            app.MapPost("/exchanges/{id}/request-item-back-early", async ([FromServices] FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    var doc = db.Collection("exchanges").Document(id);
+                    var snap = await doc.GetSnapshotAsync();
+                    if (!snap.Exists) return Results.NotFound(new { error = "Exchange not found." });
 
+                    Exchange exchange;
+                    try
+                    {
+                        exchange = snap.ConvertTo<Exchange>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error converting exchange document {id}: {ex.Message}");
+                        return Results.BadRequest(new { error = $"Error processing exchange data: {ex.Message}" });
+                    }
+
+                    // Check if exchange is approved and not already returned
+                    if (!(exchange.Approved ?? false))
+                    {
+                        return Results.BadRequest(new { error = "Can only request item back early for approved exchanges." });
+                    }
+
+                    // Check if already returned
+                    if (exchange.EndDate.HasValue && exchange.EndDate.Value <= DateTime.UtcNow)
+                    {
+                        return Results.BadRequest(new { error = "This item has already been returned." });
+                    }
+
+                    // Check if it's actually early (before end date)
+                    if (exchange.EndDate.HasValue && DateTime.UtcNow >= exchange.EndDate.Value)
+                    {
+                        return Results.BadRequest(new { error = "Cannot request item back early on or after the return date." });
+                    }
+
+                    // Check if there's already a pending item back request
+                    var existingNotificationQuery = await db.Collection("notifications")
+                        .WhereEqualTo("type", "item_back_request")
+                        .WhereEqualTo("senderId", exchange.OwnerId)
+                        .WhereEqualTo("receiverId", exchange.BorrowerId)
+                        .WhereEqualTo("listingId", exchange.ItemId)
+                        .WhereEqualTo("dismissed", false)
+                        .Limit(1)
+                        .GetSnapshotAsync();
+
+                    if (existingNotificationQuery.Count > 0)
+                    {
+                        return Results.BadRequest(new { error = "You have already sent a request to get this item back early." });
+                    }
+
+                    // Create item back request notification
+                    var notification = new Notification
+                    {
+                        Id = Guid.NewGuid().ToString("n"),
+                        SenderId = exchange.OwnerId,
+                        ReceiverId = exchange.BorrowerId,
+                        Title = "Item Back Request",
+                        Message = $"The owner wants to get their item back early.",
+                        Type = "item_back_request",
+                        ListingId = exchange.ItemId,
+                        CreatedUtc = DateTime.UtcNow,
+                        Dismissed = false
+                    };
+
+                    await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+
+                    // Send a message to the borrower about the item back request
+                    try
+                    {
+                        Console.WriteLine($"[DEBUG] Starting message creation for item back request");
+                        Console.WriteLine($"[DEBUG] Exchange details - BorrowerId: {exchange.BorrowerId}, OwnerId: {exchange.OwnerId}, ItemId: {exchange.ItemId}");
+
+                        // Get owner details for the message
+                        var ownerDoc = await db.Collection("users").Document(exchange.OwnerId).GetSnapshotAsync();
+                        var ownerName = "The owner";
+                        if (ownerDoc.Exists)
+                        {
+                            var owner = ownerDoc.ConvertTo<UserAuth>();
+                            ownerName = $"{owner.FirstName} {owner.LastName}".Trim();
+                            if (string.IsNullOrEmpty(ownerName))
+                                ownerName = owner.Email;
+                            Console.WriteLine($"[DEBUG] Owner name: {ownerName}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] Owner document not found for ID: {exchange.OwnerId}");
+                        }
+
+                        // Find or create message thread between borrower and owner for this item
+                        Console.WriteLine($"[DEBUG] Searching for existing message thread...");
+                        var threadQuery = await db.Collection("messageThreads")
+                            .WhereEqualTo("itemID", exchange.ItemId)
+                            .WhereArrayContains("participants", exchange.BorrowerId)
+                            .WhereArrayContains("participants", exchange.OwnerId)
+                            .Limit(1)
+                            .GetSnapshotAsync();
+
+                        string threadId;
+                        if (threadQuery.Count > 0)
+                        {
+                            threadId = threadQuery[0].Id;
+                            Console.WriteLine($"[DEBUG] Found existing thread: {threadId}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] No existing thread found, creating new one...");
+                            // Create new thread
+                            var thread = new MessageThread
+                            {
+                                Participants = new List<string> { exchange.BorrowerId, exchange.OwnerId },
+                                CanonicalKey = CanonicalKeyFor(new[] { exchange.BorrowerId, exchange.OwnerId, exchange.ItemId }),
+                                Subject = "Item Exchange",
+                                UpdatedUtc = DateTime.UtcNow,
+                                LastMessagePreview = null,
+                                LastReadBy = new Dictionary<string, DateTime>(),
+                                StarredBy = new List<string>(),
+                                ItemId = exchange.ItemId
+                            };
+
+                            var threadDoc = await db.Collection("messageThreads").AddAsync(thread);
+                            threadId = threadDoc.Id;
+                            Console.WriteLine($"[DEBUG] Created new thread: {threadId}");
+                        }
+
+                        // Send message about item back request
+                        Console.WriteLine($"[DEBUG] Sending message to thread: {threadId}");
+                        var message = new MessageDoc
+                        {
+                            SenderId = exchange.OwnerId,
+                            Body = $"Hi! I'd like to get my item back early. Could we arrange a time to meet up?",
+                            SentUtc = DateTime.UtcNow
+                        };
+
+                        await db.Collection("messageThreads").Document(threadId).Collection("messages").AddAsync(message);
+                        Console.WriteLine($"[DEBUG] Message sent successfully");
+
+                        // Update thread with new message preview
+                        var threadRef = db.Collection("messageThreads").Document(threadId);
+                        await threadRef.UpdateAsync(new Dictionary<string, object>
+                        {
+                            ["lastMessagePreview"] = Preview(message.Body),
+                            ["updatedUtc"] = message.SentUtc,
+                            [$"lastReadBy.{message.SenderId}"] = message.SentUtc
+                        });
+                        Console.WriteLine($"[DEBUG] Thread updated successfully");
+                    }
+                    catch (Exception msgEx)
+                    {
+                        Console.WriteLine($"[ERROR] Could not send message for item back request: {msgEx.Message}");
+                        Console.WriteLine($"[ERROR] Stack trace: {msgEx.StackTrace}");
+                        // Don't fail the whole request if message sending fails
+                    }
+
+                    return Results.Ok(new { message = "Item back request sent successfully", notificationId = notification.Id });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error in item back request endpoint: {ex.Message}");
+                    return Results.BadRequest(new { error = $"An error occurred: {ex.Message}" });
+                }
+            })
+            .WithName("RequestItemBackEarly")
+            .WithTags("Exchanges")
+            .Produces(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status404NotFound)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Request item back early";
+                op.Description = "Allows owners to request their loaned items back early.";
+                return op;
+            });
 
             // POST /exchanges/{id}/request-early-return — borrower requests early return
             app.MapPost("/exchanges/{id}/request-early-return", async ([FromServices] FirestoreDb db, string id) =>
@@ -1220,6 +1687,21 @@ namespace HippoExchange
                         return Results.BadRequest(new { error = "Cannot request early return on or after the return date." });
                     }
 
+                    // Check if there's already a pending early return request
+                    var existingNotificationQuery = await db.Collection("notifications")
+                        .WhereEqualTo("type", "early_return_request")
+                        .WhereEqualTo("senderId", exchange.BorrowerId)
+                        .WhereEqualTo("receiverId", exchange.OwnerId)
+                        .WhereEqualTo("listingId", exchange.ItemId)
+                        .WhereEqualTo("dismissed", false)
+                        .Limit(1)
+                        .GetSnapshotAsync();
+
+                    if (existingNotificationQuery.Count > 0)
+                    {
+                        return Results.BadRequest(new { error = "You have already sent an early return request for this item." });
+                    }
+
                     // Create early return request notification
                     var notification = new Notification
                     {
@@ -1235,6 +1717,93 @@ namespace HippoExchange
                     };
 
                     await db.Collection("notifications").Document(notification.Id).SetAsync(notification);
+
+                    // Send a message to the owner about the early return request
+                    try
+                    {
+                        Console.WriteLine($"[DEBUG] Starting message creation for early return request");
+                        Console.WriteLine($"[DEBUG] Exchange details - BorrowerId: {exchange.BorrowerId}, OwnerId: {exchange.OwnerId}, ItemId: {exchange.ItemId}");
+
+                        // Get borrower details for the message
+                        var borrowerDoc = await db.Collection("users").Document(exchange.BorrowerId).GetSnapshotAsync();
+                        var borrowerName = "The borrower";
+                        if (borrowerDoc.Exists)
+                        {
+                            var borrower = borrowerDoc.ConvertTo<UserAuth>();
+                            borrowerName = $"{borrower.FirstName} {borrower.LastName}".Trim();
+                            if (string.IsNullOrEmpty(borrowerName))
+                                borrowerName = borrower.Email;
+                            Console.WriteLine($"[DEBUG] Borrower name: {borrowerName}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] Borrower document not found for ID: {exchange.BorrowerId}");
+                        }
+
+                        // Find or create message thread between borrower and owner for this item
+                        Console.WriteLine($"[DEBUG] Searching for existing message thread...");
+                        var threadQuery = await db.Collection("messageThreads")
+                            .WhereEqualTo("itemID", exchange.ItemId)
+                            .WhereArrayContains("participants", exchange.BorrowerId)
+                            .WhereArrayContains("participants", exchange.OwnerId)
+                            .Limit(1)
+                            .GetSnapshotAsync();
+
+                        string threadId;
+                        if (threadQuery.Count > 0)
+                        {
+                            threadId = threadQuery[0].Id;
+                            Console.WriteLine($"[DEBUG] Found existing thread: {threadId}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[DEBUG] No existing thread found, creating new one...");
+                            // Create new thread
+                            var thread = new MessageThread
+                            {
+                                Participants = new List<string> { exchange.BorrowerId, exchange.OwnerId },
+                                CanonicalKey = CanonicalKeyFor(new[] { exchange.BorrowerId, exchange.OwnerId, exchange.ItemId }),
+                                Subject = "Item Exchange",
+                                UpdatedUtc = DateTime.UtcNow,
+                                LastMessagePreview = null,
+                                LastReadBy = new Dictionary<string, DateTime>(),
+                                StarredBy = new List<string>(),
+                                ItemId = exchange.ItemId
+                            };
+
+                            var threadDoc = await db.Collection("messageThreads").AddAsync(thread);
+                            threadId = threadDoc.Id;
+                            Console.WriteLine($"[DEBUG] Created new thread: {threadId}");
+                        }
+
+                        // Send message about early return request
+                        Console.WriteLine($"[DEBUG] Sending message to thread: {threadId}");
+                        var message = new MessageDoc
+                        {
+                            SenderId = exchange.BorrowerId,
+                            Body = $"Hi! I'd like to return your item early. Could we arrange a time to meet up?",
+                            SentUtc = DateTime.UtcNow
+                        };
+
+                        await db.Collection("messageThreads").Document(threadId).Collection("messages").AddAsync(message);
+                        Console.WriteLine($"[DEBUG] Message sent successfully");
+
+                        // Update thread with new message preview
+                        var threadRef = db.Collection("messageThreads").Document(threadId);
+                        await threadRef.UpdateAsync(new Dictionary<string, object>
+                        {
+                            ["lastMessagePreview"] = Preview(message.Body),
+                            ["updatedUtc"] = message.SentUtc,
+                            [$"lastReadBy.{message.SenderId}"] = message.SentUtc
+                        });
+                        Console.WriteLine($"[DEBUG] Thread updated successfully");
+                    }
+                    catch (Exception msgEx)
+                    {
+                        Console.WriteLine($"[ERROR] Could not send message for early return request: {msgEx.Message}");
+                        Console.WriteLine($"[ERROR] Stack trace: {msgEx.StackTrace}");
+                        // Don't fail the whole request if message sending fails
+                    }
 
                     return Results.Ok(new { message = "Early return request sent successfully", notificationId = notification.Id });
                 }
@@ -1897,6 +2466,130 @@ namespace HippoExchange
                 return op;
             });
 
+            // GET /maintenance/calendar/{userId} - Get maintenance events for calendar
+            app.MapGet("/maintenance/calendar/{userId}", async (FirestoreDb db, string userId) =>
+            {
+                try
+                {
+                    // Get user's items first
+                    var userItemsSnap = await db.Collection("itemID")
+                        .WhereEqualTo("userID", userId)
+                        .GetSnapshotAsync();
+
+                    Console.WriteLine($"Found {userItemsSnap.Count} items for user {userId}");
+                    var maintenanceEvents = new List<object>();
+
+                    foreach (var itemDoc in userItemsSnap.Documents)
+                    {
+                        var item = itemDoc.ConvertTo<Item>();
+                        Console.WriteLine($"Processing item: {item.Title} (ID: {item.Id})");
+                        
+                        // Get maintenance for this item (only required type)
+                        var maintenanceSnaps = await db.Collection("maintenance")
+                            .WhereEqualTo("itemID", item.Id)
+                            .WhereEqualTo("type", "required")
+                            .GetSnapshotAsync();
+
+                        Console.WriteLine($"Found {maintenanceSnaps.Count} maintenance records for item {item.Id}");
+
+                        foreach (var maintenanceDoc in maintenanceSnaps.Documents)
+                        {
+                            var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
+                            Console.WriteLine($"Processing maintenance: {maintenance.Description}, Frequency: {maintenance.Frequency}, Type: {maintenance.Type}");
+                            
+                            // Use nextMaintenanceDate directly for required maintenance
+                            if (maintenance.NextMaintenanceDate.HasValue)
+                            {
+                                var nextDueDate = maintenance.NextMaintenanceDate.Value;
+                                
+                                // Only show maintenance that's due within 30 days (for calendar view)
+                                if (DateTime.UtcNow >= nextDueDate.AddDays(-30))
+                                {
+                                    maintenanceEvents.Add(new
+                                    {
+                                        id = $"maintenance-{maintenance.Id}",
+                                        title = $"Maintenance: {item.Title}",
+                                        description = maintenance.Description,
+                                        date = nextDueDate,
+                                        type = "required-maintenance",
+                                        itemId = item.Id,
+                                        itemTitle = item.Title,
+                                        maintenanceId = maintenance.Id,
+                                        category = maintenance.Category,
+                                        frequency = maintenance.Frequency,
+                                        lastMaintenanceDate = maintenance.LastMaintenanceDate,
+                                        nextMaintenanceDate = nextDueDate
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    return Results.Ok(maintenanceEvents);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error getting maintenance calendar events: {ex.Message}");
+                    return Results.Problem($"Error getting maintenance calendar events: {ex.Message}");
+                }
+            })
+            .WithName("GetMaintenanceCalendar")
+            .WithTags("Maintenance")
+            .Produces<List<object>>(StatusCodes.Status200OK, "application/json")
+            .ProducesProblem(StatusCodes.Status500InternalServerError)
+            .WithOpenApi(op =>
+            {
+                op.Summary = "Get maintenance calendar events for a user";
+                op.Description = "Returns all maintenance events for items owned by the specified user";
+                return op;
+            });
+
+            // POST /maintenance/{id}/complete - Mark maintenance as completed and update dates
+            app.MapPost("/maintenance/{id}/complete", async (FirestoreDb db, string id) =>
+            {
+                try
+                {
+                    var maintenanceDoc = await db.Collection("maintenance").Document(id).GetSnapshotAsync();
+                    if (!maintenanceDoc.Exists)
+                    {
+                        return Results.NotFound(new { message = "Maintenance record not found." });
+                    }
+
+                    var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
+                    var completedDate = DateTime.UtcNow;
+
+                    // Update lastMaintenanceDate to now
+                    // Calculate nextMaintenanceDate as completedDate + frequency
+                    var nextMaintenanceDate = maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0
+                        ? completedDate.AddDays(maintenance.Frequency.Value)
+                        : (DateTime?)null;
+
+                    // Add to maintenance history
+                    var updatedHistory = maintenance.MaintenanceHistory ?? new List<DateTime>();
+                    updatedHistory.Add(completedDate);
+
+                    await maintenanceDoc.Reference.UpdateAsync(new Dictionary<string, object>
+                    {
+                        ["lastMaintenanceDate"] = completedDate,
+                        ["nextMaintenanceDate"] = nextMaintenanceDate ?? DateTime.UtcNow,
+                        ["maintenanceHistory"] = updatedHistory
+                    });
+
+                    return Results.Ok(new
+                    {
+                        message = "Maintenance completed successfully",
+                        lastMaintenanceDate = completedDate,
+                        nextMaintenanceDate = nextMaintenanceDate,
+                        maintenanceHistory = updatedHistory
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error completing maintenance: {ex.Message}");
+                    return Results.Problem($"Error completing maintenance: {ex.Message}");
+                }
+            });
+
             // POST /maintenance/check-due - Check for due maintenance and create notifications
             app.MapPost("/maintenance/check-due", async (FirestoreDb db) =>
             {
@@ -1913,7 +2606,7 @@ namespace HippoExchange
                     foreach (var maintenanceDoc in maintenanceSnaps.Documents)
                     {
                         var maintenance = maintenanceDoc.ConvertTo<Maintenance>();
-
+                        
                         if (maintenance.Frequency.HasValue && maintenance.Frequency.Value > 0)
                         {
                             // Prefer persisted nextMaintenanceDate, otherwise compute it now
@@ -1930,15 +2623,15 @@ namespace HippoExchange
                                 });
                             }
 
-                            // Due if we're within 1 day of due date (or past it)
-                            if (DateTime.UtcNow >= nextDueDate.AddDays(-1))
+                            // Due if we're within 2 days of due date (or past it)
+                            if (DateTime.UtcNow >= nextDueDate.AddDays(-2))
                             {
                                 // Load the item
                                 var itemSnap = await db.Collection("items").Document(maintenance.ItemId).GetSnapshotAsync();
                                 if (itemSnap.Exists)
                                 {
                                     var item = itemSnap.ConvertTo<Item>();
-
+                                    
                                     // Build the notification
                                     var notification = new Notification
                                     {
@@ -2958,11 +3651,11 @@ namespace HippoExchange
                 u.Id = doc.Id;
                 return Results.Ok(new
                 {
-                    id = u.Id,
-                    email = u.Email,
-                    firstName = u.FirstName,
+                    id = u.Id, 
+                    email = u.Email, 
+                    firstName = u.FirstName, 
                     lastName = u.LastName,
-                    name = $"{u.FirstName} {u.LastName}".Trim()
+                    name = $"{u.FirstName} {u.LastName}".Trim() 
                 });
             })
             .WithName("GetUserById")
@@ -3181,6 +3874,10 @@ namespace HippoExchange
         [FirestoreProperty("returnConfirmed")] public bool? ReturnConfirmed { get; set; } = null;
 
         [FirestoreProperty("returnConfirmedAt")] public DateTime? ReturnConfirmedAt { get; set; } = null;
+
+        // Additional properties for calendar display (not stored in Firestore)
+        public string? BorrowerName { get; set; }
+        public string? OwnerName { get; set; }
     }
 
 
@@ -3423,6 +4120,73 @@ namespace HippoExchange
     public record StarDto(string UserId, bool Starred);
     public record ArchiveParticipantDto(string UserId);
 
+    // Background service for maintenance notifications
+    public class MaintenanceNotificationService : BackgroundService
+    {
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<MaintenanceNotificationService> _logger;
+        private readonly TimeSpan _checkInterval = TimeSpan.FromHours(6); // Check every 6 hours
+
+        public MaintenanceNotificationService(IServiceProvider serviceProvider, ILogger<MaintenanceNotificationService> logger)
+        {
+            _serviceProvider = serviceProvider;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("Maintenance Notification Service started");
+            
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    _logger.LogInformation("Checking for due maintenance notifications...");
+                    
+                    using (var scope = _serviceProvider.CreateScope())
+                    {
+                        var db = scope.ServiceProvider.GetRequiredService<FirestoreDb>();
+                        
+                        // Call the maintenance check endpoint
+                        var httpClient = new HttpClient();
+                        var response = await httpClient.PostAsync("http://localhost:5000/maintenance/check-due", null, stoppingToken);
+                        
+                        if (response.IsSuccessStatusCode)
+                        {
+                            var result = await response.Content.ReadAsStringAsync();
+                            _logger.LogInformation($"Maintenance check completed: {result}");
+                        }
+                        else
+                        {
+                            _logger.LogWarning($"Maintenance check failed: {response.StatusCode}");
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Maintenance Notification Service is stopping");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error checking maintenance notifications");
+                }
+
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Maintenance Notification Service is stopping");
+                    break;
+                }
+            }
+        }
+    }
+
     // Background service for return date notifications
     public class ReturnDateNotificationService : BackgroundService
     {
@@ -3446,12 +4210,27 @@ namespace HippoExchange
                 {
                     await CheckForUpcomingReturnDates();
                 }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Return Date Notification Service is stopping");
+                    break;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error occurred while checking for upcoming return dates");
                 }
 
-                await Task.Delay(_checkInterval, stoppingToken);
+                try
+                {
+                    await Task.Delay(_checkInterval, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                    _logger.LogInformation("Return Date Notification Service is stopping");
+                    break;
+                }
             }
         }
 
@@ -3471,12 +4250,12 @@ namespace HippoExchange
                     .GetSnapshotAsync();
 
                 var upcomingExchanges = exchangesSnapshot
-                    .Where(doc =>
+                    .Where(doc => 
                     {
                         var exchange = doc.ConvertTo<Exchange>();
-                        return exchange?.EndDate != null &&
-                            exchange.EndDate >= tomorrow &&
-                            exchange.EndDate <= twoDaysFromNow;
+                        return exchange?.EndDate != null && 
+                               exchange.EndDate >= tomorrow && 
+                               exchange.EndDate <= twoDaysFromNow;
                     })
                     .ToList();
 
@@ -3497,10 +4276,10 @@ namespace HippoExchange
                     if (existingNotification.Count > 0)
                     {
                         var recent = existingNotification.Documents.FirstOrDefault(d =>
-                        {
+                            {
                             var n = d.ConvertTo<Notification>();
                             return n.CreatedUtc > DateTime.UtcNow.AddDays(-1);
-                        });
+                            });
                         if (recent != null) continue;
                     }
 
