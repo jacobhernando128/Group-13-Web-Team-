@@ -3,13 +3,13 @@
 let currentUser = null; // Store current user data
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Create listing page loaded, starting authentication check...');
+
     // Check authentication and load user data FIRST
     await checkAuthAndLoadUser();
-    console.log('Authentication check completed, currentUser:', currentUser);
+
 
     // ===== CONFIGURATION =====
-    const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+    let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 
     const form = document.getElementById('create-form');
     const message = document.getElementById('message');
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error('Title is required.');
             }
 
-            console.log('📤 Sending data to backend:', data);
+
 
             const res = await fetch(`${API_BASE_URL}/items`, {
                 method: 'POST',
@@ -482,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body: JSON.stringify(data)
             });
 
-            console.log('📥 Response status:', res.status);
+
 
             if (!res.ok) {
                 let errorMessage = `Server error: ${res.status}`;
@@ -499,11 +499,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const created = await res.json();
-            console.log('✅ Created item:', created);
+
 
             // Upload images if any
             if (uploadedPhotoFiles && uploadedPhotoFiles.length > 0) {
-                console.log('📸 Uploading photos:', uploadedPhotoFiles.length);
+
                 for (const photoFile of uploadedPhotoFiles) {
                     try {
                         const formData = new FormData();
@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } else {
                             const uploadResult = await uploadRes.json();
-                            console.log('✅ Photo uploaded:', uploadResult.url);
+
                         }
                     } catch (err) {
                         console.warn('⚠️ Error uploading photo:', err);
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Upload videos if any
             if (uploadedVideoFiles && uploadedVideoFiles.length > 0) {
-                console.log('🎥 Uploading videos:', uploadedVideoFiles.length);
+
                 for (const videoFile of uploadedVideoFiles) {
                     try {
                         const formData = new FormData();
@@ -566,7 +566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } else {
                             const uploadResult = await uploadRes.json();
-                            console.log('✅ Video uploaded:', uploadResult.url);
+
                         }
                     } catch (err) {
                         console.warn('⚠️ Error uploading video:', err);
@@ -581,7 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (maintenanceList.length > 0) {
                 try {
                     const itemId = created.id || created.Id;
-                    console.log('📤 Sending maintenance entries for item:', itemId);
+
 
                     for (const maintenance of maintenanceList) {
                         const maintenanceData = {
@@ -605,11 +605,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             console.warn('⚠️ Failed to create maintenance entry:', maintenanceRes.status);
                         } else {
                             const createdMaintenance = await maintenanceRes.json();
-                            console.log('✅ Created maintenance entry:', createdMaintenance);
+
 
                             // Upload receipts if any exist
                             if (maintenance.receipts && maintenance.receipts.length > 0) {
-                                console.log('📄 Uploading receipts for maintenance:', maintenance.receipts.length);
+
                                 
                                 for (const receiptFile of maintenance.receipts) {
                                     try {
@@ -626,7 +626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         if (!receiptRes.ok) {
                                             console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
                                         } else {
-                                            console.log('✅ Uploaded receipt:', receiptFile.name);
+
                                         }
                                     } catch (err) {
                                         console.warn('⚠️ Error uploading receipt:', err);
@@ -865,20 +865,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderMediaPreview();
     renderMaintenanceEntries();
 
-    console.log('✅ Create listing page initialized');
+
 });
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-    console.log('Checking authentication...');
+
     const token = localStorage.getItem('hippo_token');
     const userData = localStorage.getItem('hippo_user');
 
-    console.log('Token exists:', !!token);
-    console.log('User data exists:', !!userData);
+
+
 
     if (!token || !userData) {
-        console.log('No token or user data, redirecting to login');
+
         // No token or user data, redirect to login
         window.location.href = './Login.html';
         return;
@@ -887,14 +887,14 @@ async function checkAuthAndLoadUser() {
     // First, try to display user info from localStorage as a fallback
     try {
         const storedUser = JSON.parse(userData);
-        console.log('Stored user data:', storedUser);
+
         displayUserInfo(storedUser);
     } catch (error) {
         console.error('Error parsing stored user data:', error);
     }
 
     try {
-        console.log('Verifying token with /auth/me...');
+
         // Verify token is still valid by calling /auth/me
         const response = await fetch('/auth/me', {
             headers: {
@@ -903,22 +903,22 @@ async function checkAuthAndLoadUser() {
             }
         });
 
-        console.log('Auth response status:', response.status);
+
 
         if (!response.ok) {
-            console.log('Token invalid, but keeping stored user data for now');
+
             // Don't redirect immediately, keep the stored user data
             return;
         }
 
         const currentUser = await response.json();
-        console.log('Current user from /auth/me:', currentUser);
+
         displayUserInfo(currentUser);
 
     } catch (error) {
         console.error('Auth check failed:', error);
         // Don't redirect on network errors, keep the stored user data
-        console.log('Network error, keeping stored user data');
+
     }
 }
 
@@ -944,7 +944,7 @@ function displayUserInfo(user) {
     const accountNameElement = document.getElementById('acct-name');
     if (accountNameElement) {
         accountNameElement.textContent = displayName;
-        console.log('Set account name to:', displayName);
+
     } else {
         console.error('Account name element not found!');
     }
@@ -953,14 +953,14 @@ function displayUserInfo(user) {
     const listingOwnerNameElement = document.getElementById('listing-owner-name');
     if (listingOwnerNameElement) {
         listingOwnerNameElement.textContent = displayName;
-        console.log('Set listing owner name to:', displayName);
+
     }
 
     // Update the preview seller name
     const previewSellerNameElement = document.getElementById('preview-seller-name');
     if (previewSellerNameElement) {
         previewSellerNameElement.textContent = displayName;
-        console.log('Set preview seller name to:', displayName);
+
     }
 }
 

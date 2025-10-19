@@ -1,6 +1,6 @@
 // profile-utils.js - Utility functions for profile picture display across all pages
 
-const API_BASE_URL = 'http://localhost:5000';
+let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 
 /**
  * Fetch profile picture URL for a user

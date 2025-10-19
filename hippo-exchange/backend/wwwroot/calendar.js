@@ -56,7 +56,7 @@ class CalendarView {
                    sessionStorage.getItem('userToken');
                    
       if (!token) {
-        console.log('No token found, redirecting to login');
+
         this.showError('Please log in to access the calendar');
         setTimeout(() => {
           window.location.href = './Login.html';
@@ -73,7 +73,7 @@ class CalendarView {
         }
       });
 
-      console.log('User data response status:', response.status);
+
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -97,7 +97,7 @@ class CalendarView {
       }
 
       const userData = await response.json();
-      console.log('Loaded user data:', userData);
+
       this.currentUser = userData;
       
       // Update UI
@@ -106,7 +106,7 @@ class CalendarView {
       
       if (nameElement) {
         nameElement.textContent = `${userData.firstName} ${userData.lastName}`;
-        console.log('Updated user name in UI');
+
       } else {
         console.warn('Could not find acct-name element');
       }
@@ -116,7 +116,7 @@ class CalendarView {
         const profilePic = userData.ProfilePicture || userData.profilePicture;
         if (window.generateProfilePictureHTML) {
           acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, userData, 'md');
-          console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
         } else {
           // Fallback if utility function not available
           if (profilePic && profilePic.trim()) {
@@ -144,8 +144,8 @@ class CalendarView {
     try {
       const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
       
-      console.log('📅 Loading calendar data...');
-      console.log('📅 Current user:', this.currentUser);
+
+
       
       if (!this.currentUser) {
         console.error('No current user found');
@@ -164,14 +164,14 @@ class CalendarView {
 
       // Load borrowed items (items I'm borrowing) - use borrower endpoint
       const userId = this.currentUser.id || this.currentUser.userId || this.currentUser.Id;
-      console.log('📅 Fetching borrowed items for user:', userId);
+
       const borrowedResponse = await fetch(`/exchanges/borrower/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      console.log('📅 Borrowed items response status:', borrowedResponse.status);
+
       if (borrowedResponse.ok) {
         this.borrowedItems = await borrowedResponse.json();
-        console.log('📦 Loaded borrowed items:', this.borrowedItems.length, this.borrowedItems);
+
         
         // Enhance borrowed items with additional data
         try {
@@ -184,7 +184,7 @@ class CalendarView {
         this.borrowedItems.forEach(item => {
           item.Title = item.Title || item.title || item.itemTitle || 'Unknown Item';
           item.OwnerName = item.OwnerName || item.ownerName || 'Unknown Owner';
-          console.log('📦 Final borrowed item data:', item);
+
         });
       } else {
         console.warn('Failed to load borrowed items:', borrowedResponse.status, await borrowedResponse.text());
@@ -192,14 +192,14 @@ class CalendarView {
       }
 
       // Load loaned items (items I own that are loaned out) - use owner endpoint
-      console.log('📅 Fetching loaned items for user:', userId);
+
       const loanedResponse = await fetch(`/exchanges/owner/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      console.log('📅 Loaned items response status:', loanedResponse.status);
+
       if (loanedResponse.ok) {
         this.loanedItems = await loanedResponse.json();
-        console.log('📦 Loaded loaned items:', this.loanedItems.length, this.loanedItems);
+
         
         // Enhance loaned items with additional data
         try {
@@ -212,7 +212,7 @@ class CalendarView {
         this.loanedItems.forEach(item => {
           item.Title = item.Title || item.title || item.itemTitle || 'Unknown Item';
           item.BorrowerName = item.BorrowerName || item.borrowerName || 'Unknown Borrower';
-          console.log('📦 Final loaned item data:', item);
+
         });
       } else {
         console.warn('Failed to load loaned items:', loanedResponse.status, await loanedResponse.text());
@@ -248,7 +248,7 @@ class CalendarView {
           if (itemResponse.ok) {
             const itemData = await itemResponse.json();
             item.Title = itemData.title || itemData.Title || itemData.name || 'Unknown Item';
-            console.log('🔍 Enhanced borrowed item with title:', item.Title);
+
           }
         }
         
@@ -260,7 +260,7 @@ class CalendarView {
           if (ownerResponse.ok) {
             const ownerData = await ownerResponse.json();
             item.OwnerName = `${ownerData.firstName} ${ownerData.lastName}`;
-            console.log('👤 Enhanced borrowed item with owner name:', item.OwnerName);
+
           }
         }
       } catch (error) {
@@ -282,7 +282,7 @@ class CalendarView {
           if (itemResponse.ok) {
             const itemData = await itemResponse.json();
             item.Title = itemData.title || itemData.Title || itemData.name || 'Unknown Item';
-            console.log('🔍 Enhanced loaned item with title:', item.Title);
+
           }
         }
         
@@ -294,7 +294,7 @@ class CalendarView {
           if (borrowerResponse.ok) {
             const borrowerData = await borrowerResponse.json();
             item.BorrowerName = `${borrowerData.firstName} ${borrowerData.lastName}`;
-            console.log('👤 Enhanced loaned item with borrower name:', item.BorrowerName);
+
           }
         }
       } catch (error) {
@@ -309,15 +309,15 @@ class CalendarView {
       
       // Use the new maintenance calendar endpoint
       const userId = this.currentUser.id || this.currentUser.userId || this.currentUser.Id;
-      console.log('📅 Fetching maintenance calendar data for user:', userId);
+
       const maintenanceResponse = await fetch(`/maintenance/calendar/${userId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      console.log('📅 Maintenance calendar response status:', maintenanceResponse.status);
+
       
             if (maintenanceResponse.ok) {
         const maintenanceEvents = await maintenanceResponse.json();
-        console.log('🔧 Loaded maintenance events:', maintenanceEvents.length, maintenanceEvents);
+
         
         // Convert maintenance events to the expected format
         this.maintenanceItems = maintenanceEvents.map(event => ({
@@ -335,7 +335,7 @@ class CalendarView {
           }]
         }));
         
-        console.log('🔧 Converted maintenance events to items:', this.maintenanceItems.length);
+
       } else {
         console.warn('Failed to load maintenance calendar data:', maintenanceResponse.status);
         this.maintenanceItems = [];
@@ -358,13 +358,13 @@ class CalendarView {
     });
     
     // Debug: Log the actual data being processed
-    console.log('🔍 Borrowed items data:', this.borrowedItems);
-    console.log('🔍 Loaned items data:', this.loanedItems);
-    console.log('🔍 Maintenance items data:', this.maintenanceItems);
+
+
+
 
     // Process borrowed items (return dates)
     for (const item of this.borrowedItems) {
-      console.log('🔍 Processing borrowed item:', item);
+
       if (item.endDate) {
         // Fetch item details to get the title
         let itemTitle = 'Unknown Item';
@@ -381,7 +381,7 @@ class CalendarView {
           console.warn('Failed to fetch item details for borrowed item:', error);
         }
         
-        console.log('🔍 Extracting item title for borrowed item:', { item, extractedTitle: itemTitle });
+
         const event = {
           id: `borrowed-${item.id}`,
           date: new Date(item.endDate),
@@ -393,15 +393,15 @@ class CalendarView {
         };
         this.events.push(event);
         this.allEvents.push(event);
-        console.log('📦 Added borrowed event:', event.title, 'from item:', item);
+
       } else {
-        console.log('⚠️ Borrowed item missing endDate:', item);
+
       }
     }
 
     // Process loaned items (return dates)
     for (const item of this.loanedItems) {
-      console.log('🔍 Processing loaned item:', item);
+
       if (item.endDate) {
         // Fetch item details to get the title
         let itemTitle = 'Unknown Item';
@@ -418,7 +418,7 @@ class CalendarView {
           console.warn('Failed to fetch item details for loaned item:', error);
         }
         
-        console.log('🔍 Extracting item title for loaned item:', { item, extractedTitle: itemTitle });
+
         const event = {
           id: `loaned-${item.id}`,
           date: new Date(item.endDate),
@@ -430,26 +430,26 @@ class CalendarView {
         };
         this.events.push(event);
         this.allEvents.push(event);
-        console.log('📦 Added loaned event:', event.title, 'from item:', item);
+
       } else {
-        console.log('⚠️ Loaned item missing endDate:', item);
+
       }
     }
 
     // Process maintenance items (only required maintenance)
     this.maintenanceItems.forEach(item => {
-      console.log('🔍 Processing maintenance item:', item);
+
       if (item.maintenanceHistory && Array.isArray(item.maintenanceHistory)) {
-        console.log('🔧 Item has maintenance history:', item.maintenanceHistory.length, 'records');
+
         item.maintenanceHistory.forEach(maintenance => {
-          console.log('🔧 Processing maintenance record:', maintenance);
+
           // Check for nextMaintenanceDate and type 'required-maintenance' (from new API)
           const maintenanceDate = maintenance.nextMaintenanceDate || maintenance.date;
           const maintenanceType = maintenance.type;
           
           if (maintenanceDate && (maintenanceType === 'required-maintenance' || maintenanceType === 'required')) {
             const itemTitle = item.Title || item.title || item.itemName || item.name || item.itemTitle || 'Unknown Item';
-            console.log('🔍 Extracting item title for maintenance item:', { item, extractedTitle: itemTitle });
+
             
             // Create more descriptive maintenance event
             const category = maintenance.category || 'General';
@@ -467,17 +467,17 @@ class CalendarView {
             };
             this.events.push(event);
             this.allEvents.push(event);
-            console.log('🔧 Added maintenance event:', event.title, 'from item:', item);
+
           } else {
-            console.log('⚠️ Maintenance record missing date or not required:', maintenance);
+
           }
         });
       } else {
-        console.log('⚠️ Item has no maintenance history:', item);
+
       }
     });
 
-    console.log('📅 Processed events:', this.allEvents.length);
+
     console.log('📅 Event details:', this.allEvents.map(e => ({ type: e.type, title: e.title, color: e.color })));
   }
 
@@ -529,7 +529,7 @@ class CalendarView {
   }
 
   applyFilter(filterType) {
-    console.log('🔍 Applying filter:', filterType);
+
     this.currentFilter = filterType;
     
     // Update active filter tag using the same logic as home page
@@ -538,10 +538,10 @@ class CalendarView {
     // Filter events
     if (filterType === 'all') {
       this.events = [...this.allEvents];
-      console.log('📅 Showing all events:', this.events.length);
+
     } else {
       this.events = this.allEvents.filter(event => event.type === filterType);
-      console.log(`📅 Filtered to ${filterType}:`, this.events.length, 'events');
+
       console.log('📅 Filtered events:', this.events.map(e => ({ type: e.type, title: e.title })));
     }
 
@@ -564,13 +564,13 @@ class CalendarView {
   }
 
   async refreshData() {
-    console.log('🔄 Refreshing calendar data...');
+
     this.showLoading();
     
     try {
       await this.loadCalendarData();
       this.renderCalendar();
-      console.log('✅ Calendar data refreshed successfully');
+
     } catch (error) {
       console.error('❌ Failed to refresh calendar data:', error);
       this.showError('Failed to refresh data');
@@ -612,12 +612,12 @@ class CalendarView {
 
     // Filter tags - use the same pattern as home page
     const filterTags = document.querySelectorAll('.category-filter');
-    console.log('Found filter tags:', filterTags.length);
+
     filterTags.forEach(tag => {
-      console.log('Adding event listener to filter:', tag.dataset.category);
+
       tag.addEventListener('click', () => {
         const filterType = tag.dataset.category;
-        console.log('Filter clicked:', filterType);
+
         this.applyFilter(filterType);
       });
     });
@@ -1107,7 +1107,7 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('click', (e) => {
   if (e.target.classList.contains('category-filter')) {
     const category = e.target.dataset.category;
-    console.log('🖱️ Filter button clicked:', category);
+
     if (window.calendarView) {
       window.calendarView.applyFilter(category);
     } else {

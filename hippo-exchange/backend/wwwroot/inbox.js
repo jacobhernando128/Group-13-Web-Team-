@@ -31,10 +31,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
     const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
 
-    console.log('Auth check - Token:', !!token, 'UserData:', !!userData);
+
 
     if (!token || !userData) {
-      console.log('No auth data found, redirecting to login');
+
       window.location.href = './Login.html';
       return;
     }
@@ -48,14 +48,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       if (!response.ok) {
-        console.log('Auth validation failed, redirecting to login');
+
         clearAuthData();
         window.location.href = './Login.html';
         return;
       }
 
       const user = await response.json();
-      console.log('Auth successful, user:', user);
+
       currentUser = user;
       displayUserInfo(user);
     } catch (error) {
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const profilePic = user.ProfilePicture || user.profilePicture;
       if (window.generateProfilePictureHTML) {
         acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
-        console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
       } else {
         // Fallback if utility function not available
         if (profilePic && profilePic.trim()) {
@@ -239,21 +239,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      console.log('🔍 Fetching user name for ID:', userId);
+
       
       // Get user info from the users endpoint
       const response = await fetch(`${API}/users/by-id?id=${encodeURIComponent(userId)}`);
 
       if (response.ok) {
         const user = await response.json();
-        console.log('📋 User data received:', user);
+
 
         // Prefer explicit display name if provided
         if (user && typeof user === 'object') {
           // First try the computed name field
           if (user.name && String(user.name).trim()) {
             const n = String(user.name).trim();
-            console.log('✅ Using computed name:', n);
+
             userNamesCache.set(userId, n);
             return n;
           }
@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const parts = [String(fn).trim(), String(ln).trim()].filter(Boolean);
           if (parts.length > 0) {
             const full = parts.join(' ');
-            console.log('✅ Using first/last name:', full);
+
             userNamesCache.set(userId, full);
             return full;
           }
@@ -272,14 +272,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           // Fall back to email only if no name is available
           if (user.email) {
             const e = String(user.email).trim();
-            console.log('⚠️ Falling back to email:', e);
+
             userNamesCache.set(userId, e);
             return e;
           }
         }
 
         // Final fallback
-        console.log('⚠️ No user data available, using generic name');
+
         userNamesCache.set(userId, 'User');
         return 'User';
       } else {
@@ -291,7 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Fallback to showing user ID
     const fallbackName = `User ${userId.substring(0, 8)}...`;
-    console.log('⚠️ Using fallback name:', fallbackName);
+
     userNamesCache.set(userId, fallbackName);
     return fallbackName;
   }
@@ -847,7 +847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const targetUserId = urlParams.get('userId');
     
     if (targetUserId) {
-      console.log('🎯 URL parameter found - userId:', targetUserId);
+
       // Find and open the conversation with this user
       setTimeout(async () => {
         await openConversationWithUser(targetUserId);
@@ -856,7 +856,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   async function openConversationWithUser(userId) {
-    console.log('🔍 Looking for conversation with user:', userId);
+
     
     // Find thread that includes this user
     const targetThread = threads.find(thread => {
@@ -865,10 +865,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     if (targetThread) {
-      console.log('✅ Found conversation thread:', targetThread.id);
+
       await openThread(targetThread);
     } else {
-      console.log('⚠️ No existing conversation found with user:', userId);
+
       // Could potentially create a new conversation here if needed
     }
   }
@@ -890,7 +890,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Set up new interval for 60 seconds (1 minute)
     autoRefreshInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing inbox threads...');
+
       loadThreads();
     }, 60000);
     
@@ -901,7 +901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (autoRefreshInterval) {
       clearInterval(autoRefreshInterval);
       autoRefreshInterval = null;
-      console.log('⏹️ Auto-refresh stopped for inbox');
+
     }
   }
   

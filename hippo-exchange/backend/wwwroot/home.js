@@ -37,7 +37,7 @@ function hideLocationLoadingScreen() {
 
 // Location persistence functions (moved outside DOMContentLoaded scope)
 function saveLocationFilter(locationFilter) {
-  console.log('Saving location filter:', locationFilter);
+
   
   if (locationFilter) {
     const filterData = JSON.stringify(locationFilter);
@@ -46,15 +46,15 @@ function saveLocationFilter(locationFilter) {
       inputValue: document.getElementById('location-input')?.value || ''
     });
     
-    console.log('Saving filter data:', filterData);
-    console.log('Saving display data:', displayData);
+
+
     
     localStorage.setItem('hippo_location_filter', filterData);
     localStorage.setItem('hippo_location_display', displayData);
     
-    console.log('Location filter saved successfully');
+
   } else {
-    console.log('Clearing location filter from localStorage');
+
     localStorage.removeItem('hippo_location_filter');
     localStorage.removeItem('hippo_location_display');
   }
@@ -66,35 +66,35 @@ function loadLocationFilter() {
     console.log('All localStorage keys:', Object.keys(localStorage));
     
     const saved = localStorage.getItem('hippo_location_filter');
-    console.log('Checking for saved location filter:', saved);
+
     
     if (saved) {
       currentLocationFilter = JSON.parse(saved);
-      console.log('✅ Loaded saved location filter:', currentLocationFilter);
+
       
       // Restore display information
       const displayInfo = localStorage.getItem('hippo_location_display');
-      console.log('Checking for saved display info:', displayInfo);
+
       
       if (displayInfo) {
         const display = JSON.parse(displayInfo);
-        console.log('Parsed display info:', display);
+
         
         const headerEl = document.getElementById('header-location');
-        console.log('Header element found:', !!headerEl);
+
         
         if (headerEl) {
           headerEl.textContent = display.cityText;
-          console.log('✅ Updated header text to:', display.cityText);
+
         } else {
           console.error('❌ Header element not found!');
         }
       }
       
-      console.log('🎯 Location filter will be applied after data loads');
+
       return currentLocationFilter;
     } else {
-      console.log('ℹ️ No saved location filter found in localStorage');
+
     }
   } catch (error) {
     console.error('❌ Error loading saved location filter:', error);
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
   
-  console.log('Home page loaded, starting authentication check...');
+
   // Check authentication and load user data
   checkAuthAndLoadUser();
   const grid = document.getElementById('listings-grid');
@@ -296,13 +296,13 @@ let currentSearchQuery = ''; // Store current search query globally
   // Filter items by location with caching for better performance
   async function filterByLocation(items, locationFilter) {
     if (!locationFilter || !locationFilter.lat || !locationFilter.lng) {
-      console.log('No location filter applied, showing all items');
+
       return items;
     }
     
     const { lat, lng, radius } = locationFilter;
-    console.log(`Filtering items by location: lat=${lat}, lng=${lng}, radius=${radius}mi`);
-    console.log(`Total items to filter: ${items.length}`);
+
+
     
     const filteredItems = [];
     const itemsToGeocode = [];
@@ -311,7 +311,7 @@ let currentSearchQuery = ''; // Store current search query globally
     for (const item of items) {
       // If item has no location string, include it (for items that ship)
       if (!item.location && !item.locationLabel) {
-        console.log(`Item "${item.title}" has no location, including it`);
+
         filteredItems.push(item);
         continue;
       }
@@ -334,7 +334,7 @@ let currentSearchQuery = ''; // Store current search query globally
       }
     }
     
-    console.log(`Found ${itemsToGeocode.length} items that need geocoding`);
+
     
     // Batch geocode remaining items (limit to 3 concurrent requests to avoid rate limiting)
     const batchSize = 3;
@@ -343,11 +343,11 @@ let currentSearchQuery = ''; // Store current search query globally
       
       const geocodePromises = batch.map(async (item) => {
         const itemLocation = item.location || item.locationLabel;
-        console.log(`Geocoding item location: "${itemLocation}"`);
+
         
         try {
           const itemCoords = await geocode(itemLocation);
-          console.log(`Geocoding result for "${itemLocation}":`, itemCoords);
+
           
           if (itemCoords) {
             // Cache the result
@@ -368,7 +368,7 @@ let currentSearchQuery = ''; // Store current search query globally
             }
           } else {
             // If geocoding fails, include the item (better to show than hide)
-            console.log(`⚠️ Could not geocode location for item "${item.title}": ${itemLocation} - including it anyway`);
+
             return item;
           }
         } catch (error) {
@@ -387,7 +387,7 @@ let currentSearchQuery = ''; // Store current search query globally
       }
     }
     
-    console.log(`🎯 Location filter result: ${filteredItems.length}/${items.length} items within ${radius}mi radius`);
+
     return filteredItems;
   }
 
@@ -548,7 +548,7 @@ let currentSearchQuery = ''; // Store current search query globally
 
   async function filterByCategory(category) {
     currentCategory = category;
-    console.log(`Filtering by category: ${category}`);
+
 
     // Reset pagination when filtering
     paginationInfo = { totalCount: 0, limit: 100, offset: 0, hasMore: false };
@@ -567,7 +567,7 @@ let currentSearchQuery = ''; // Store current search query globally
             mapCategoryName(cat).toLowerCase() === category.toLowerCase()
           );
           if (matches) {
-            console.log(`Item "${item.title}" matches category ${category}`, item.categories);
+
           }
           return matches;
         }
@@ -625,10 +625,10 @@ let currentSearchQuery = ''; // Store current search query globally
   // Check if an item is currently loaned out
   async function isItemLoanedOut(itemId, ownerId) {
     try {
-      console.log('🔍 Checking if item is loaned out:', itemId, 'for owner:', ownerId);
+
       
       if (!ownerId) {
-        console.log('⚠️ No owner ID provided, assuming item is available');
+
         return false;
       }
       
@@ -662,11 +662,11 @@ let currentSearchQuery = ''; // Store current search query globally
       });
 
       if (activeExchange) {
-        console.log('🚫 Item is currently loaned out:', itemId, activeExchange);
+
         return true;
       }
 
-      console.log('✅ Item is available:', itemId);
+
       return false;
 
     } catch (error) {
@@ -677,7 +677,7 @@ let currentSearchQuery = ''; // Store current search query globally
 
   // Filter out loaned out items from the listings
   async function filterLoanedOutItems(items) {
-    console.log('🔍 Filtering out loaned out items from', items.length, 'items');
+
     
     const availableItems = [];
     
@@ -741,7 +741,7 @@ let currentSearchQuery = ''; // Store current search query globally
         allListings = availableItems;
       }
 
-      console.log(`Final listings after filtering: ${allListings.length} available items`);
+
       
       // Apply current filters (location, category, search) to the loaded items
       let filteredItems = allListings;
@@ -791,7 +791,7 @@ let currentSearchQuery = ''; // Store current search query globally
       
       // If we have a saved location filter, apply it after initial load
       if (currentLocationFilter && !loadMore) {
-        console.log('Applying saved location filter after initial load:', currentLocationFilter);
+
         // Re-apply filters with saved location immediately
         if (currentSearchQuery) {
           await performSearch(currentSearchQuery);
@@ -804,7 +804,7 @@ let currentSearchQuery = ''; // Store current search query globally
       console.error('Failed to load listings from API:', err);
 
       // No fallback file available
-      console.log('No fallback data available');
+
 
       allListings = [{
         id: 'sample1',
@@ -848,7 +848,7 @@ let currentSearchQuery = ''; // Store current search query globally
     
     // Set up new interval for 60 seconds (1 minute)
     autoRefreshInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing home page listings...');
+
       load();
     }, 60000);
     
@@ -859,7 +859,7 @@ let currentSearchQuery = ''; // Store current search query globally
     if (autoRefreshInterval) {
       clearInterval(autoRefreshInterval);
       autoRefreshInterval = null;
-      console.log('⏹️ Auto-refresh stopped for home page');
+
     }
   }
   
@@ -936,10 +936,10 @@ let currentSearchQuery = ''; // Store current search query globally
       // Save the location filter to localStorage
       saveLocationFilter(currentLocationFilter);
       
-      console.log('Applied location filter:', currentLocationFilter);
+
       
       // Close modal immediately
-      console.log('Closing location modal...');
+
       modal.classList.remove('active');
       
       // Show loading screen
@@ -970,15 +970,15 @@ let currentSearchQuery = ''; // Store current search query globally
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-  console.log('Checking authentication...');
+
   const token = localStorage.getItem('hippo_token');
   const userData = localStorage.getItem('hippo_user');
   
-  console.log('Token exists:', !!token);
-  console.log('User data exists:', !!userData);
+
+
   
   if (!token || !userData) {
-    console.log('No token or user data, redirecting to login');
+
     // No token or user data, redirect to login
     window.location.href = './Login.html';
     return;
@@ -987,14 +987,14 @@ async function checkAuthAndLoadUser() {
   // First, try to display user info from localStorage as a fallback
   try {
     const storedUser = JSON.parse(userData);
-    console.log('Stored user data:', storedUser);
+
     displayUserInfo(storedUser);
   } catch (error) {
     console.error('Error parsing stored user data:', error);
   }
   
   try {
-    console.log('Verifying token with /auth/me...');
+
     // Verify token is still valid by calling /auth/me
     const response = await fetch('/auth/me', {
       headers: {
@@ -1003,22 +1003,22 @@ async function checkAuthAndLoadUser() {
       }
     });
     
-    console.log('Auth response status:', response.status);
+
     
     if (!response.ok) {
-      console.log('Token invalid, but keeping stored user data for now');
+
       // Don't redirect immediately, keep the stored user data
       return;
     }
     
     const currentUser = await response.json();
-    console.log('Current user from /auth/me:', currentUser);
+
     displayUserInfo(currentUser);
     
   } catch (error) {
     console.error('Auth check failed:', error);
     // Don't redirect on network errors, keep the stored user data
-    console.log('Network error, keeping stored user data');
+
   }
 }
 
@@ -1035,13 +1035,13 @@ function displayUserInfo(user) {
     
     if (firstName && lastName) {
       accountNameElement.textContent = `${firstName} ${lastName}`;
-      console.log('Set name to:', `${firstName} ${lastName}`);
+
     } else if (email) {
       accountNameElement.textContent = email;
-      console.log('Set name to email:', email);
+
     } else {
       accountNameElement.textContent = 'User';
-      console.log('Set name to default: User');
+
     }
   } else {
     console.error('Account name element not found!');
@@ -1052,7 +1052,7 @@ function displayUserInfo(user) {
     const profilePic = user.ProfilePicture || user.profilePicture;
     if (window.generateProfilePictureHTML) {
       acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
-      console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
     } else {
       // Fallback if utility function not available
       if (profilePic && profilePic.trim()) {

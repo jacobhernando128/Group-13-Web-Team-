@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    console.log('Loading profile for user:', viewingUserId);
+
 
     // Check authentication for current user
     await checkAuthAndLoadCurrentUser();
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Set up new interval for 60 seconds (1 minute)
         autoRefreshInterval = setInterval(() => {
-            console.log('🔄 Auto-refreshing other user data...');
+
             loadUserProfile(viewingUserId);
             loadUserItems(viewingUserId);
             loadUserReviews(viewingUserId);
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (autoRefreshInterval) {
             clearInterval(autoRefreshInterval);
             autoRefreshInterval = null;
-            console.log('⏹️ Auto-refresh stopped for other user page');
+
         }
     }
     
@@ -138,16 +138,16 @@ async function checkAuthAndLoadCurrentUser() {
     const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
     const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
 
-    console.log('🔐 OtherUser Auth check - Token exists:', !!token, 'UserData exists:', !!userData);
+
 
     if (!token || !userData) {
-        console.log('No authentication found');
+
         return;
     }
 
     try {
         // First try to get fresh user data from API
-        console.log('🔐 Making auth request to /auth/me...');
+
         const response = await fetch(`${API_BASE_URL}/auth/me`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -155,11 +155,11 @@ async function checkAuthAndLoadCurrentUser() {
             }
         });
 
-        console.log('🔐 Auth response status:', response.status, response.statusText);
+
 
         if (response.ok) {
             const user = await response.json();
-            console.log('✅ Auth successful, user:', user);
+
             currentUserId = user.Id || user.id;
             updateSidebarAccount(user);
             return;
@@ -171,7 +171,7 @@ async function checkAuthAndLoadCurrentUser() {
     // Fallback to stored user data
     try {
         const storedUser = JSON.parse(userData);
-        console.log('⚠️ Using stored user data as fallback:', storedUser);
+
         currentUserId = storedUser.Id || storedUser.id;
         updateSidebarAccount(storedUser);
     } catch (error) {
@@ -208,7 +208,7 @@ async function loadUserProfile(userId) {
         }
 
         const user = await response.json();
-        console.log('Loaded user profile:', user);
+
 
         // Update profile info in the right sidebar
         updateProfileInfo(user);
@@ -299,7 +299,7 @@ async function loadUserItems(userId) {
         }
 
         const items = await response.json();
-        console.log('Loaded user items:', items);
+
 
         renderUserItems(Array.isArray(items) ? items : []);
 
@@ -386,13 +386,13 @@ async function loadUserReviews(userId) {
         });
 
         if (!response.ok) {
-            console.log('No reviews found or error loading reviews');
+
             displayReviews([]);
             return;
         }
 
         const reviews = await response.json();
-        console.log('Loaded reviews:', reviews);
+
         displayReviews(reviews);
         updateAverageRating(reviews);
 
@@ -408,7 +408,7 @@ async function displayReviews(reviews) {
     const reviewsCount = document.getElementById('reviews-count');
     if (!reviewsContainer) return;
 
-    console.log('Displaying reviews:', reviews);
+
 
     // Update reviews count
     if (reviewsCount) {
@@ -555,27 +555,27 @@ function setupReviewCreation() {
     const ratingStars = document.querySelectorAll('.star-rating');
     const reviewDescription = document.getElementById('review-description');
 
-    console.log('🔍 Setting up review creation...');
-    console.log('🔍 Current user ID:', currentUserId);
-    console.log('🔍 Viewing user ID:', viewingUserId);
-    console.log('🔍 Create review button found:', !!createReviewBtn);
+
+
+
+
 
     // Show/hide create review button based on whether user is viewing their own profile
     if (currentUserId && currentUserId !== viewingUserId) {
-        console.log('✅ Showing write review button - user is viewing someone else\'s profile');
+
         createReviewBtn.classList.remove('hidden');
     } else {
-        console.log('❌ Hiding write review button - reasons:');
-        console.log('  - Current user ID:', currentUserId);
-        console.log('  - Viewing user ID:', viewingUserId);
-        console.log('  - Are they the same?', currentUserId === viewingUserId);
+
+
+
+
     }
 
     // Open review modal
     if (createReviewBtn) {
-        console.log('🔍 Adding click event listener to create review button');
+
         createReviewBtn.addEventListener('click', () => {
-            console.log('🔍 Opening review modal...');
+
             reviewModal.classList.add('active');
             document.body.style.overflow = 'hidden';
         });
@@ -585,7 +585,7 @@ function setupReviewCreation() {
 
     // Close review modal
     const closeModal = () => {
-        console.log('🔍 Closing review modal...');
+
         reviewModal.classList.remove('active');
         document.body.style.overflow = '';
         resetReviewForm();
@@ -690,7 +690,7 @@ function resetReviewForm() {
 // Submit review to backend
 async function submitReview(rating, description) {
     const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-    console.log('🔍 Submitting review with:', { rating, description, currentUserId, viewingUserId, hasToken: !!token });
+
     
     if (!token) {
         alert('Please log in to submit a review');
@@ -710,7 +710,7 @@ async function submitReview(rating, description) {
             description: description
         };
         
-        console.log('🔍 Sending review data:', reviewData);
+
         
         const response = await fetch(`${API_BASE_URL}/reviews`, {
             method: 'POST',
@@ -721,7 +721,7 @@ async function submitReview(rating, description) {
             body: JSON.stringify(reviewData)
         });
 
-        console.log('🔍 Review submission response status:', response.status);
+
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -730,7 +730,7 @@ async function submitReview(rating, description) {
         }
 
         const result = await response.json();
-        console.log('✅ Review submitted successfully:', result);
+
 
         // Reload reviews to show the new one
         await loadUserReviews(viewingUserId);

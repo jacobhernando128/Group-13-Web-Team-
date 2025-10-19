@@ -103,7 +103,7 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
     // ===== CONFIGURATION =====
-    const API_BASE_URL = 'http://35.209.4.180:5000';
+    let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
     
     // ===== GLOBAL NOTIFICATIONS INTEGRATION =====
     // Clear notification badge when user visits notifications page
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ===== CROSS-PAGE SYNC =====
     // Listen for global refresh events
     window.addEventListener('notificationsUpdated', (event) => {
-        console.log('🔄 Notifications page received global refresh event');
+
         // Refresh the notifications list
         if (typeof loadNotifications === 'function') {
             loadNotifications();
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     
     window.addEventListener('assetHubRefresh', (event) => {
-        console.log('🔄 Notifications page received asset hub refresh event');
+
         // Refresh the notifications list when asset hub updates
         if (typeof loadNotifications === 'function') {
             loadNotifications();
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
 
     if (!token || !userData) {
-        console.log('❌ No authentication found, redirecting to login');
+
         window.location.href = './Login.html';
         return;
     }
@@ -168,12 +168,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         USER_ID = user.Id || user.id;
 
         if (!USER_ID) {
-            console.log('❌ No user ID found, redirecting to login');
+
             window.location.href = './Login.html';
             return;
         }
 
-        console.log('✅ Authenticated as user:', USER_ID);
+
         
         // Fetch fresh user data to get updated profile picture
         await fetchFreshUserData(USER_ID, token);
@@ -270,11 +270,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         if (notificationsToArchive.length === 0) {
-            console.log('📦 No old read notifications to archive');
+
             return 0;
         }
 
-        console.log(`📦 Auto-archiving ${notificationsToArchive.length} old read notifications`);
+
 
         let archivedCount = 0;
 
@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
 
                 if (response.ok) {
-                    console.log(`✅ Archived notification: ${notification.title}`);
+
                     archivedCount++;
                 } else {
                     console.warn(`⚠️ Failed to archive notification: ${notification.title}`);
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             isLoading = true;
             showLoadingState();
 
-            console.log('📥 Fetching notifications for user:', USER_ID);
+
 
             const res = await fetch(`${API_BASE_URL}/notifications/receiver/${USER_ID}`, {
                 method: 'GET',
@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const data = await res.json();
-            console.log('✅ Notifications fetched:', data);
+
 
             // Transform backend data to match UI expectations and fetch sender info
             const transformedNotifications = await Promise.all(data.map(async n => {
@@ -395,7 +395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Re-fetch notifications after archiving to get updated list
             if (archivedCount > 0) {
-                console.log('🔄 Re-fetching notifications after archiving...');
+
                 // Re-fetch to get the updated list without archived notifications
                 const res = await fetch(`${API_BASE_URL}/notifications/receiver/${USER_ID}`, {
                     method: 'GET',
@@ -1143,12 +1143,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             default:
                 const defaultUrl = listingId ? `./listing.html?id=${listingId}` : './profile.html';
-                console.log('🔧 generateActionUrl default case:', defaultUrl);
+
                 return defaultUrl;
         }
         
         // This should never be reached, but just in case
-        console.log('🔧 generateActionUrl fallback:', './profile.html');
+
         return './profile.html';
     }
 
@@ -1652,8 +1652,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         li.dataset.notificationId = notification.id;
 
         // Profile picture - use otheruser.html
-        console.log('🔍 Generating profile picture for:', notification.senderName, 'Avatar:', notification.senderAvatar);
-        console.log('🔍 generateProfilePictureHTML function available:', typeof generateProfilePictureHTML);
+
+
         
         const avatarHtml = `<a href="./otheruser.html?userId=${notification.senderId}" class="profile-link" title="View ${notification.senderName}'s profile">
         ${typeof generateProfilePictureHTML === 'function' ? 
@@ -1716,28 +1716,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Add click handler for the main notification area (excluding profile link, toggle button, and accept/decline buttons)
         const notificationContent = li.querySelector('.notification-content');
         notificationContent.addEventListener('click', (e) => {
-            console.log('🔍 Notification clicked:', notification);
-            console.log('🔍 Action URL:', notification.actionUrl);
+
+
             
             // Don't trigger if clicking on the toggle button, profile link, or accept/decline buttons
             if (e.target.closest('.toggle-read-btn') ||
                 e.target.closest('.profile-link') ||
                 e.target.closest('.accept-btn') ||
                 e.target.closest('.decline-btn')) {
-                console.log('🚫 Click blocked - clicked on excluded element');
+
                 return;
             }
 
-            console.log('✅ Processing notification click');
+
             
             // Mark as read and navigate
             markAsRead(notification.id);
 
             if (notification.actionUrl) {
-                console.log('🚀 Navigating to:', notification.actionUrl);
+
                 window.location.href = notification.actionUrl;
             } else {
-                console.log('⚠️ No action URL found for notification');
+
             }
         });
 
@@ -1783,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const borrowerId = btn.dataset.borrowerId;
         const notificationId = btn.dataset.notificationId;
 
-        console.log(`🎯 ${isAccept ? 'Accept' : 'Decline'} clicked for item: ${itemId}, borrower: ${borrowerId}`);
+
 
         // Disable buttons immediately
         const containerLi = btn.closest('li');
@@ -1801,12 +1801,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             // STEP 1: Find the exchange
-            console.log('📥 Fetching exchanges for owner:', USER_ID);
+
             const exRes = await fetch(`${API_BASE_URL}/exchanges/owner/${USER_ID}`);
             if (!exRes.ok) throw new Error('Failed to load exchanges');
 
             const exchanges = await exRes.json();
-            console.log('📦 Exchanges:', exchanges);
+
 
             const exchange = exchanges.find(ex => {
                 const exItem = ex.itemId || ex.ItemId || ex.itemID || ex.ItemID;
@@ -1819,7 +1819,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const exchangeId = exchange.id || exchange.Id;
-            console.log('✅ Found exchange:', exchangeId);
+
 
             // STEP 2: Update exchange (approve/decline)
             const approvalBody = isAccept
@@ -1830,7 +1830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 : { Approved: false };
 
-            console.log('📤 Updating exchange:', approvalBody);
+
 
             const putRes = await fetch(`${API_BASE_URL}/exchanges/${exchangeId}/approval`, {
                 method: 'PUT',
@@ -1851,14 +1851,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // STEP 3: Dismiss the original exchange_request notification
-            console.log('🗑️ Dismissing original notification:', notificationId);
+
             try {
                 const dismissRes = await fetch(`${API_BASE_URL}/notifications/${notificationId}/dismiss`, {
                     method: 'PUT'
                 });
 
                 if (dismissRes.ok) {
-                    console.log('✅ Original notification dismissed');
+
                 } else {
                     console.warn('⚠️ Failed to dismiss notification');
                 }
@@ -1883,12 +1883,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // STEP 5: Refresh the notifications list after a short delay
-            console.log('🔄 Refreshing notifications in 2 seconds...');
+
             setTimeout(() => {
                 fetchNotifications();
             }, 2000);
 
-            console.log('✅ All done!');
+
 
         } catch (err) {
             console.error('❌ Error:', err);
@@ -1913,7 +1913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         button.addEventListener('click', () => {
             activeFilter = button.dataset.filter;
 
-            console.log('📊 Filter changed to:', activeFilter);
+
 
             // Update button styles
             filterButtons.forEach(btn => {
@@ -1948,14 +1948,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ===== INITIALIZATION =====
-    console.log('✅ Notifications page initialized');
-    console.log('🔑 User ID:', USER_ID);
+
+
     fetchNotifications();
 
     // Auto-refresh notifications every 60 seconds (1 minute)
     setInterval(() => {
         if (!isLoading) {
-            console.log('🔄 Auto-refreshing notifications...');
+
             fetchNotifications();
         }
     }, 60000);
@@ -2059,7 +2059,7 @@ async function refreshUserProfile() {
         if (response.ok) {
             const updatedUser = await response.json();
             localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
-            console.log('🔄 Refreshed user profile data:', updatedUser);
+
         }
     } catch (error) {
         console.error('Error refreshing user profile:', error);
@@ -2069,7 +2069,7 @@ async function refreshUserProfile() {
 // Fetch fresh user data from API
 async function fetchFreshUserData(userId, token) {
     try {
-        console.log('🔄 Fetching fresh user data for:', userId);
+
         const response = await fetch(`http://localhost:5000/users/${userId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -2079,7 +2079,7 @@ async function fetchFreshUserData(userId, token) {
 
         if (response.ok) {
             const freshUser = await response.json();
-            console.log('✅ Fresh user data received:', freshUser);
+
             
             // Update localStorage with fresh data
             localStorage.setItem('hippo_user', JSON.stringify(freshUser));
@@ -2102,7 +2102,7 @@ async function fetchFreshUserData(userId, token) {
 
 // Display user info in sidebar
 function displayUserInfo(user) {
-    console.log('Displaying user info:', user);
+
     
     // Update account name
     const acctName = document.getElementById('acct-name');
@@ -2121,7 +2121,7 @@ function displayUserInfo(user) {
       const profilePic = user.ProfilePicture || user.profilePicture;
       if (window.generateProfilePictureHTML) {
         acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
-        console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
       } else {
         // Fallback if utility function not available
         if (profilePic && profilePic.trim()) {

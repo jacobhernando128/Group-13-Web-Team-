@@ -1,5 +1,5 @@
 // login.js
-console.log("login.js loaded at", location.href);
+
 
 (() => {
   // ---- API base ----

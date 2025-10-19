@@ -1,4 +1,4 @@
-﻿// profile.js - Handles user profile page functionality
+// profile.js - Handles user profile page functionality
 
 let currentProfilePicture = null; // Store the selected profile picture temporarily
 let currentProfilePictureFile = null; // Store the actual file object
@@ -7,9 +7,9 @@ let lastSaveTime = 0; // Cooldown tracking
 const SAVE_COOLDOWN_MS = 5000; // 5 seconds cooldown
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const API_BASE_URL = 'http://35.209.4.180:5000';
+    let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 
-    console.log('Profile page loaded, starting authentication check...');
+
 
     // Check authentication FIRST and get user data
     await checkAuthAndLoadUser();
@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const user = JSON.parse(userData);
             viewingUserId = user.Id || user.id;
             currentUserId = viewingUserId;
-            console.log('Got userId from localStorage:', viewingUserId);
+
         } catch (error) {
             console.error('Error parsing user data:', error);
         }
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentUserId = viewingUserId;
     }
 
-    console.log('Using User ID:', viewingUserId);
+
 
     // Mobile menu functionality
     setupMobileMenu();
@@ -63,19 +63,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Set up new interval for 60 seconds (1 minute)
         autoRefreshInterval = setInterval(() => {
-            console.log('🔄 Auto-refreshing profile data...');
+
             loadUserProfile(viewingUserId, API_BASE_URL);
             loadUserReviews(viewingUserId, API_BASE_URL);
         }, 60000);
         
-        console.log('✅ Auto-refresh started for profile (60 seconds)');
+        console.log('? Auto-refresh started for profile (60 seconds)');
     }
     
     function stopAutoRefresh() {
         if (autoRefreshInterval) {
             clearInterval(autoRefreshInterval);
             autoRefreshInterval = null;
-            console.log('⏹️ Auto-refresh stopped for profile');
+
         }
     }
     
@@ -148,7 +148,7 @@ async function loadUserProfile(userId, apiUrl) {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
-        console.log('Fetching user profile for:', userId);
+
         const response = await fetch(`${apiUrl}/users/${userId}`, { headers });
 
         if (!response.ok) {
@@ -156,7 +156,7 @@ async function loadUserProfile(userId, apiUrl) {
         }
 
         const user = await response.json();
-        console.log('Loaded user profile:', user);
+
 
         // Store in localStorage for persistence
         localStorage.setItem('hippo_user', JSON.stringify(user));
@@ -196,19 +196,19 @@ function populateProfileForm(user) {
 
     if (firstNameInput) {
         firstNameInput.value = firstName;
-        console.log('Set first name:', firstName);
+
     }
     if (lastNameInput) {
         lastNameInput.value = lastName;
-        console.log('Set last name:', lastName);
+
     }
     if (emailInput) {
         emailInput.value = email;
-        console.log('Set email:', email);
+
     }
     if (bioInput) {
         bioInput.value = bio;
-        console.log('Set bio:', bio);
+
     }
 
     updateCharacterCount();
@@ -228,7 +228,7 @@ function updateAccountSection(user) {
 
     if (acctName) {
         acctName.textContent = fullName;
-        console.log('Updated sidebar name to:', fullName);
+
     }
     if (acctRank) acctRank.textContent = calculateRank(user);
     if (acctBalance) {
@@ -344,10 +344,10 @@ async function handleSaveProfile(userId, apiUrl) {
     // Add profile picture file if one was selected
     if (currentProfilePictureFile) {
         formData.append('file', currentProfilePictureFile);
-        console.log('Adding profile picture file to upload');
+
     }
 
-    console.log('Saving profile with FormData...');
+
 
     try {
         const token = localStorage.getItem('hippo_token');
@@ -369,7 +369,7 @@ async function handleSaveProfile(userId, apiUrl) {
 
         if (response.ok) {
             const updatedUser = await response.json();
-            console.log('Profile updated successfully:', updatedUser);
+
 
             // Update localStorage with new data
             localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
@@ -403,13 +403,13 @@ async function loadUserReviews(userId, apiUrl) {
         });
 
         if (!response.ok) {
-            console.log('No reviews found or error loading reviews');
+
             displayReviews([]);
             return;
         }
 
         const reviews = await response.json();
-        console.log('Loaded reviews:', reviews);
+
         displayReviews(reviews);
         updateRatingDisplay(reviews);
 
@@ -424,7 +424,7 @@ async function displayReviews(reviews) {
     const reviewsContainer = document.getElementById('reviews-container');
     if (!reviewsContainer) return;
 
-    console.log('Displaying reviews:', reviews);
+
 
     // Clear the container first
     reviewsContainer.innerHTML = '';
@@ -480,7 +480,7 @@ async function displayReviews(reviews) {
                         ${generateStarRating(rating, 'sm')}
                     </div>
                     <span class="text-slate-700 font-semibold text-sm">${ratingText}</span>
-                    <span class="text-xs text-slate-500">· ${timeAgo}</span>
+                    <span class="text-xs text-slate-500">� ${timeAgo}</span>
                 </div>
                 <p class="text-slate-700 text-sm leading-relaxed">${escapeHtml(description)}</p>
             </div>
@@ -617,7 +617,7 @@ function updateProfilePicturePreview(pictureUrl, user = null) {
     `;
     
     currentProfilePicture = pictureUrl;
-    console.log('Updated profile picture preview:', pictureUrl || 'none');
+
 }
 
 // Validate email
@@ -663,15 +663,15 @@ function handleSignOut() {
 
 // Authentication and user data functions (matching home.js pattern)
 async function checkAuthAndLoadUser() {
-    console.log('Checking authentication...');
+
     const token = localStorage.getItem('hippo_token');
     const userData = localStorage.getItem('hippo_user');
 
-    console.log('Token exists:', !!token);
-    console.log('User data exists:', !!userData);
+
+
 
     if (!token || !userData) {
-        console.log('No token or user data, redirecting to login');
+
         window.location.href = './Login.html';
         return;
     }
@@ -679,14 +679,14 @@ async function checkAuthAndLoadUser() {
     // First, display user info from localStorage
     try {
         const storedUser = JSON.parse(userData);
-        console.log('Stored user data:', storedUser);
+
         displayUserInfo(storedUser);
     } catch (error) {
         console.error('Error parsing stored user data:', error);
     }
 
     try {
-        console.log('Verifying token with /auth/me...');
+
         const response = await fetch('http://localhost:5000/auth/me', {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -694,25 +694,25 @@ async function checkAuthAndLoadUser() {
             }
         });
 
-        console.log('Auth response status:', response.status);
+
 
         if (!response.ok) {
-            console.log('Token invalid, but keeping stored user data for now');
+
             return;
         }
 
         const currentUser = await response.json();
-        console.log('Current user from /auth/me:', currentUser);
+
         displayUserInfo(currentUser);
 
     } catch (error) {
         console.error('Auth check failed:', error);
-        console.log('Network error, keeping stored user data');
+
     }
 }
 
 function displayUserInfo(user) {
-    console.log('Displaying user info:', user);
+
 
     const accountNameElement = document.getElementById('acct-name');
     if (accountNameElement) {
@@ -722,13 +722,13 @@ function displayUserInfo(user) {
 
         if (firstName && lastName) {
             accountNameElement.textContent = `${firstName} ${lastName}`;
-            console.log('Set name to:', `${firstName} ${lastName}`);
+
         } else if (email) {
             accountNameElement.textContent = email;
-            console.log('Set name to email:', email);
+
         } else {
             accountNameElement.textContent = 'User';
-            console.log('Set name to default: User');
+
         }
     } else {
         console.error('Account name element not found!');

@@ -23,41 +23,41 @@ class AssetHub {
         
         // Add test function to global scope for debugging
         window.testAssetHubButtons = () => {
-            console.log('🧪 Testing Asset Hub buttons...');
+
             const ownedItems = this.ownedItems;
             if (ownedItems.length > 0) {
-                console.log('🧪 Found owned items:', ownedItems);
+
                 const firstItem = ownedItems[0];
-                console.log('🧪 Testing with first item:', firstItem);
+
                 
                 // Test edit modal
-                console.log('🧪 Testing edit modal...');
+
                 this.openEditModal(firstItem);
                 
                 // Test maintenance modal after a delay
                 setTimeout(() => {
-                    console.log('🧪 Testing maintenance modal...');
+
                     this.openMaintenanceModal(firstItem);
                 }, 2000);
             } else {
-                console.log('🧪 No owned items found to test with');
+
             }
         };
         
         // Add simple modal test function
         window.testModal = () => {
-            console.log('🧪 Testing modal directly...');
+
             
             // Wait for DOM to be ready
             setTimeout(() => {
                 const modal = document.getElementById('maintenance-modal');
-                console.log('🧪 Looking for modal with ID: maintenance-modal');
+
                 console.log('🧪 All elements with modal in ID:', document.querySelectorAll('[id*="modal"]'));
                 
                 if (modal) {
-                    console.log('🧪 Modal found:', modal);
+
                     console.log('🧪 Modal current display:', window.getComputedStyle(modal).display);
-                    console.log('🧪 Modal current classes:', modal.className);
+
                     
                     // Force modal to be visible
                     modal.style.display = 'flex';
@@ -70,19 +70,19 @@ class AssetHub {
                     modal.style.zIndex = '9999';
                     modal.classList.add('active');
                     
-                    console.log('🧪 Modal should be visible now');
+
                     console.log('🧪 Modal new display:', window.getComputedStyle(modal).display);
-                    console.log('🧪 Modal new classes:', modal.className);
+
                 } else {
-                    console.log('🧪 Modal not found!');
+
                     console.log('🧪 Available modals:', document.querySelectorAll('[id*="modal"]'));
                     
                     // Try to find any modal
                     const allModals = document.querySelectorAll('.modal-overlay');
-                    console.log('🧪 All modal overlays found:', allModals);
+
                     
                     if (allModals.length > 0) {
-                        console.log('🧪 Found modal overlays, trying first one...');
+
                         const firstModal = allModals[0];
                         firstModal.style.display = 'flex';
                         firstModal.style.position = 'fixed';
@@ -93,7 +93,7 @@ class AssetHub {
                         firstModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
                         firstModal.style.zIndex = '9999';
                         firstModal.classList.add('active');
-                        console.log('🧪 First modal should be visible now');
+
                     }
                 }
             }, 100);
@@ -101,17 +101,17 @@ class AssetHub {
         
         // Add function to check modal HTML
         window.checkModalHTML = () => {
-            console.log('🔍 Checking modal HTML...');
+
             const modal = document.getElementById('maintenance-modal');
             if (modal) {
-                console.log('✅ Modal HTML found:', modal);
+
                 console.log('🔍 Modal HTML content:', modal.outerHTML.substring(0, 200) + '...');
                 console.log('🔍 Modal current display:', window.getComputedStyle(modal).display);
                 console.log('🔍 Modal current visibility:', window.getComputedStyle(modal).visibility);
                 console.log('🔍 Modal current opacity:', window.getComputedStyle(modal).opacity);
                 console.log('🔍 Modal current z-index:', window.getComputedStyle(modal).zIndex);
             } else {
-                console.log('❌ Modal HTML not found!');
+
                 console.log('🔍 All elements with "maintenance" in ID:', document.querySelectorAll('[id*="maintenance"]'));
                 console.log('🔍 All elements with "modal" in ID:', document.querySelectorAll('[id*="modal"]'));
                 console.log('🔍 All modal-overlay elements:', document.querySelectorAll('.modal-overlay'));
@@ -120,11 +120,11 @@ class AssetHub {
         
         // Add function to close modal
         window.closeModal = () => {
-            console.log('🚪 Closing modal...');
+
             if (window.assetHub) {
                 window.assetHub.closeMaintenanceModal();
             } else {
-                console.log('🚪 AssetHub instance not found, trying direct close...');
+
                 const modal = document.getElementById('maintenance-modal');
                 if (modal) {
                     modal.style.display = 'none';
@@ -132,18 +132,18 @@ class AssetHub {
                     modal.style.opacity = '0';
                     modal.style.zIndex = '-1';
                     modal.classList.remove('active');
-                    console.log('🚪 Modal closed directly');
+
                 }
             }
         };
         
         // Add function to close edit modal
         window.closeEditModal = () => {
-            console.log('🚪 Closing edit modal...');
+
             if (window.assetHub) {
                 window.assetHub.closeEditModal();
             } else {
-                console.log('🚪 AssetHub instance not found, trying direct close...');
+
                 const modal = document.getElementById('edit-item-modal');
                 if (modal) {
                     modal.style.display = 'none';
@@ -151,17 +151,17 @@ class AssetHub {
                     modal.style.opacity = '0';
                     modal.style.zIndex = '-1';
                     modal.classList.remove('active');
-                    console.log('🚪 Edit modal closed directly');
+
                 }
             }
         };
         
         // Add function to force show modal
         window.forceShowModal = () => {
-            console.log('🚀 Force showing modal...');
+
             const modal = document.getElementById('maintenance-modal');
             if (modal) {
-                console.log('🚀 Modal found, forcing visibility...');
+
                 
                 // Remove all possible hiding classes
                 modal.classList.remove('hidden');
@@ -184,36 +184,36 @@ class AssetHub {
                 // Add active class
                 modal.classList.add('active');
                 
-                console.log('🚀 Modal should be visible now!');
+
                 console.log('🚀 Modal display:', window.getComputedStyle(modal).display);
                 console.log('🚀 Modal visibility:', window.getComputedStyle(modal).visibility);
                 console.log('🚀 Modal opacity:', window.getComputedStyle(modal).opacity);
             } else {
-                console.log('🚀 Modal not found!');
+
             }
         };
         
         // Add function to check all maintenance buttons
         window.checkMaintenanceButtons = () => {
-            console.log('🔍 Checking all maintenance buttons...');
+
             const maintenanceButtons = document.querySelectorAll('.maintenance-btn');
-            console.log('🔍 Found maintenance buttons:', maintenanceButtons.length);
+
             
             maintenanceButtons.forEach((btn, index) => {
-                console.log(`🔍 Button ${index + 1}:`, btn);
+
                 console.log(`🔍 Button ${index + 1} data-item-id:`, btn.getAttribute('data-item-id'));
-                console.log(`🔍 Button ${index + 1} classes:`, btn.className);
-                console.log(`🔍 Button ${index + 1} attributes:`, btn.attributes);
+
+
             });
         };
         
         // Add function to force-set data-item-id on all buttons
         window.fixButtonDataIds = () => {
-            console.log('🔧 Fixing data-item-id on all buttons...');
+
             
             // Find all item cards
             const itemCards = document.querySelectorAll('.item-card');
-            console.log('🔧 Found item cards:', itemCards.length);
+
             
             itemCards.forEach((card, cardIndex) => {
                 // Try to find the item ID from the card's data attributes or other elements
@@ -221,7 +221,7 @@ class AssetHub {
                               card.querySelector('[data-item-id]')?.getAttribute('data-item-id') ||
                               `item-${cardIndex}`;
                 
-                console.log(`🔧 Processing card ${cardIndex + 1}, item ID:`, itemId);
+
                 
                 // Set data-item-id on all buttons in this card
                 const editBtn = card.querySelector('.edit-btn');
@@ -230,60 +230,60 @@ class AssetHub {
                 
                 if (editBtn) {
                     editBtn.setAttribute('data-item-id', itemId);
-                    console.log(`🔧 Set data-item-id on edit button:`, itemId);
+
                 }
                 if (maintenanceBtn) {
                     maintenanceBtn.setAttribute('data-item-id', itemId);
-                    console.log(`🔧 Set data-item-id on maintenance button:`, itemId);
+
                 }
                 if (deleteBtn) {
                     deleteBtn.setAttribute('data-item-id', itemId);
-                    console.log(`🔧 Set data-item-id on delete button:`, itemId);
+
                 }
             });
             
-            console.log('🔧 Finished fixing button data-item-id attributes');
+
         };
         
         // Add global event delegation as backup
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('edit-btn')) {
-                console.log('🔧 Global edit button click detected!');
+
                 const itemId = e.target.getAttribute('data-item-id');
-                console.log('🔧 Item ID from button:', itemId);
-                console.log('🔧 Available owned items:', this.ownedItems);
+
+
                 
                 const item = this.ownedItems.find(i => i.id === itemId);
                 if (item) {
-                    console.log('🔧 Found item for edit:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('🔧 About to call openEditModal...');
+
                     this.openEditModal(item);
-                    console.log('🔧 openEditModal called');
+
                 } else {
-                    console.log('🔧 Item not found for edit');
+
                 }
             }
             
             if (e.target.classList.contains('maintenance-btn')) {
-                console.log('🔧 Global maintenance button click detected!');
-                console.log('🔧 Clicked button element:', e.target);
-                console.log('🔧 Button attributes:', e.target.attributes);
+
+
+
                 const itemId = e.target.getAttribute('data-item-id');
-                console.log('🔧 Item ID from button:', itemId);
-                console.log('🔧 Available owned items:', this.ownedItems);
+
+
                 
                 const item = this.ownedItems.find(i => i.id === itemId);
                 if (item) {
-                    console.log('🔧 Found item for maintenance:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('🔧 About to call openMaintenanceModal...');
+
                     this.openMaintenanceModal(item);
-                    console.log('🔧 openMaintenanceModal called');
+
                 } else {
-                    console.log('🔧 Item not found for maintenance');
+
                 }
             }
         });
@@ -294,7 +294,7 @@ class AssetHub {
         const tab = urlParams.get('tab');
         
         if (tab === 'pending') {
-            console.log('🎯 URL parameter found - opening pending requests tab');
+
             // Wait for the page to load, then switch to pending tab
             setTimeout(() => {
                 this.switchToPendingTab();
@@ -306,7 +306,7 @@ class AssetHub {
         // Find and click the "My Items" tab button
         const myItemsTab = document.querySelector('[data-tab="my-items"]');
         if (myItemsTab) {
-            console.log('🔄 Switching to My Items tab');
+
             myItemsTab.click();
             
             // Then scroll to or highlight pending requests section
@@ -373,7 +373,7 @@ class AssetHub {
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('🔔 Maintenance check result:', result);
+
                 
                 if (result.notificationsCreated > 0) {
                     // Trigger global notification refresh if notifications were created
@@ -398,7 +398,7 @@ class AssetHub {
         
         // Set up new interval for 60 seconds (1 minute)
         this.autoRefreshInterval = setInterval(() => {
-            console.log('🔄 Auto-refreshing asset hub data...');
+
             this.loadUserAssets();
             this.checkDueMaintenance();
         }, 60000);
@@ -410,7 +410,7 @@ class AssetHub {
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
             this.autoRefreshInterval = null;
-            console.log('⏹️ Auto-refresh stopped for asset hub');
+
         }
     }
 
@@ -418,12 +418,12 @@ class AssetHub {
         const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
         const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
 
-        console.log('Asset Hub: Checking authentication...');
-        console.log('Token exists:', !!token);
-        console.log('User data exists:', !!userData);
+
+
+
 
         if (!token || !userData) {
-            console.log('No authentication data found, redirecting to login...');
+
             window.location.href = './Login.html';
             return;
         }
@@ -438,11 +438,11 @@ class AssetHub {
                 }
             });
 
-            console.log('Auth response status:', response.status);
+
 
             if (response.ok) {
                 const user = await response.json();
-                console.log('Current user from /auth/me:', user);
+
                 this.currentUser = user;
                 this.currentUserId = user?.Id || user?.id || user?.userId;
                 this.displayUserInfo(user);
@@ -450,7 +450,7 @@ class AssetHub {
                 // Fetch fresh user data to get updated profile picture
                 await this.fetchFreshUserData(this.currentUserId, token);
             } else {
-                console.log('Token invalid, response status:', response.status);
+
                 this.clearAuthData();
                 window.location.href = './Login.html';
             }
@@ -462,7 +462,7 @@ class AssetHub {
     }
 
     displayUserInfo(user) {
-        console.log('Displaying user info:', user);
+
 
         // Check for both uppercase and lowercase property names
         const displayName = user?.FirstName && user?.LastName
@@ -471,14 +471,14 @@ class AssetHub {
                 ? `${user.firstName} ${user.lastName}`
                 : user?.email || 'User';
 
-        console.log('Computed display name:', displayName);
+
 
         // Update account name
         const acctNameEl = document.getElementById('acct-name');
         if (acctNameEl) {
-            console.log('Account name element found:', !!acctNameEl);
+
             acctNameEl.textContent = displayName;
-            console.log('Set account name to:', displayName);
+
         }
 
         // Update account rank (you can customize this logic)
@@ -495,7 +495,7 @@ class AssetHub {
             const profilePic = user?.ProfilePicture || user?.profilePicture;
             if (window.generateProfilePictureHTML) {
                 acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
-                console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
             } else {
                 // Fallback if utility function not available
                 if (profilePic && profilePic.trim()) {
@@ -511,7 +511,7 @@ class AssetHub {
     // Fetch fresh user data from API
     async fetchFreshUserData(userId, token) {
         try {
-            console.log('🔄 Fetching fresh user data for:', userId);
+
             const response = await fetch(`${this.API_BASE_URL}/users/${userId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -521,7 +521,7 @@ class AssetHub {
 
             if (response.ok) {
                 const freshUser = await response.json();
-                console.log('✅ Fresh user data received:', freshUser);
+
                 
                 // Update localStorage with fresh data
                 localStorage.setItem('hippo_user', JSON.stringify(freshUser));
@@ -603,19 +603,19 @@ class AssetHub {
         // ===== CROSS-PAGE SYNC =====
         // Listen for global refresh events from other pages
         window.addEventListener('notificationsUpdated', (event) => {
-            console.log('🔄 Asset Hub received notifications update event');
+
             // Refresh all data when notifications are updated
             this.loadUserAssets();
         });
         
         window.addEventListener('assetHubRefresh', (event) => {
-            console.log('🔄 Asset Hub received asset hub refresh event');
+
             // Refresh all data when asset hub is updated from another page
             this.loadUserAssets();
         });
         document.getElementById('cancel-maintenance').addEventListener('click', () => this.closeMaintenanceModal());
         document.getElementById('maintenance-form').addEventListener('submit', (e) => {
-            console.log('🔧 Form submit event triggered');
+
             this.handleMaintenanceSubmit(e);
         });
 
@@ -797,7 +797,7 @@ class AssetHub {
 
     async loadUserAssets() {
         if (!this.currentUserId) {
-            console.log('No authenticated user, using placeholder data');
+
             this.ownedItems = this.getPlaceholderOwnedItems();
             this.borrowedItems = this.getPlaceholderBorrowedItems();
             this.renderOwnedItems();
@@ -819,16 +819,16 @@ class AssetHub {
 
             if (ownedResponse.ok) {
                 const allItems = await ownedResponse.json();
-                console.log('📦 Asset Hub - All items from API:', allItems);
+
                 
                 // Filter items by current user ID
                 this.ownedItems = allItems.items ? allItems.items.filter(item =>
                     item.userId === this.currentUserId || item.ownerId === this.currentUserId
                 ) : [];
                 
-                console.log('📦 Asset Hub - Filtered owned items:', this.ownedItems);
+
             } else {
-                console.log('Failed to load owned items, using placeholder data');
+
                 this.ownedItems = this.getPlaceholderOwnedItems();
             }
             this.renderOwnedItems();
@@ -871,7 +871,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            console.log('🔍 Fetching borrowed items for user:', this.currentUserId);
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/borrower/${this.currentUserId}`, {
                 headers: {
@@ -880,11 +880,11 @@ class AssetHub {
                 }
             });
 
-            console.log('📡 Borrowed items response status:', response.status);
+
 
             if (response.ok) {
                 const exchanges = await response.json();
-                console.log('✅ Exchanges received:', exchanges);
+
 
                 // Fetch actual item details and owner names for each exchange
                 const borrowedItems = [];
@@ -895,8 +895,13 @@ class AssetHub {
                         continue;
                     }
                     
+                    // Skip exchanges that have been returned (returnConfirmed is not null)
+                    if (exchange.returnConfirmed !== null && exchange.returnConfirmed !== undefined) {
+                        continue;
+                    }
+                    
                     try {
-                        console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
+
                         const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -906,12 +911,12 @@ class AssetHub {
 
                         if (itemResponse.ok) {
                             const item = await itemResponse.json();
-                            console.log('✅ Item details received:', item);
+
 
                             // Fetch owner details
                             let ownerName = 'Unknown Owner';
                             try {
-                                console.log('🔍 Fetching owner details for:', exchange.OwnerId || exchange.ownerId);
+
                                 const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
@@ -921,7 +926,7 @@ class AssetHub {
 
                                 if (ownerResponse.ok) {
                                     const owner = await ownerResponse.json();
-                                    console.log('✅ Owner details received:', owner);
+
                                     ownerName = owner.name || `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email || 'Unknown Owner';
                                 } else {
                                     console.warn('⚠️ Failed to fetch owner details, status:', ownerResponse.status);
@@ -965,7 +970,7 @@ class AssetHub {
                             // Still try to fetch owner name even if item details fail
                             let ownerName = 'Unknown Owner';
                             try {
-                                console.log('🔍 Fetching owner details for fallback:', exchange.OwnerId || exchange.ownerId);
+
                                 const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
@@ -975,7 +980,7 @@ class AssetHub {
 
                                 if (ownerResponse.ok) {
                                     const owner = await ownerResponse.json();
-                                    console.log('✅ Owner details received for fallback:', owner);
+
                                     ownerName = owner.name || `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email || 'Unknown Owner';
                                 }
                             } catch (ownerError) {
@@ -1006,7 +1011,7 @@ class AssetHub {
                         // Still try to fetch owner name even if everything fails
                         let ownerName = 'Unknown Owner';
                         try {
-                            console.log('🔍 Fetching owner details for error fallback:', exchange.OwnerId || exchange.ownerId);
+
                             const ownerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.OwnerId || exchange.ownerId}`, {
                                 headers: {
                                     'Authorization': `Bearer ${token}`,
@@ -1016,7 +1021,7 @@ class AssetHub {
 
                             if (ownerResponse.ok) {
                                 const owner = await ownerResponse.json();
-                                console.log('✅ Owner details received for error fallback:', owner);
+
                                 ownerName = owner.name || `${owner.firstName || ''} ${owner.lastName || ''}`.trim() || owner.email || 'Unknown Owner';
                             }
                         } catch (ownerError) {
@@ -1043,7 +1048,7 @@ class AssetHub {
                     }
                 }
 
-                console.log('✅ Final borrowed items:', borrowedItems);
+
                 return borrowedItems;
             } else {
                 console.error('❌ Failed to fetch exchanges:', response.status);
@@ -1180,7 +1185,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            console.log('🔍 Fetching requested items for user:', this.currentUserId);
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/owner/${this.currentUserId}`, {
                 headers: {
@@ -1189,12 +1194,12 @@ class AssetHub {
                 }
             });
 
-            console.log('📡 Requested items response status:', response.status);
+
 
             if (response.ok) {
                 const exchanges = await response.json();
-                console.log('✅ All exchanges received:', exchanges);
-                console.log('📊 Total exchanges count:', exchanges.length);
+
+
 
                 // Log each exchange for debugging
                 exchanges.forEach((exchange, index) => {
@@ -1213,14 +1218,14 @@ class AssetHub {
                     !exchange?.approved && !exchange?.Approved
                 );
 
-                console.log('📋 Pending exchanges after filtering:', pendingExchanges);
-                console.log('📊 Pending exchanges count:', pendingExchanges.length);
+
+
 
                 // Fetch actual item details and borrower names for each exchange
                 const requestedItems = [];
                 for (const exchange of pendingExchanges) {
                     try {
-                        console.log('🔍 Fetching item details for exchange:', exchange.ItemId || exchange.itemId);
+
                         const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -1230,13 +1235,13 @@ class AssetHub {
 
                         if (itemResponse.ok) {
                             const item = await itemResponse.json();
-                            console.log('✅ Item details received:', item);
+
 
                             // Fetch borrower details
                             let borrowerName = 'Unknown Borrower';
                             let borrowerAvatar = null;
                             try {
-                                console.log('🔍 Fetching borrower details for:', exchange.BorrowerId || exchange.borrowerId);
+
                                 const borrowerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
@@ -1246,7 +1251,7 @@ class AssetHub {
 
                                 if (borrowerResponse.ok) {
                                     const borrower = await borrowerResponse.json();
-                                    console.log('✅ Borrower details received:', borrower);
+
                                     borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
                                     borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
                                 }
@@ -1277,10 +1282,10 @@ class AssetHub {
                     }
                 }
 
-                console.log('✅ Final requested items:', requestedItems);
+
                 return requestedItems;
             } else {
-                console.log('Failed to load requested items');
+
                 return [];
             }
         } catch (error) {
@@ -1296,7 +1301,7 @@ class AssetHub {
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-            console.log('🔍 Fetching loaned out items for user:', this.currentUserId);
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/owner/${this.currentUserId}`, {
                 headers: {
@@ -1305,15 +1310,16 @@ class AssetHub {
                 }
             });
 
-            console.log('📡 Loaned out items response status:', response.status);
+
 
             if (response.ok) {
                 const exchanges = await response.json();
-                console.log('✅ Exchanges received for loaned items:', exchanges);
 
-                // Filter for approved exchanges (loaned out items)
+
+                // Filter for approved exchanges (loaned out items) that haven't been returned
                 const approvedExchanges = exchanges.filter(exchange => 
-                    (exchange?.approved === true || exchange?.Approved === true)
+                    (exchange?.approved === true || exchange?.Approved === true) &&
+                    (exchange.returnConfirmed === null || exchange.returnConfirmed === undefined)
                 );
 
                 console.log('📋 Approved exchanges (loaned out):', approvedExchanges);
@@ -1322,7 +1328,7 @@ class AssetHub {
                 const loanedItems = [];
                 for (const exchange of approvedExchanges) {
                     try {
-                        console.log('🔍 Fetching item details for loaned exchange:', exchange.ItemId || exchange.itemId);
+
                         const itemResponse = await fetch(`${this.API_BASE_URL}/items/${exchange.ItemId || exchange.itemId}`, {
                             headers: {
                                 'Authorization': `Bearer ${token}`,
@@ -1332,13 +1338,13 @@ class AssetHub {
 
                         if (itemResponse.ok) {
                             const item = await itemResponse.json();
-                            console.log('✅ Item details received for loaned item:', item);
+
 
                             // Fetch borrower details
                             let borrowerName = 'Unknown Borrower';
                             let borrowerAvatar = null;
                             try {
-                                console.log('🔍 Fetching borrower details for loaned item:', exchange.BorrowerId || exchange.borrowerId);
+
                                 const borrowerResponse = await fetch(`${this.API_BASE_URL}/users/by-id?id=${exchange.BorrowerId || exchange.borrowerId}`, {
                                     headers: {
                                         'Authorization': `Bearer ${token}`,
@@ -1348,7 +1354,7 @@ class AssetHub {
 
                                 if (borrowerResponse.ok) {
                                     const borrower = await borrowerResponse.json();
-                                    console.log('✅ Borrower details received for loaned item:', borrower);
+
                                     borrowerName = `${borrower.firstName || borrower.FirstName || ''} ${borrower.lastName || borrower.LastName || ''}`.trim() || borrower.email || borrower.Email || 'Unknown Borrower';
                                     borrowerAvatar = borrower.profilePicture || borrower.ProfilePicture || null;
                                 }
@@ -1402,10 +1408,10 @@ class AssetHub {
                     }
                 }
 
-                console.log('✅ Final loaned out items:', loanedItems);
+
                 return loanedItems;
             } else {
-                console.log('Failed to load loaned out items');
+
                 return [];
             }
         } catch (error) {
@@ -1545,7 +1551,7 @@ class AssetHub {
     }
 
     async handleRequestAction(request, isApprove) {
-        console.log('🔍 handleRequestAction called:', { request, isApprove });
+
         
         const action = isApprove ? 'approve' : 'decline';
         const confirmed = await this.showConfirmation(
@@ -1554,11 +1560,11 @@ class AssetHub {
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled the action');
+
             return;
         }
         
-        console.log('✅ User confirmed the action, proceeding...');
+
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -1572,9 +1578,9 @@ class AssetHub {
                 }
                 : { Approved: false };
 
-            console.log('📤 Updating exchange:', approvalBody);
-            console.log('📤 Exchange ID:', request.exchangeId);
-            console.log('📤 Token available:', !!token);
+
+
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/${request.exchangeId}/approval`, {
                 method: 'PUT',
@@ -1586,38 +1592,38 @@ class AssetHub {
                 body: JSON.stringify(approvalBody)
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response ok:', response.ok);
+
+
 
             if (response.ok) {
                 const updatedExchange = await response.json();
-                console.log('✅ Exchange updated successfully:', updatedExchange);
-                console.log('✅ Approval status:', updatedExchange.approved || updatedExchange.Approved);
+
+
                 
                 this.showSuccess(`Request ${action}d successfully!`);
                 
                 // Remove the request from the list
-                console.log('🔍 Before filtering - requestedItems count:', this.requestedItems.length);
-                console.log('🔍 Request ID to remove:', request.id);
+
+
                 this.requestedItems = this.requestedItems.filter(req => {
                     const shouldKeep = req.id !== request.id;
-                    console.log('🔍 Checking request:', req.id, 'vs', request.id, 'keep:', shouldKeep);
+
                     return shouldKeep;
                 });
-                console.log('🔍 After filtering - requestedItems count:', this.requestedItems.length);
+
                 this.renderRequestedItems();
                 
                 // Always refresh borrowed items to update status for both approved and denied items
                 // This ensures the status is updated in real-time on the asset hub page
                 this.borrowedItems = await this.getBorrowedItems();
-                console.log('🔄 Refreshed borrowed items:', this.borrowedItems);
+
                 
                 this.renderBorrowedItems();
                 
                 // If approved, refresh loaned items and user profile data to update counters
                 if (isApprove) {
                     this.loanedItems = await this.getLoanedItems();
-                    console.log('🔄 Refreshed loaned items:', this.loanedItems);
+
                     this.renderLoanedItems();
                     
                     // Re-render owned items to update availability status
@@ -1647,7 +1653,7 @@ class AssetHub {
     async handleEarlyReturnRequest(exchangeId) {
         // Prevent multiple simultaneous requests
         if (this.earlyReturnRequestInProgress) {
-            console.log('⚠️ Early return request already in progress, ignoring duplicate click');
+
             return;
         }
 
@@ -1657,39 +1663,55 @@ class AssetHub {
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled the early return request');
+
             return;
         }
         
-        console.log('✅ User confirmed the early return request, proceeding...');
+
         this.earlyReturnRequestInProgress = true;
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            console.log('📤 Requesting early return for exchange:', exchangeId);
-            console.log('📤 Token available:', !!token);
 
-            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/request-early-return`, {
-                method: 'POST',
+
+
+            const requestBody = {
+                returnRequestedAt: new Date().toISOString(),
+                returnPendingConfirmation: true
+            };
+
+            console.log('🔄 Sending early return request:', {
+                exchangeId: exchangeId,
+                requestBody: requestBody,
+                url: `${this.API_BASE_URL}/exchanges/${exchangeId}`
+            });
+
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
-                }
+                },
+                body: JSON.stringify(requestBody)
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response ok:', response.ok);
+            console.log('📡 Early return request response:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok
+            });
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('✅ Early return request sent successfully:', result);
+                console.log('✅ Early return request successful:', result);
+
                 
                 // Send inbox message to the item owner
-                console.log('🔄 About to send early return message for exchange:', exchangeId);
+
                 await this.sendEarlyReturnMessage(exchangeId);
-                console.log('🔄 Early return message sending completed');
+
                 
                 this.showSuccess('Early return request sent successfully!');
                 
@@ -1705,8 +1727,11 @@ class AssetHub {
                 
             } else {
                 const errorText = await response.text();
-                console.error('❌ API Error Response:', errorText);
-                console.error('❌ Response Status:', response.status);
+                console.error('❌ Early return request failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorText: errorText
+                });
                 this.showError(`Failed to request early return: ${errorText}`);
             }
         } catch (error) {
@@ -1720,7 +1745,7 @@ class AssetHub {
 
     async sendEarlyReturnMessage(exchangeId) {
         try {
-            console.log('📤 Starting early return message process for exchange:', exchangeId);
+
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
             if (!token) {
@@ -1734,7 +1759,7 @@ class AssetHub {
             }
             
             // Get exchange details to find the item owner
-            console.log('📤 Fetching exchange details...');
+
             const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1748,7 +1773,7 @@ class AssetHub {
             }
 
             const exchange = await exchangeResponse.json();
-            console.log('📤 Exchange details:', exchange);
+
             
             const ownerId = exchange.OwnerId || exchange.ownerId;
             const itemId = exchange.ItemId || exchange.itemId;
@@ -1758,10 +1783,10 @@ class AssetHub {
                 return;
             }
 
-            console.log('📤 Owner ID:', ownerId, 'Item ID:', itemId);
+
 
             // Get item details for the message
-            console.log('📤 Fetching item details...');
+
             const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -1773,21 +1798,21 @@ class AssetHub {
             if (itemResponse.ok) {
                 const item = await itemResponse.json();
                 itemTitle = item.title || item.Title || 'an item';
-                console.log('📤 Item title:', itemTitle);
+
             } else {
                 console.warn('⚠️ Could not fetch item details, using default title');
             }
 
             // Create message thread using the same approach as listing page
-            console.log('📤 Creating message thread...');
+
             const threadData = {
                 participantIds: [this.currentUserId, ownerId],
                 itemId: itemId,
                 subject: `Early Return Request: ${itemTitle}`
             };
 
-            console.log('📤 Thread data:', threadData);
-            console.log('📤 Making request to:', `${this.API_BASE_URL}/messages/threads`);
+
+
 
             const threadResponse = await fetch(`${this.API_BASE_URL}/messages/threads`, {
                 method: 'POST',
@@ -1799,7 +1824,7 @@ class AssetHub {
                 body: JSON.stringify(threadData)
             });
 
-            console.log('📥 Thread response status:', threadResponse.status);
+
 
             if (!threadResponse.ok) {
                 console.warn('⚠️ Failed to create message thread:', threadResponse.status);
@@ -1809,7 +1834,7 @@ class AssetHub {
             }
 
             const threadResult = await threadResponse.json();
-            console.log('✅ Message thread created successfully:', threadResult);
+
 
             // Send initial message in the thread
             if (threadResult.id) {
@@ -1824,7 +1849,7 @@ class AssetHub {
     // Send initial message in the thread (matching listing page approach)
     async sendInitialMessage(threadId, itemTitle, sender) {
         try {
-            console.log('📝 Sending initial message in thread...');
+
 
             // Get sender's display name
             const senderName = sender?.FirstName && sender?.LastName
@@ -1837,8 +1862,8 @@ class AssetHub {
                 senderId: sender?.Id || sender?.id || sender?.userId || this.currentUserId
             };
 
-            console.log('📤 Sending initial message data:', messageData);
-            console.log('📤 Making message request to:', `${this.API_BASE_URL}/messages/threads/${threadId}/messages`);
+
+
 
             const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
                 method: 'POST',
@@ -1850,7 +1875,7 @@ class AssetHub {
                 body: JSON.stringify(messageData)
             });
 
-            console.log('📥 Message response status:', messageResponse.status);
+
 
             if (!messageResponse.ok) {
                 console.warn('⚠️ Failed to send initial message:', messageResponse.status);
@@ -1858,7 +1883,7 @@ class AssetHub {
             }
 
             const messageResult = await messageResponse.json();
-            console.log('✅ Initial message sent successfully:', messageResult);
+
 
         } catch (error) {
             console.warn('⚠️ Error sending initial message:', error);
@@ -1876,17 +1901,17 @@ class AssetHub {
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled the request item back early');
+
             return;
         }
         
-        console.log('✅ User confirmed the request item back early, proceeding...');
+
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            console.log('📤 Requesting item back early for exchange:', exchangeId);
-            console.log('📤 Token available:', !!token);
+
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/request-item-back-early`, {
                 method: 'POST',
@@ -1897,12 +1922,12 @@ class AssetHub {
                 }
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response ok:', response.ok);
+
+
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('✅ Request item back early sent successfully:', result);
+
                 
                 this.showSuccess('Request to get item back early sent successfully!');
                 
@@ -1937,20 +1962,24 @@ class AssetHub {
         );
 
         if (!confirmed) {
-            console.log(`❌ User cancelled the return ${action}`);
+
             return;
         }
         
-        console.log(`✅ User confirmed the return ${action}, proceeding...`);
+
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            const confirmBody = { Confirmed: isConfirm };
+            const confirmBody = { 
+                returnConfirmed: isConfirm,
+                returnConfirmedAt: isConfirm ? new Date().toISOString() : null,
+                returnPendingConfirmation: false
+            };
 
-            console.log('📤 Confirming return:', confirmBody);
-            console.log('📤 Exchange ID:', exchangeId);
-            console.log('📤 Token available:', !!token);
+
+
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/confirm-return`, {
                 method: 'PUT',
@@ -1962,12 +1991,12 @@ class AssetHub {
                 body: JSON.stringify(confirmBody)
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response ok:', response.ok);
+
+
 
             if (response.ok) {
                 const updatedExchange = await response.json();
-                console.log('✅ Return confirmation processed successfully:', updatedExchange);
+
                 
                 // Send inbox message to the borrower about the return confirmation
                 await this.sendReturnConfirmationMessage(exchangeId, isConfirm);
@@ -2001,9 +2030,165 @@ class AssetHub {
         }
     }
 
+    async handleMarkAsReturned(exchangeId) {
+        const confirmed = await this.showConfirmation(
+            'Mark as Returned',
+            'Are you sure you have received this item back from the borrower?'
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            // Mark the exchange as completed/returned
+            const returnBody = { 
+                returnConfirmed: true,
+                returnConfirmedAt: new Date().toISOString()
+            };
+
+            const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/mark-returned`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(returnBody)
+            });
+
+            if (response.ok) {
+                // Send inbox message to the borrower about the return confirmation
+                await this.sendMarkAsReturnedMessage(exchangeId);
+                
+                this.showSuccess('Item marked as returned successfully!');
+                
+                // Refresh the loaned items to update the status
+                this.loanedItems = await this.getLoanedItems();
+                this.renderLoanedItems();
+                
+                // Re-render owned items to update availability status
+                this.renderOwnedItems();
+                
+                this.updateCounts();
+                
+                // Trigger global refresh for notifications and other pages
+                if (window.GlobalNotifications) {
+                    window.GlobalNotifications.triggerGlobalRefresh();
+                }
+                
+            } else {
+                const errorText = await response.text();
+                console.error('❌ API Error Response:', errorText);
+                console.error('❌ Response Status:', response.status);
+                this.showError(`Failed to mark item as returned: ${errorText}`);
+            }
+        } catch (error) {
+            console.error('❌ Error marking item as returned:', error);
+            console.error('❌ Error details:', error.message);
+            this.showError(`An error occurred while marking the item as returned: ${error.message}`);
+        }
+    }
+
+    async sendMarkAsReturnedMessage(exchangeId) {
+        try {
+            const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
+            
+            if (!token) {
+                return;
+            }
+
+            if (!this.currentUserId) {
+                return;
+            }
+            
+            // Find the exchange details from our existing loaned items data
+            const loanedItem = this.loanedItems.find(item => 
+                item.exchangeId === exchangeId || item.id === exchangeId
+            );
+            
+            if (!loanedItem) {
+                return;
+            }
+            
+            const borrowerId = loanedItem.borrowerId || loanedItem.borrower?.id;
+            const itemTitle = loanedItem.title || loanedItem.itemTitle || 'an item';
+
+            if (!borrowerId) {
+                return;
+            }
+
+            // Create message thread using the same approach as other messaging functions
+            const threadData = {
+                participantIds: [this.currentUserId, borrowerId],
+                subject: `Item Return Confirmed: ${itemTitle}`
+            };
+
+            const threadResponse = await fetch(`${this.API_BASE_URL}/messages/threads`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(threadData)
+            });
+
+            if (!threadResponse.ok) {
+                return;
+            }
+
+            const threadResult = await threadResponse.json();
+
+            // Send initial message in the thread
+            if (threadResult.id) {
+                await this.sendMarkAsReturnedInitialMessage(threadResult.id, itemTitle, this.currentUser);
+            }
+
+        } catch (error) {
+            // Error sending mark as returned message
+        }
+    }
+
+    async sendMarkAsReturnedInitialMessage(threadId, itemTitle, sender) {
+        try {
+            // Get sender's display name
+            const senderName = sender?.FirstName && sender?.LastName
+                ? `${sender.FirstName} ${sender.LastName}`
+                : sender?.email || 'Someone';
+
+            // Prepare initial message
+            const messageData = {
+                body: `Hi! I have received "${itemTitle}" back from you. Thank you for returning it! The exchange is now complete.`,
+                senderId: sender?.Id || sender?.id || sender?.userId || this.currentUserId
+            };
+
+            const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('hippo_token')}`
+                },
+                body: JSON.stringify(messageData)
+            });
+
+            if (!messageResponse.ok) {
+                return;
+            }
+
+            const messageResult = await messageResponse.json();
+
+        } catch (error) {
+            // Error sending initial message
+        }
+    }
+
     async sendReturnConfirmationMessage(exchangeId, isConfirm) {
         try {
-            console.log('📤 Starting return confirmation message process for exchange:', exchangeId, 'isConfirm:', isConfirm);
+
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
             if (!token) {
@@ -2017,7 +2202,7 @@ class AssetHub {
             }
             
             // Get exchange details to find the borrower
-            console.log('📤 Fetching exchange details...');
+
             const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2031,7 +2216,7 @@ class AssetHub {
             }
 
             const exchange = await exchangeResponse.json();
-            console.log('📤 Exchange details:', exchange);
+
             
             const borrowerId = exchange.BorrowerId || exchange.borrowerId;
             const itemId = exchange.ItemId || exchange.itemId;
@@ -2041,10 +2226,10 @@ class AssetHub {
                 return;
             }
 
-            console.log('📤 Borrower ID:', borrowerId, 'Item ID:', itemId);
+
 
             // Get item details for the message
-            console.log('📤 Fetching item details...');
+
             const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2056,13 +2241,13 @@ class AssetHub {
             if (itemResponse.ok) {
                 const item = await itemResponse.json();
                 itemTitle = item.title || item.Title || 'the item';
-                console.log('📤 Item title:', itemTitle);
+
             } else {
                 console.warn('⚠️ Could not fetch item details, using default title');
             }
 
             // Find existing thread with the borrower
-            console.log('📤 Looking for existing thread with borrower...');
+
             const existingThreadsResponse = await fetch(`${this.API_BASE_URL}/messages/threads?userId=${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2073,14 +2258,14 @@ class AssetHub {
             let threadId;
             if (existingThreadsResponse.ok) {
                 const threads = await existingThreadsResponse.json();
-                console.log('📤 Existing threads:', threads);
+
                 
                 const existingThread = threads.find(t => 
                     t.participantIds && t.participantIds.includes(borrowerId)
                 );
                 if (existingThread) {
                     threadId = existingThread.id || existingThread.Id;
-                    console.log('📤 Found existing thread:', threadId);
+
                 }
             } else {
                 console.warn('⚠️ Could not fetch existing threads:', existingThreadsResponse.status);
@@ -2096,13 +2281,13 @@ class AssetHub {
                 ? `Thank you! I've confirmed that I received "${itemTitle}" back from you. The return is now complete.`
                 : `I need to dispute the return of "${itemTitle}". There seems to be an issue with the item or the return process. Please contact me to resolve this.`;
 
-            console.log('📤 Sending confirmation message to thread:', threadId);
+
             const messageData = {
                 senderId: this.currentUserId,
                 body: messageText
             };
             
-            console.log('📤 Message data:', messageData);
+
 
             const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
                 method: 'POST',
@@ -2114,7 +2299,7 @@ class AssetHub {
                 body: JSON.stringify(messageData)
             });
 
-            console.log('📥 Message response status:', messageResponse.status);
+
 
             if (!messageResponse.ok) {
                 console.warn('⚠️ Failed to send confirmation message:', messageResponse.status);
@@ -2122,7 +2307,7 @@ class AssetHub {
             }
 
             const messageResult = await messageResponse.json();
-            console.log('✅ Return confirmation message sent successfully:', messageResult);
+
 
         } catch (error) {
             console.error('❌ Error sending return confirmation message:', error);
@@ -2137,20 +2322,23 @@ class AssetHub {
         );
 
         if (!confirmed) {
-            console.log('❌ User cancelled the early return action');
+
             return;
         }
         
-        console.log('✅ User confirmed the early return action, proceeding...');
+
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
-            const approvalBody = { Approved: isApprove };
+            const approvalBody = { 
+                earlyReturnApproved: isApprove,
+                returnPendingConfirmation: isApprove ? true : false
+            };
 
-            console.log('📤 Processing early return:', approvalBody);
-            console.log('📤 Exchange ID:', exchangeId);
-            console.log('📤 Token available:', !!token);
+
+
+
 
             const response = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}/early-return`, {
                 method: 'PUT',
@@ -2162,12 +2350,12 @@ class AssetHub {
                 body: JSON.stringify(approvalBody)
             });
             
-            console.log('📡 Response status:', response.status);
-            console.log('📡 Response ok:', response.ok);
+
+
 
             if (response.ok) {
                 const updatedExchange = await response.json();
-                console.log('✅ Early return processed successfully:', updatedExchange);
+
                 
                 // Send inbox message to the borrower about the approval/decline
                 await this.sendEarlyReturnResponseMessage(exchangeId, isApprove);
@@ -2203,7 +2391,7 @@ class AssetHub {
 
     async sendEarlyReturnResponseMessage(exchangeId, isApprove) {
         try {
-            console.log('📤 Starting early return response message process for exchange:', exchangeId, 'isApprove:', isApprove);
+
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
             
             if (!token) {
@@ -2217,7 +2405,7 @@ class AssetHub {
             }
             
             // Get exchange details to find the borrower
-            console.log('📤 Fetching exchange details...');
+
             const exchangeResponse = await fetch(`${this.API_BASE_URL}/exchanges/${exchangeId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2231,7 +2419,7 @@ class AssetHub {
             }
 
             const exchange = await exchangeResponse.json();
-            console.log('📤 Exchange details:', exchange);
+
             
             const borrowerId = exchange.BorrowerId || exchange.borrowerId;
             const itemId = exchange.ItemId || exchange.itemId;
@@ -2241,10 +2429,10 @@ class AssetHub {
                 return;
             }
 
-            console.log('📤 Borrower ID:', borrowerId, 'Item ID:', itemId);
+
 
             // Get item details for the message
-            console.log('📤 Fetching item details...');
+
             const itemResponse = await fetch(`${this.API_BASE_URL}/items/${itemId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2256,13 +2444,13 @@ class AssetHub {
             if (itemResponse.ok) {
                 const item = await itemResponse.json();
                 itemTitle = item.title || item.Title || 'the item';
-                console.log('📤 Item title:', itemTitle);
+
             } else {
                 console.warn('⚠️ Could not fetch item details, using default title');
             }
 
             // Find existing thread with the borrower
-            console.log('📤 Looking for existing thread with borrower...');
+
             const existingThreadsResponse = await fetch(`${this.API_BASE_URL}/messages/threads?userId=${this.currentUserId}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -2273,14 +2461,14 @@ class AssetHub {
             let threadId;
             if (existingThreadsResponse.ok) {
                 const threads = await existingThreadsResponse.json();
-                console.log('📤 Existing threads:', threads);
+
                 
                 const existingThread = threads.find(t => 
                     t.participantIds && t.participantIds.includes(borrowerId)
                 );
                 if (existingThread) {
                     threadId = existingThread.id || existingThread.Id;
-                    console.log('📤 Found existing thread:', threadId);
+
                 }
             } else {
                 console.warn('⚠️ Could not fetch existing threads:', existingThreadsResponse.status);
@@ -2296,13 +2484,13 @@ class AssetHub {
                 ? `Great! I've approved your early return request for "${itemTitle}". Please return it when convenient, and I'll confirm receipt once I receive it.`
                 : `I'm sorry, but I cannot approve the early return request for "${itemTitle}" at this time. Please keep it until the original return date.`;
 
-            console.log('📤 Sending response message to thread:', threadId);
+
             const messageData = {
                 senderId: this.currentUserId,
                 body: messageText
             };
             
-            console.log('📤 Message data:', messageData);
+
 
             const messageResponse = await fetch(`${this.API_BASE_URL}/messages/threads/${threadId}/messages`, {
                 method: 'POST',
@@ -2314,7 +2502,7 @@ class AssetHub {
                 body: JSON.stringify(messageData)
             });
 
-            console.log('📥 Message response status:', messageResponse.status);
+
 
             if (!messageResponse.ok) {
                 console.warn('⚠️ Failed to send response message:', messageResponse.status);
@@ -2322,7 +2510,7 @@ class AssetHub {
             }
 
             const messageResult = await messageResponse.json();
-            console.log('✅ Early return response message sent successfully:', messageResult);
+
 
         } catch (error) {
             console.error('❌ Error sending early return response message:', error);
@@ -2365,7 +2553,7 @@ class AssetHub {
                         (item.images && item.images[0]) ||
                         (item.Images && item.Images[0]);
         
-        console.log('🖼️ Asset Hub - Final image URL:', imageUrl || 'Using placeholder');
+
         
         if (imageUrl) {
             img.src = imageUrl;
@@ -2444,42 +2632,42 @@ class AssetHub {
         // Immediately set data-item-id on all buttons when found
         if (editBtn) {
             editBtn.setAttribute('data-item-id', item.id);
-            console.log('🔧 Set data-item-id on edit button:', item.id);
+
         }
         if (maintenanceBtn) {
             maintenanceBtn.setAttribute('data-item-id', item.id);
-            console.log('🔧 Set data-item-id on maintenance button:', item.id);
+
         }
         if (deleteBtn) {
             deleteBtn.setAttribute('data-item-id', item.id);
-            console.log('🔧 Set data-item-id on delete button:', item.id);
+
         }
         
-        console.log('🔍 Found buttons for item:', item.title);
-        console.log('🔍 Edit button:', editBtn);
-        console.log('🔍 View button:', viewBtn);
-        console.log('🔍 Delete button:', deleteBtn);
-        console.log('🔍 Maintenance button:', maintenanceBtn);
+
+
+
+
+
         
         // Test if buttons are clickable
         if (editBtn) {
-            console.log('🔍 Edit button classes:', editBtn.className);
+
             console.log('🔍 Edit button display style:', window.getComputedStyle(editBtn).display);
         }
         if (maintenanceBtn) {
-            console.log('🔍 Maintenance button classes:', maintenanceBtn.className);
+
             console.log('🔍 Maintenance button display style:', window.getComputedStyle(maintenanceBtn).display);
         }
         
         // Add a global test function for this specific item
         window.testButtons = () => {
-            console.log('🧪 Testing buttons for item:', item.title);
+
             if (editBtn) {
-                console.log('🧪 Clicking edit button...');
+
                 editBtn.click();
             }
             if (maintenanceBtn) {
-                console.log('🧪 Clicking maintenance button...');
+
                 maintenanceBtn.click();
             }
         };
@@ -2509,10 +2697,10 @@ class AssetHub {
             });
         }
 
-        console.log('🔍 Creating card for item:', item.title, 'with type:', type);
+
 
         if (type === 'owned') {
-            console.log('🔍 Processing owned item:', item.title);
+
             // Hide cancel request button for owned items
             const cancelRequestBtn = card.querySelector('.cancel-request-btn');
             if (cancelRequestBtn) {
@@ -2569,22 +2757,22 @@ class AssetHub {
             // For loaned items, add early return approval buttons and return confirmation buttons
             const dropdownMenu = card.querySelector('.dropdown-menu');
             if (dropdownMenu) {
-                // Hide buttons that don't apply to loaned items
+                // Remove buttons that don't apply to loaned items
                 const editBtn = card.querySelector('.edit-btn');
                 const deleteBtn = card.querySelector('.delete-btn');
                 const maintenanceBtn = card.querySelector('.maintenance-btn');
                 const cancelRequestBtn = card.querySelector('.cancel-request-btn');
                 
-                if (editBtn) editBtn.style.display = 'none';
-                if (deleteBtn) deleteBtn.style.display = 'none';
-                if (maintenanceBtn) maintenanceBtn.style.display = 'none';
-                if (cancelRequestBtn) cancelRequestBtn.style.display = 'none';
+                if (editBtn) editBtn.remove();
+                if (deleteBtn) deleteBtn.remove();
+                if (maintenanceBtn) maintenanceBtn.remove();
+                if (cancelRequestBtn) cancelRequestBtn.remove();
                 
                 // Check if there's a pending return confirmation
                 const isPendingReturn = item.returnPendingConfirmation === true;
                 
-                // Check if there's a pending early return request (stored in item data)
-                const hasEarlyReturnRequest = item.hasEarlyReturnRequest === true;
+                // Check if there's a pending early return request (returnRequestedAt is not null)
+                const hasEarlyReturnRequest = item.returnRequestedAt !== null && item.returnRequestedAt !== undefined;
                 
                 if (isPendingReturn) {
                     // Add return confirmation buttons
@@ -2659,6 +2847,25 @@ class AssetHub {
                         this.handleEarlyReturnAction(item.exchangeId || item.id, false);
                     });
                 } else {
+                    // Add "Mark as Returned" button for loaned out items
+                    const markReturnedBtn = document.createElement('button');
+                    markReturnedBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center';
+                    markReturnedBtn.innerHTML = `
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Mark as Returned
+                    `;
+                    
+                    dropdownMenu.appendChild(markReturnedBtn);
+                    
+                    markReturnedBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (dropdownMenu) dropdownMenu.classList.remove('show');
+                        this.handleMarkAsReturned(item.exchangeId || item.id);
+                    });
+                    
                     // Add "Request Item Back Early" button for loaned out items
                     const requestBackBtn = document.createElement('button');
                     requestBackBtn.className = 'dropdown-item w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center';
@@ -2681,7 +2888,7 @@ class AssetHub {
             }
             
             if (editBtn) {
-                console.log('🔧 Setting up edit button for item:', item.title);
+
                 editBtn.style.display = 'block';
                 
                 // Add data attributes for event delegation
@@ -2690,7 +2897,7 @@ class AssetHub {
                 
                 // Use multiple event binding approaches
                 editBtn.onclick = (e) => {
-                    console.log('🔧 Edit button clicked for item:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
@@ -2698,22 +2905,22 @@ class AssetHub {
                 };
                 
                 editBtn.addEventListener('click', (e) => {
-                    console.log('🔧 Edit button addEventListener triggered for item:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
                     this.openEditModal(item);
                 });
             } else {
-                console.log('❌ Edit button not found for owned item:', item);
+
             }
             if (deleteBtn) {
-                console.log('🔧 Setting up delete button for item:', item.title);
+
                 deleteBtn.style.display = 'block';
                 
                 // Use a more direct approach
                 deleteBtn.onclick = (e) => {
-                    console.log('🔧 Delete button clicked for item:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
@@ -2722,19 +2929,19 @@ class AssetHub {
             }
             // Show maintenance button for owned items
             if (maintenanceBtn) {
-                console.log('🔧 Found maintenance button for owned item:', item.title);
+
                 maintenanceBtn.style.display = 'block';
                 
                 // Add data attributes for event delegation
                 maintenanceBtn.setAttribute('data-item-id', item.id);
                 maintenanceBtn.setAttribute('data-action', 'maintenance');
                 
-                console.log('🔧 Set data-item-id on maintenance button:', item.id);
+
                 console.log('🔧 Maintenance button data-item-id after setting:', maintenanceBtn.getAttribute('data-item-id'));
                 
                 // Use multiple event binding approaches
                 maintenanceBtn.onclick = (e) => {
-                    console.log('🔧 Maintenance button clicked for item:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
@@ -2742,14 +2949,14 @@ class AssetHub {
                 };
                 
                 maintenanceBtn.addEventListener('click', (e) => {
-                    console.log('🔧 Maintenance button addEventListener triggered for item:', item);
+
                     e.preventDefault();
                     e.stopPropagation();
                     if (dropdownMenu) dropdownMenu.classList.remove('show');
                     this.openMaintenanceModal(item);
                 });
             } else {
-                console.log('❌ Maintenance button not found for owned item:', item);
+
             }
         } else {
             console.log('🔍 Processing non-owned item (type:', type, ') for:', item.title);
@@ -2863,7 +3070,7 @@ class AssetHub {
                 const updatedUser = await response.json();
                 // Update localStorage with fresh user data
                 localStorage.setItem('hippo_user', JSON.stringify(updatedUser));
-                console.log('🔄 Refreshed user profile data:', updatedUser);
+
             }
         } catch (error) {
             console.error('Error refreshing user profile:', error);
@@ -2873,7 +3080,7 @@ class AssetHub {
     async openEditModal(item) {
         this.currentEditingItem = item;
 
-        console.log('🔍 Opening edit modal for item:', item);
+
         console.log('🔍 Item keys:', Object.keys(item));
         
         // Check if modal exists
@@ -2883,7 +3090,7 @@ class AssetHub {
             alert('Edit modal not found. Please refresh the page.');
             return;
         }
-        console.log('✅ Edit modal found:', editModal);
+
 
         // Wait a moment to ensure DOM is ready
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -2940,7 +3147,7 @@ class AssetHub {
         this.editNewPhotoFiles = [];
         this.renderEditPhotos();
 
-        console.log('✅ Form populated successfully');
+
 
         // Show the modal
         const showModal = document.getElementById('edit-item-modal');
@@ -2964,9 +3171,9 @@ class AssetHub {
             showModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
             showModal.style.zIndex = '9999';
             
-            console.log('✅ Modal shown');
-            console.log('🔍 Modal classes:', showModal.className);
-            console.log('🔍 Modal style display:', showModal.style.display);
+
+
+
         } else {
             console.error('❌ Modal element not found!');
         }
@@ -2984,7 +3191,7 @@ class AssetHub {
             modal.style.opacity = '0';
             modal.style.zIndex = '-1';
             
-            console.log('🔧 Edit modal closed');
+
         }
         
         // Reset photo management
@@ -3249,8 +3456,8 @@ class AssetHub {
     async openMaintenanceModal(item) {
         this.currentMaintenanceItem = item;
 
-        console.log('🔧 Opening maintenance modal for item:', item);
-        console.log('🔧 Current maintenance item set to:', this.currentMaintenanceItem);
+
+
 
         // Check if maintenance form exists
         const maintenanceForm = document.getElementById('maintenance-form');
@@ -3307,9 +3514,9 @@ class AssetHub {
             return;
         }
         
-        console.log('🔧 Showing maintenance modal');
-        console.log('🔧 Modal element:', maintenanceModal);
-        console.log('🔧 Modal classes before:', maintenanceModal.className);
+
+
+
         
         // Reset all inline styles first
         maintenanceModal.style.display = '';
@@ -3330,17 +3537,17 @@ class AssetHub {
         maintenanceModal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         maintenanceModal.style.zIndex = '9999';
         
-        console.log('🔧 Modal classes after:', maintenanceModal.className);
-        console.log('🔧 Modal style display:', maintenanceModal.style.display);
-        console.log('🔧 Modal style position:', maintenanceModal.style.position);
-        console.log('🔧 Modal style z-index:', maintenanceModal.style.zIndex);
+
+
+
+
         
         // Test if modal is visible
         setTimeout(() => {
             const computedStyle = window.getComputedStyle(maintenanceModal);
-            console.log('🔧 Modal display style:', computedStyle.display);
-            console.log('🔧 Modal visibility:', computedStyle.visibility);
-            console.log('🔧 Modal opacity:', computedStyle.opacity);
+
+
+
         }, 100);
     }
 
@@ -3356,7 +3563,7 @@ class AssetHub {
             modal.style.opacity = '0';
             modal.style.zIndex = '-1';
             
-            console.log('🔧 Maintenance modal closed');
+
         }
         
         document.getElementById('maintenance-form').reset();
@@ -3677,14 +3884,14 @@ class AssetHub {
 
     async handleMaintenanceSubmit(e) {
         e.preventDefault();
-        console.log('🔧 Form submission started');
+
 
         if (!this.currentMaintenanceItem) {
-            console.log('❌ No current maintenance item set');
+
             return;
         }
         
-        console.log('🔧 Current maintenance item:', this.currentMaintenanceItem);
+
 
         // Get maintenance type, category, frequency and description
         const maintenanceType = document.querySelector('input[name="maintenance-type"]:checked')?.value;
@@ -3738,7 +3945,7 @@ class AssetHub {
             Description: description
         };
 
-        console.log('🔧 Sending maintenance data to backend:', formData);
+
 
         try {
             const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -3754,12 +3961,12 @@ class AssetHub {
 
             if (response.ok) {
                 const createdMaintenance = await response.json();
-                console.log('✅ Created maintenance entry:', createdMaintenance);
+
 
                 // Upload receipts if any exist (only for history type)
                 let receiptUploadResults = [];
                 if (maintenanceType === 'history' && this.currentMaintenanceReceipts.length > 0) {
-                    console.log('📄 Uploading receipts for maintenance:', this.currentMaintenanceReceipts.length);
+
                     
                     for (const receiptFile of this.currentMaintenanceReceipts) {
                         try {
@@ -3777,7 +3984,7 @@ class AssetHub {
                                 console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
                                 receiptUploadResults.push({ file: receiptFile.name, success: false });
                             } else {
-                                console.log('✅ Uploaded receipt:', receiptFile.name);
+
                                 receiptUploadResults.push({ file: receiptFile.name, success: true });
                             }
                         } catch (err) {

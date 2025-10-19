@@ -188,7 +188,7 @@ class GlobalNotificationManager {
             const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
 
             if (!token || !userData) {
-                console.log('🔔 No authentication found for notifications');
+
                 return;
             }
 
@@ -196,11 +196,11 @@ class GlobalNotificationManager {
             this.USER_ID = user.Id || user.id;
 
             if (!this.USER_ID) {
-                console.log('🔔 No user ID found for notifications');
+
                 return;
             }
 
-            console.log('🔔 Initializing global notifications for user:', this.USER_ID);
+
             
             // Initial fetch
             await this.fetchUnreadCount();
@@ -209,7 +209,7 @@ class GlobalNotificationManager {
             this.startAutoRefresh();
             
             this.isInitialized = true;
-            console.log('✅ Global notifications initialized');
+
             
         } catch (error) {
             console.error('❌ Error initializing global notifications:', error);
@@ -237,7 +237,7 @@ class GlobalNotificationManager {
             const notifications = await response.json();
             
             // Debug: Log all notifications
-            console.log('🔍 All notifications:', notifications);
+
             
             // Count unread notifications using the same logic as notifications.js
             const readIds = this.getReadIds();
@@ -257,7 +257,7 @@ class GlobalNotificationManager {
                 return notificationId && !isDismissed && !isRead;
             }).length;
             
-            console.log(`🔔 Unread notifications: ${this.unreadCount}`);
+
             
             // Update badges on all pages
             this.updateNotificationBadges();
@@ -397,7 +397,7 @@ class GlobalNotificationManager {
      * Trigger refresh across all pages (called when exchanges are updated)
      */
     triggerGlobalRefresh() {
-        console.log('🔄 Triggering global refresh for all pages');
+
         
         // Refresh notification count
         this.fetchUnreadCount();
@@ -442,7 +442,7 @@ class GlobalNotificationManager {
             this.unreadCount = 0;
             this.updateNotificationBadges();
             
-            console.log('✅ All notifications marked as read');
+
         } catch (error) {
             console.error('❌ Error marking all notifications as read:', error);
         }
@@ -466,7 +466,7 @@ class GlobalNotificationManager {
                 this.startAutoRefresh();
             }, 5000);
             
-            console.log('✅ Notification read status cleared');
+
         } catch (error) {
             console.error('❌ Error clearing read status:', error);
         }
@@ -490,7 +490,7 @@ class GlobalNotificationManager {
             icon.style.filter = '';
         });
         
-        console.log('🚨 Badge force cleared');
+
     }
 
     /**

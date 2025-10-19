@@ -7,7 +7,7 @@ const money = (n) =>
     ? '$—'
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
 
-const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 let currentUser = null; // Store current user data
 
 // Get item ID from URL parameters
@@ -15,10 +15,10 @@ const qs = new URLSearchParams(location.search);
 const itemId = qs.get('id') || qs.get('item');
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('Listing page loaded, starting authentication check...');
+
   // Check authentication and load user data FIRST
   await checkAuthAndLoadUser();
-  console.log('Authentication check completed, currentUser:', currentUser);
+
 
   // Now load and render the listing
   readListing()
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
       }
     } catch (error) {
-      console.log('Geocoding failed:', error);
+
     }
 
     return null;
@@ -69,11 +69,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function readListing() {
     try {
+      console.log('🔍 Starting readListing, itemId:', itemId);
+      console.log('🔍 API_BASE_URL:', API_BASE_URL);
+      
       let item;
 
       if (itemId) {
+        console.log('🔍 Fetching item with ID:', itemId);
         const response = await fetch(`${API_BASE_URL}/items/${itemId}`);
 
+        console.log('🔍 Response status:', response.status, response.statusText);
+        
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(`Item with ID ${itemId} not found`);
@@ -82,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         item = await response.json();
+        console.log('🔍 Fetched item:', item);
       } else {
         const response = await fetch(`${API_BASE_URL}/items`);
 
@@ -110,11 +117,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       // Handle both backend API format and fallback JSON format
-      console.log('🔍 Raw item data from API:', item);
+
       console.log('🔍 item.Pictures (capital P):', item.Pictures);
       console.log('🔍 item.pictures (lowercase):', item.pictures);
-      console.log('🔍 item.images:', item.images);
-      console.log('🔍 item.imageUrl:', item.imageUrl);
+
+
       console.log('🔍 item.Videos (capital V):', item.Videos);
       console.log('🔍 item.videos (lowercase):', item.videos);
 
@@ -122,9 +129,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const videos = item.Videos || item.videos || [];
       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
 
-      console.log('🔍 Processed images array:', images);
-      console.log('🔍 Processed videos array:', videos);
-      console.log('🔍 Final imageUrl:', imageUrl);
+
+
+
       const price = item.dollarCost ?? item.price ?? 0;
       const locationLabel = item.location ?? item.locationLabel ?? '';
 
@@ -133,23 +140,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (item.lat && item.lng) {
         coordinates = { lat: item.lat, lng: item.lng };
       } else if (locationLabel) {
-        console.log('🗺️ Geocoding location:', locationLabel);
+
         coordinates = await geocodeLocation(locationLabel);
         if (coordinates) {
-          console.log('📍 Geocoded coordinates:', coordinates);
+
         }
       }
 
       // Fetch maintenance data separately
       let maintenanceData = [];
       try {
-        console.log('🔍 Fetching maintenance for item:', item.id);
+
         const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
-        console.log('📡 Maintenance response status:', maintenanceResponse.status);
+
 
         if (maintenanceResponse.ok) {
           maintenanceData = await maintenanceResponse.json();
-          console.log('✅ Maintenance data received:', maintenanceData);
+
         } else {
           console.error('❌ Maintenance fetch failed:', maintenanceResponse.status, maintenanceResponse.statusText);
         }
@@ -198,13 +205,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function render(listing) {
+    console.log('🔍 Render function called with listing:', listing);
+    
     // Store listing data globally for maintenance form
     window.currentListing = listing;
 
-    console.log('🖼️ Full listing data for image debugging:', listing);
-    console.log('🖼️ listing.images:', listing.images);
-    console.log('🖼️ listing.imageUrl:', listing.imageUrl);
-    console.log('🖼️ listing.videos:', listing.videos);
+
+
+
+
 
     $('listing-title').textContent = listing.title;
     $('condition').textContent = listing.condition ? `Condition: ${listing.condition}` : '';
@@ -221,8 +230,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const imgs = listing.images && listing.images.length ? listing.images : [listing.imageUrl];
     const videos = listing.videos && listing.videos.length ? listing.videos : [];
 
-    console.log('🖼️ Final imgs array:', imgs);
-    console.log('🖼️ Final videos array:', videos);
+
+
 
     // Combine images and videos for display
     const allMedia = [...imgs, ...videos];
@@ -317,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('location-label').textContent = listing.locationLabel;
 
     // Debug map coordinates
-    console.log('🗺️ Map coordinates:', { lat: listing.lat, lng: listing.lng, hasLeaflet: typeof L !== 'undefined' });
+
 
     // Ensure map container is visible
     const mapContainer = $('detail-map');
@@ -332,7 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lat = listing.lat || 39.7684;
         const lng = listing.lng || -86.1581;
 
-        console.log('🗺️ Initializing map with coordinates:', { lat, lng });
+
 
         const map = L.map('detail-map', { zoomControl: true, scrollWheelZoom: true })
           .setView([lat, lng], 11);
@@ -343,16 +352,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Only add marker if we have actual coordinates
         if (listing.lat && listing.lng) {
           L.marker([listing.lat, listing.lng]).addTo(map);
-          console.log('📍 Added marker for listing location');
+
         } else {
           // Add a default marker for Indianapolis
           L.marker([lat, lng]).addTo(map).bindPopup('Default Location - Indianapolis');
-          console.log('📍 Added default marker for Indianapolis');
+
         }
 
         setTimeout(() => {
           map.invalidateSize();
-          console.log('🗺️ Map size invalidated');
+
         }, 120);
 
       } catch (error) {
@@ -362,32 +371,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     } else {
-      console.log('❌ Leaflet not loaded');
+
       if (mapContainer) {
         mapContainer.innerHTML = '<div class="text-red-500 text-center p-4">Map library not loaded</div>';
       }
     }
 
     // Render maintenance data only for item owners
-    console.log('📋 Listing data for maintenance rendering:', listing);
-    console.log('👤 Current user:', currentUser);
-    console.log('🏠 Listing seller:', listing.seller);
+
+
+
 
     // Get current user ID with multiple fallbacks
     const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
     const sellerId = listing.seller?.id || listing.seller?.Id;
 
-    console.log('🔍 Current user ID:', currentUserId);
-    console.log('🔍 Seller ID:', sellerId);
+
+
 
     const isOwner = currentUserId && sellerId && currentUserId === sellerId;
-    console.log('🔍 Is owner check:', isOwner);
+
 
     if (isOwner) {
-      console.log('✅ User is owner, showing maintenance section');
+
       renderMaintenance(listing.maintenance || []);
     } else {
-      console.log('❌ User is not owner, hiding maintenance section');
+
       hideMaintenanceSection();
     }
 
@@ -396,7 +405,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function hideMaintenanceSection() {
-    console.log('🔒 Hiding maintenance section for non-owners');
+
 
     // Try multiple selectors to find the maintenance section
     let maintenanceSection = null;
@@ -405,7 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const maintenanceHeading = document.querySelector('h3.text-lg.font-semibold.text-slate-800');
     if (maintenanceHeading && maintenanceHeading.textContent === 'Maintenance Information') {
       maintenanceSection = maintenanceHeading.closest('.glass');
-      console.log('📍 Found maintenance section via heading method');
+
     }
 
     // Method 2: Look for the maintenance section by its content
@@ -414,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       for (const section of allGlassSections) {
         if (section.textContent.includes('Maintenance Information')) {
           maintenanceSection = section;
-          console.log('📍 Found maintenance section via content method');
+
           break;
         }
       }
@@ -422,14 +431,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (maintenanceSection) {
       maintenanceSection.style.display = 'none';
-      console.log('✅ Maintenance section hidden for non-owner');
+
     } else {
       console.warn('⚠️ Could not find maintenance section to hide');
     }
   }
 
   function renderMaintenance(maintenanceData) {
-    console.log('🎨 Rendering maintenance data:', maintenanceData);
+
 
     // Ensure maintenance section is visible for owners
     let maintenanceSection = null;
@@ -453,7 +462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (maintenanceSection) {
       maintenanceSection.style.display = 'block';
-      console.log('✅ Maintenance section shown for owner');
+
     } else {
       console.warn('⚠️ Could not find maintenance section to show');
     }
@@ -658,7 +667,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         Date: new Date().toISOString().split('T')[0]
       };
 
-      console.log('🔧 Sending maintenance data to backend:', formData);
+
 
       try {
         const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
@@ -716,18 +725,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check for existing exchange request
   async function checkExistingRequest(listing) {
     if (!currentUser) {
-      console.log('No current user, cannot check existing requests');
+
       return null;
     }
 
     const currentUserId = currentUser?.Id || currentUser?.id || currentUser?.userId;
     if (!currentUserId) {
-      console.log('No current user ID, cannot check existing requests');
+
       return null;
     }
 
     try {
-      console.log('🔍 Checking for existing exchange requests for user:', currentUserId, 'and item:', listing.id);
+
       
       const response = await fetch(`${API_BASE_URL}/exchanges/borrower/${currentUserId}`, {
         headers: {
@@ -742,7 +751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const exchanges = await response.json();
-      console.log('📋 User exchanges:', exchanges);
+
 
       // Find exchange for this specific item
       const existingExchange = exchanges.find(exchange => 
@@ -750,10 +759,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
 
       if (existingExchange) {
-        console.log('✅ Found existing exchange request:', existingExchange);
+
         return existingExchange;
       } else {
-        console.log('ℹ️ No existing exchange request found for this item');
+
         return null;
       }
 
@@ -961,8 +970,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Request Item Function
   async function requestItem(listing) {
-    console.log('Requesting item:', listing.id);
-    console.log('Current user at request time:', currentUser);
+
+
     
     // Show date selection modal instead of directly requesting
     showDateSelectionModal(listing);
@@ -1065,23 +1074,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Proceed with request after date selection
   async function proceedWithRequest(listing, startDate, endDate) {
-    console.log('Proceeding with request for dates:', startDate, 'to', endDate);
+
 
     // Check for existing request first
     const existingRequest = await checkExistingRequest(listing);
     if (existingRequest) {
-      console.log('⚠️ User already has a request for this item:', existingRequest);
+
       showToast('You have already requested this item. Check your exchanges for the status.', 'warning');
       return;
     }
 
     // Check if user is authenticated
     if (!currentUser) {
-      console.log('No currentUser found, checking localStorage...');
+
       const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
       const userData = localStorage.getItem('hippo_user') || localStorage.getItem('userData');
-      console.log('Token exists:', !!token);
-      console.log('User data exists:', !!userData);
+
+
       console.log('All localStorage keys:', Object.keys(localStorage));
 
       if (!token || !userData) {
@@ -1094,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const storedUser = JSON.parse(userData);
         currentUser = storedUser;
-        console.log('Loaded user from localStorage:', currentUser);
+
       } catch (error) {
         console.error('Error parsing stored user data:', error);
         alert('Please log in to request items.');
@@ -1136,7 +1145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         endDate: endDate
       };
 
-      console.log('Sending request data:', requestData);
+
 
       const response = await fetch(`${API_BASE_URL}/exchanges`, {
         method: 'POST',
@@ -1148,7 +1157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify(requestData)
       });
 
-      console.log('Request response status:', response.status);
+
 
       if (!response.ok) {
         let errorMessage = `Server error: ${response.status}`;
@@ -1165,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const result = await response.json();
-      console.log('✅ Request created successfully:', result);
+
 
       // Create message thread between requester and owner
       await createMessageThread(listing, currentUser);
@@ -1314,7 +1323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Send notification function
   async function sendRequestNotification(listing, requester) {
     try {
-      console.log('📧 Sending notification to item owner...');
+
 
       // Get requester's display name
       const requesterName = requester?.FirstName && requester?.LastName
@@ -1332,7 +1341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         senderAvatar: requester?.profilePicture || 'hippo-exchange-logo.png'
       };
 
-      console.log('📤 Sending notification data:', notificationData);
+
 
       const notificationResponse = await fetch(`${API_BASE_URL}/notifications`, {
         method: 'POST',
@@ -1344,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify(notificationData)
       });
 
-      console.log('📥 Notification response status:', notificationResponse.status);
+
 
       if (!notificationResponse.ok) {
         console.warn('⚠️ Failed to send notification:', notificationResponse.status);
@@ -1353,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const notificationResult = await notificationResponse.json();
-      console.log('✅ Notification sent successfully:', notificationResult);
+
 
     } catch (error) {
       console.warn('⚠️ Error sending notification:', error);
@@ -1364,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Create message thread function
   async function createMessageThread(listing, requester) {
     try {
-      console.log('💬 Creating message thread between requester and owner...');
+
 
       // Get requester's display name
       const requesterName = requester?.FirstName && requester?.LastName
@@ -1378,9 +1387,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         subject: `Item Request: ${listing.title}`
       };
 
-      console.log('📤 Creating thread data:', threadData);
-      console.log('📤 Requester ID:', requester?.Id || requester?.id || requester?.userId);
-      console.log('📤 Seller ID:', listing.seller.id);
+
+
+
 
       const threadResponse = await fetch(`${API_BASE_URL}/messages/threads`, {
         method: 'POST',
@@ -1392,7 +1401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify(threadData)
       });
 
-      console.log('📥 Thread response status:', threadResponse.status);
+
 
       if (!threadResponse.ok) {
         console.warn('⚠️ Failed to create message thread:', threadResponse.status);
@@ -1401,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const threadResult = await threadResponse.json();
-      console.log('✅ Message thread created successfully:', threadResult);
+
 
       // Send initial message in the thread
       if (threadResult.id) {
@@ -1417,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Send initial message in the thread
   async function sendInitialMessage(threadId, listing, requester) {
     try {
-      console.log('📝 Sending initial message in thread...');
+
 
       // Get requester's display name
       const requesterName = requester?.FirstName && requester?.LastName
@@ -1430,7 +1439,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         senderId: requester?.Id || requester?.id || requester?.userId
       };
 
-      console.log('📤 Sending initial message data:', messageData);
+
 
       const messageResponse = await fetch(`${API_BASE_URL}/messages/threads/${threadId}/messages`, {
         method: 'POST',
@@ -1442,7 +1451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify(messageData)
       });
 
-      console.log('📥 Message response status:', messageResponse.status);
+
 
       if (!messageResponse.ok) {
         console.warn('⚠️ Failed to send initial message:', messageResponse.status);
@@ -1450,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const messageResult = await messageResponse.json();
-      console.log('✅ Initial message sent successfully:', messageResult);
+
 
     } catch (error) {
       console.warn('⚠️ Error sending initial message:', error);
@@ -1472,7 +1481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const saveBtn = $('save-btn');
     saveBtn?.addEventListener('click', async () => {
-      console.log('Save listing:', listing.id);
+
       saveBtn.textContent = saveBtn.textContent === 'Save' ? 'Saved' : 'Save';
       saveBtn.classList.toggle('btn-primary');
       saveBtn.classList.toggle('btn-ghost');
@@ -1498,21 +1507,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const viewProfileBtn = $('view-profile');
-    console.log('🔍 View profile button found:', !!viewProfileBtn);
-    console.log('🔍 View profile button element:', viewProfileBtn);
+
+
 
     if (viewProfileBtn) {
       viewProfileBtn.addEventListener('click', (e) => {
         e.preventDefault(); // Prevent default link behavior
-        console.log('🔍 View profile clicked!');
-        console.log('🔍 Listing object:', listing);
-        console.log('🔍 Listing seller:', listing.seller);
-        console.log('🔍 Seller ID:', listing.seller?.id);
-        console.log('🔍 Seller name:', listing.seller?.name);
+
+
+
+
+
 
         if (listing.seller?.id) {
           const url = `./otheruser.html?userId=${listing.seller.id}`;
-          console.log('🔍 Full URL will be:', url);
+
           window.location.href = url;
         } else {
           console.error('❌ No seller ID found in listing object!');
@@ -1550,7 +1559,7 @@ back?.addEventListener('click', (e) => {
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-  console.log('Checking authentication...');
+
 
   // Debug: Show all localStorage keys
   console.log('All localStorage keys:', Object.keys(localStorage));
@@ -1562,15 +1571,15 @@ async function checkAuthAndLoadUser() {
   const altToken = localStorage.getItem('userToken');
   const altUserData = localStorage.getItem('userData');
 
-  console.log('hippo_token exists:', !!token);
-  console.log('hippo_user exists:', !!userData);
-  console.log('userToken exists:', !!altToken);
-  console.log('userData exists:', !!altUserData);
-  console.log('Token value:', token ? 'Present' : 'Missing');
-  console.log('User data value:', userData ? 'Present' : 'Missing');
+
+
+
+
+
+
 
   if (!token || !userData) {
-    console.log('No token or user data found');
+
     // Don't redirect immediately, let the user try to use the page
     // They'll be redirected when they try to request an item
     return;
@@ -1579,7 +1588,7 @@ async function checkAuthAndLoadUser() {
   // First, try to display user info from localStorage as a fallback
   try {
     const storedUser = JSON.parse(userData);
-    console.log('Stored user data:', storedUser);
+
     currentUser = storedUser;
     displayUserInfo(storedUser);
   } catch (error) {
@@ -1587,7 +1596,7 @@ async function checkAuthAndLoadUser() {
   }
 
   try {
-    console.log('Verifying token with /auth/me...');
+
     // Verify token is still valid by calling /auth/me
     const response = await fetch('/auth/me', {
       headers: {
@@ -1596,23 +1605,23 @@ async function checkAuthAndLoadUser() {
       }
     });
 
-    console.log('Auth response status:', response.status);
+
 
     if (!response.ok) {
-      console.log('Token invalid, but keeping stored user data for now');
+
       // Don't redirect immediately, keep the stored user data
       return;
     }
 
     const currentUserData = await response.json();
-    console.log('Current user from /auth/me:', currentUserData);
+
     currentUser = currentUserData;
     displayUserInfo(currentUserData);
 
   } catch (error) {
     console.error('Auth check failed:', error);
     // Don't redirect on network errors, keep the stored user data
-    console.log('Network error, keeping stored user data');
+
   }
 }
 
@@ -1636,7 +1645,7 @@ function displayUserInfo(user) {
   const accountNameElement = document.getElementById('acct-name');
   if (accountNameElement) {
     accountNameElement.textContent = displayName;
-    console.log('Set account name to:', displayName);
+
   } else {
     console.error('Account name element not found!');
   }
@@ -1646,7 +1655,7 @@ function displayUserInfo(user) {
     const profilePic = user.ProfilePicture || user.profilePicture;
     if (window.generateProfilePictureHTML) {
       acctAvatar.innerHTML = window.generateProfilePictureHTML(profilePic, user, 'md');
-      console.log('Updated profile picture with utility function:', profilePic || 'using initials');
+
     } else {
       // Fallback if utility function not available
       if (profilePic && profilePic.trim()) {
