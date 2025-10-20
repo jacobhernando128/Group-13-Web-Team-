@@ -7,7 +7,7 @@ const money = (n) =>
     ? '$—'
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
 
-let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+let LISTING_LISTING_API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 let currentUser = null; // Store current user data
 
 // Get item ID from URL parameters
@@ -70,13 +70,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function readListing() {
     try {
       console.log('🔍 Starting readListing, itemId:', itemId);
-      console.log('🔍 API_BASE_URL:', API_BASE_URL);
+      console.log('🔍 LISTING_LISTING_API_BASE_URL:', LISTING_LISTING_API_BASE_URL);
       
       let item;
 
       if (itemId) {
         console.log('🔍 Fetching item with ID:', itemId);
-        const response = await fetch(`${API_BASE_URL}/items/${itemId}`);
+        const response = await fetch(`${LISTING_LISTING_API_BASE_URL}/items/${itemId}`);
 
         console.log('🔍 Response status:', response.status, response.statusText);
         
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         item = await response.json();
         console.log('🔍 Fetched item:', item);
       } else {
-        const response = await fetch(`${API_BASE_URL}/items`);
+        const response = await fetch(`${LISTING_LISTING_API_BASE_URL}/items`);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let seller = null;
       if (item.userId) {
         try {
-          const userResponse = await fetch(`${API_BASE_URL}/users/${item.userId}`);
+          const userResponse = await fetch(`${LISTING_LISTING_API_BASE_URL}/users/${item.userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let maintenanceData = [];
       try {
 
-        const maintenanceResponse = await fetch(`${API_BASE_URL}/maintenance/item/${item.id}`);
+        const maintenanceResponse = await fetch(`${LISTING_LISTING_API_BASE_URL}/maintenance/item/${item.id}`);
 
 
         if (maintenanceResponse.ok) {
@@ -671,7 +671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       try {
         const token = localStorage.getItem('hippo_token') || localStorage.getItem('userToken');
-        const response = await fetch(`${API_BASE_URL}/maintenance`, {
+        const response = await fetch(`${LISTING_API_BASE_URL}/maintenance`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -738,7 +738,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
 
       
-      const response = await fetch(`${API_BASE_URL}/exchanges/borrower/${currentUserId}`, {
+      const response = await fetch(`${LISTING_API_BASE_URL}/exchanges/borrower/${currentUserId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('hippo_token')}`,
           'Accept': 'application/json'
@@ -997,7 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Fetch and display existing scheduled periods
     try {
-      const response = await fetch(`${API_BASE_URL}/items/${listing.id}/scheduled-periods`);
+      const response = await fetch(`${LISTING_API_BASE_URL}/items/${listing.id}/scheduled-periods`);
       if (response.ok) {
         const scheduledPeriods = await response.json();
         if (scheduledPeriods.length > 0) {
@@ -1147,7 +1147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-      const response = await fetch(`${API_BASE_URL}/exchanges`, {
+      const response = await fetch(`${LISTING_API_BASE_URL}/exchanges`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1343,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-      const notificationResponse = await fetch(`${API_BASE_URL}/notifications`, {
+      const notificationResponse = await fetch(`${LISTING_API_BASE_URL}/notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1391,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-      const threadResponse = await fetch(`${API_BASE_URL}/messages/threads`, {
+      const threadResponse = await fetch(`${LISTING_API_BASE_URL}/messages/threads`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1441,7 +1441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-      const messageResponse = await fetch(`${API_BASE_URL}/messages/threads/${threadId}/messages`, {
+      const messageResponse = await fetch(`${LISTING_API_BASE_URL}/messages/threads/${threadId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
