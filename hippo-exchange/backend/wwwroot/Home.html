@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hippo Exchange — Home</title>
 
   <!-- Fonts / Tailwind (CDN for demo; swap to local build in prod) -->
@@ -12,12 +13,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet (no token needed) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- App styles -->
   <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body class="relative min-h-screen overflow-hidden">
   <!-- Decorative blobs -->
   <div class="blob blob-1" aria-hidden="true"></div>
@@ -29,44 +33,58 @@
   <div class="flex flex-col md:flex-row h-screen max-h-screen relative">
     <!-- Mobile Menu Button (Hamburger only) -->
     <div class="md:hidden fixed top-4 left-4 z-50">
-      <button id="menu-button"
-              class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
-              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+      <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
+        aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
         <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 6h16M4 12h16m-7 6h7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
       </button>
     </div>
 
     <!-- Sidebar -->
-    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+    <aside id="sidebar"
+      class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300"
+      aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+          <div
+            class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
         </div>
         <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
       <div class="relative mt-4">
-        <input id="search-input" type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search for items"
+          class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500"
+          aria-label="Search for items">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
       </div>
 
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="#" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a></li>
-          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a>
+          </li>
+          <li><a href="./notifications.html" class="nav-link"><span
+                class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Messaging</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
             <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
+          <li>
+            <a href="./calendar.html" class="btn-primary w-full block text-center">📅 Calendar view</a>
           </li>
         </ul>
       </nav>
@@ -75,19 +93,19 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <div id="acct-avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+            </div>
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between">
-            <span class="text-xs text-slate-600">Balance</span>
-            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
-          </div>
+          <!-- Balance removed per UX request -->
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
-            <a href="./Login.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+            <a href="./profile.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign
+              out</a>
           </div>
         </div>
       </section>
@@ -101,12 +119,14 @@
           <!-- Location pill -->
           <button id="open-location" class="location-pill">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span id="header-location">Cookeville, TN — 40 mi</span>
+            <span id="header-location">All locations</span>
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
           </button>
         </div>
@@ -116,102 +136,142 @@
       <div class="glass p-4 mb-6 rounded-xl">
         <div class="flex items-center gap-3 mb-4">
           <h3 class="text-lg font-semibold text-slate-800">Filter by category</h3>
-          <span id="filter-count" class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">All items</span>
+          <span id="filter-count" class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">All
+            items</span>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button class="category-filter active px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md" data-category="all">
+          <button
+            class="category-filter active px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-blue-500 text-white shadow-md"
+            data-category="all">
             All Items
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="electronics">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="electronics">
             Electronics
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="furniture">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="furniture">
             Furniture
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="clothing">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="clothing">
             Clothing
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="vehicles">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="vehicles">
             Vehicles
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="sports">
+          <button
+          class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="sports">
             Sports & Recreation
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="books">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="books">
             Books & Media
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="home">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="home">
             Home & Garden
           </button>
-          <button class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-white/60" data-category="other">
+          <button
+            class="category-filter px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 bg-white/40 text-slate-700 hover:bg-blue-100 hover:text-blue-800"
+            data-category="other">
             Other
           </button>
         </div>
       </div>
 
-    <!-- Listings Grid (single instance) -->
-    <div id="listings-grid"
-        class="listings-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-    </div>
-
-    <!-- Card template (not rendered) -->
-    <template id="item-card-template">
-      <article class="card glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1" data-id="">
-        <div class="relative">
-          <img class="card-img w-full h-[170px] object-cover" alt="Listing image" />
-          <span class="badge absolute top-2 left-2">Just listed</span>
-        </div>
-        <div class="card-footer p-4">
-          <h3 class="price text-lg font-semibold text-slate-900"></h3>
-          <p class="title text-slate-700 text-sm"></p>
-          <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
-        </div>
-      </article>
-    </template>
-
-  <!-- Location Modal -->
-  <div id="location-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="location-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="location-title" class="text-xl font-bold">Change location</h3>
-        <button id="close-location" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+      <!-- Listings Grid (single instance) -->
+      <div id="listings-grid" class="listings-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       </div>
-      <div class="modal-body space-y-4">
-        <div>
-          <label class="block text-sm text-slate-300 mb-2">Search by city, neighborhood or ZIP code.</label>
-          <div class="field">
-            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            <input id="location-input" type="text" placeholder="Algood, Tennessee" />
+
+      <!-- Card template (not rendered) -->
+      <template id="item-card-template">
+        <article class="card glass rounded-lg overflow-hidden shadow-lg transition duration-200 hover:-translate-y-1"
+          data-id="">
+          <div class="relative">
+            <img class="card-img w-full h-[170px] object-cover" alt="Listing image" />
+            <span class="badge absolute top-2 left-2">Just listed</span>
+          </div>
+          <div class="card-footer p-4">
+            <h3 class="price text-lg font-semibold text-slate-900"></h3>
+            <p class="title text-slate-700 text-sm"></p>
+            <p class="sub text-slate-600 text-xs mt-1" data-field="location"></p>
+          </div>
+        </article>
+      </template>
+
+      <!-- Location Modal -->
+      <div id="location-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="location-title">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="location-title" class="text-xl font-bold">Change location</h3>
+            <button id="close-location" class="text-slate-300 hover:text-white" aria-label="Close">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="modal-body space-y-4">
+            <div>
+              <label class="block text-sm text-slate-300 mb-2">Search by city, neighborhood or ZIP code.</label>
+              <div class="field">
+                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <input id="location-input" type="text" placeholder="Algood, Tennessee" />
+              </div>
+              <button id="share-location-btn" class="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z" />
+                </svg>
+                Share My Location
+              </button>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-300 mb-2">Radius</label>
+              <select id="radius-select" class="radius w-full px-3 py-2">
+                <option>5 mi</option>
+                <option>10 mi</option>
+                <option>20 mi</option>
+                <option selected>40 mi</option>
+                <option>60 mi</option>
+                <option>100 mi</option>
+              </select>
+            </div>
+            <div class="relative">
+              <div id="location-map"></div>
+              <button id="geo-btn" class="geo-btn" title="Use my location">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z" />
+                </svg>
+              </button>
+            </div>
+            <div class="flex justify-between pt-2">
+              <button id="clear-location" class="btn-ghost">Clear Filter</button>
+              <button id="apply-location" class="btn-primary">Apply</button>
+            </div>
           </div>
         </div>
-        <div>
-          <label class="block text-sm text-slate-300 mb-2">Radius</label>
-          <select id="radius-select" class="radius w-full px-3 py-2">
-            <option>5 mi</option>
-            <option>10 mi</option>
-            <option>20 mi</option>
-            <option selected>40 mi</option>
-            <option>60 mi</option>
-            <option>100 mi</option>
-          </select>
-        </div>
-        <div class="relative">
-          <div id="location-map"></div>
-          <button id="geo-btn" class="geo-btn" title="Use my location">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a1 1 0 0 1 1 1v1.055a8.001 8.001 0 0 1 6.945 6.945H21a1 1 0 1 1 0 2h-1.055A8.001 8.001 0 0 1 13 19.945V21a1 1 0 1 1-2 0v-1.055A8.001 8.001 0 0 1 4.055 13H3a1 1 0 1 1 0-2h1.055A8.001 8.001 0 0 1 11 4.055V3a1 1 0 0 1 1-1Z"/></svg>
-          </button>
-        </div>
-        <div class="flex justify-end pt-2">
-          <button id="apply-location" class="btn-primary">Apply</button>
-        </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Home JS -->
-  <script defer src="./home.js"></script>
+      <!-- Global Notifications -->
+      <script defer src="./global-notifications.js"></script>
+      <!-- Profile Utils -->
+      <script defer src="./profile-utils.js"></script>
+      <!-- Home JS -->
+      <script defer src="./home.js"></script>
 </body>
-</html>
 
+</html>

@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hippo Exchange — Listing</title>
 
   <!-- Fonts / Tailwind -->
@@ -12,12 +13,159 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <!-- App styles -->
   <link rel="stylesheet" href="./styles.css" />
+  
+  <!-- Custom styles for date inputs -->
+  <style>
+    /* Hide the native calendar icon for date inputs */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: pointer;
+    }
+    input[type="date"] {
+      position: relative;
+    }
+
+    /* Enhanced date picker styling */
+    input[type="date"]::-webkit-datetime-edit {
+      color: white;
+      font-weight: 500;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+      background: transparent;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-text {
+      color: #94a3b8;
+      padding: 0 4px;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-month-field,
+    input[type="date"]::-webkit-datetime-edit-day-field,
+    input[type="date"]::-webkit-datetime-edit-year-field {
+      color: white;
+      background: transparent;
+      border-radius: 4px;
+      padding: 2px 4px;
+      margin: 0 2px;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-month-field:focus,
+    input[type="date"]::-webkit-datetime-edit-day-field:focus,
+    input[type="date"]::-webkit-datetime-edit-year-field:focus {
+      background: rgba(59, 130, 246, 0.1);
+      outline: none;
+    }
+
+    /* Custom date picker popup styling */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      background: transparent;
+      color: transparent;
+      cursor: pointer;
+    }
+
+    /* Improve the overall date input appearance */
+    input[type="date"] {
+      color-scheme: dark;
+      background-color: rgba(30, 41, 59, 0.5);
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    input[type="date"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: rgba(30, 41, 59, 0.7);
+    }
+
+    input[type="date"]:hover {
+      border-color: #64748b;
+      background-color: rgba(30, 41, 59, 0.6);
+    }
+
+    /* Custom calendar popup styling (when opened) */
+    input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      background: rgba(59, 130, 246, 0.1);
+      border-radius: 4px;
+    }
+  </style>
+
+  <!-- Custom animations for success state -->
+  <style>
+    @keyframes successPulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+      }
+    }
+
+    .success-checkmark {
+      animation: checkmarkPop 0.6s ease-out;
+    }
+
+    @keyframes checkmarkPop {
+      0% {
+        transform: scale(0);
+        opacity: 0;
+      }
+
+      50% {
+        transform: scale(1.2);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    /* Video thumbnail styles */
+    .detail-thumb {
+      position: relative;
+    }
+
+    .detail-thumb video {
+      position: relative;
+    }
+
+    .detail-thumb .play-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 50%;
+      padding: 4px;
+      z-index: 10;
+    }
+
+    .detail-thumb:hover .play-icon {
+      background: rgba(0, 0, 0, 0.8);
+    }
+  </style>
 </head>
+
 <body class="relative min-h-screen overflow-hidden">
   <!-- bg blobs -->
   <div class="blob blob-1" aria-hidden="true"></div>
@@ -30,41 +178,57 @@
     <!-- Mobile menu button (hamburger; auto-hides when menu open via styles.css) -->
     <div class="md:hidden fixed top-4 left-4 z-50">
       <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
-              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
         <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
       </button>
     </div>
 
     <!-- Sidebar (same shell as home) -->
-    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+    <aside id="sidebar"
+      class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300"
+      aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
-            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover"/>
+          <div
+            class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
         </div>
         <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
       <div class="relative mt-4">
-        <input type="text" placeholder="Search Hippo Exchange" class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500" aria-label="Search Hippo Exchange">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" placeholder="Search Hippo Exchange"
+          class="input w-full pl-10 pr-4 py-2 rounded-lg text-slate-800 placeholder-slate-500"
+          aria-label="Search Hippo Exchange">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
       </div>
 
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="./Home.html" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a></li>
-          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a>
+          </li>
+          <li><a href="./notifications.html" class="nav-link"><span
+                class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Messaging</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
             <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
+          <li>
+            <a href="./calendar.html" class="btn-primary w-full block text-center">📅 Calendar view</a>
           </li>
         </ul>
       </nav>
@@ -73,19 +237,20 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+            <div id="acct-avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+              <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover rounded-full" />
+            </div>
             <div class="min-w-0">
-              <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
+              <p id="acct-name" class="font-semibold text-slate-900 truncate">Loading...</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between">
-            <span class="text-xs text-slate-600">Balance</span>
-            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
-          </div>
+          <!-- Balance removed per UX request -->
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
-            <a href="#" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+            <a href="./profile.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign
+              out</a>
           </div>
         </div>
       </section>
@@ -93,27 +258,31 @@
 
     <!-- Main content -->
     <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
-        <!-- header -->
-        <header class="glass listing-toolbar p-3 mb-6 flex items-center gap-3">
+      <!-- header -->
+      <header class="glass listing-toolbar p-4 mb-6 flex items-center gap-4 rounded-xl">
         <a id="back-btn" href="home.html"
-            class="btn-back flex items-center gap-2"
-            aria-label="Go back">
-            <!-- Left arrow -->
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-            </svg>
-            <span class="hidden sm:inline">Back</span>
+          class="btn-back flex items-center gap-2 group hover:bg-white/20 px-3 py-2 rounded-lg transition-all duration-200"
+          aria-label="Go back">
+          <!-- Left arrow -->
+          <svg class="w-5 h-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span class="hidden sm:inline font-medium">Back</span>
         </a>
 
-        <h2 id="listing-title" class="text-xl md:text-2xl font-bold text-slate-800 truncate">Loading…</h2>
-        </header>
+        <div class="flex-1">
+          <h2 id="listing-title" class="text-xl md:text-2xl font-bold text-slate-800 truncate">Loading…</h2>
+          <p class="text-sm text-slate-600 mt-1">Item details and availability</p>
+        </div>
+      </header>
 
       <!-- Details layout -->
       <section class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Gallery -->
         <article class="lg:col-span-2 glass p-3 rounded-lg">
           <div class="relative rounded-xl overflow-hidden">
-            <img id="hero-img" class="w-full detail-hero object-cover" alt="Listing image"/>
+            <img id="hero-img" class="w-full detail-hero object-cover" alt="Listing image" />
             <span id="badge" class="badge">Just listed</span>
           </div>
 
@@ -134,7 +303,8 @@
               <h3 class="text-lg font-semibold text-slate-800">Maintenance Information</h3>
               <button id="add-maintenance-btn" class="btn-primary text-sm px-3 py-1 hidden">
                 <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Add Entry
               </button>
@@ -144,35 +314,40 @@
             <div class="mb-6">
               <h4 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
                 <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
                 Maintenance Required
               </h4>
               <div id="maintenance-needed-list" class="space-y-2">
                 <!-- Maintenance requirements will be populated here -->
               </div>
-              <div id="maintenance-needed-empty" class="text-center py-4 text-slate-500">
+              <div id="maintenance-needed-empty" class="text-center py-4 text-slate-500" style="display: none;">
                 <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p class="text-sm">No special maintenance required</p>
               </div>
             </div>
 
+
             <!-- Maintenance History Section -->
             <div>
               <h4 class="font-semibold text-slate-800 mb-3 flex items-center gap-2">
                 <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Maintenance History
               </h4>
               <div id="maintenance-list" class="space-y-3">
                 <!-- Maintenance entries will be populated here -->
               </div>
-              <div id="maintenance-empty" class="text-center py-4 text-slate-500">
+              <div id="maintenance-empty" class="text-center py-4 text-slate-500" style="display: none;">
                 <svg class="w-8 h-8 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p class="text-sm">No maintenance records yet</p>
               </div>
@@ -185,7 +360,6 @@
           <div class="glass p-4 rounded-lg">
             <div class="flex items-baseline justify-between">
               <div>
-                <div id="price" class="text-2xl font-bold text-slate-900">$—</div>
                 <div id="condition" class="text-sm text-slate-600 mt-0.5"></div>
               </div>
             </div>
@@ -195,21 +369,35 @@
               <div id="owner-controls" class="space-y-2 hidden">
                 <button class="btn-primary w-full" id="edit-item-btn">
                   <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit Item
                 </button>
                 <button class="btn-ghost w-full text-red-600 hover:bg-red-50" id="delete-item-btn">
                   <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                   Delete Item
                 </button>
               </div>
-              
+
               <!-- Regular user controls -->
               <div id="user-controls">
-                <button class="btn-primary w-full" id="message-btn">Message seller</button>
+                <button class="btn-primary w-full group relative overflow-hidden" id="request-item-btn">
+                  <div class="flex items-center justify-center relative z-10">
+                    <svg class="w-4 h-4 mr-2 transition-transform group-hover:scale-110" fill="none"
+                      stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="font-medium">Request Item</span>
+                  </div>
+                  <div
+                    class="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-0">
+                  </div>
+                </button>
               </div>
             </div>
 
@@ -222,25 +410,35 @@
           <!-- Map -->
           <div class="glass p-3 rounded-lg">
             <div class="text-sm text-slate-700 mb-2" id="location-label"></div>
-            <div id="detail-map" class="h-[220px] rounded-lg overflow-hidden"></div>
+            <div id="detail-map"
+              class="h-[220px] rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+              <div class="text-gray-500">Loading map...</div>
+            </div>
           </div>
 
           <!-- Seller -->
           <div class="glass p-4 rounded-lg">
             <div class="flex items-center gap-3">
-              <img id="seller-avatar" class="w-10 h-10 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg" alt="Seller avatar"/>
+              <img id="seller-avatar"
+                class="w-10 h-10 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg"
+                alt="Seller avatar" />
               <div>
                 <div id="seller-name" class="font-semibold">Seller</div>
                 <div id="seller-meta" class="text-xs text-slate-600">—</div>
               </div>
             </div>
-            <a href="./otheruser.html" class="btn-primary w-full mt-3 block text-center" id="view-profile">View profile</a>
+            <a href="./otheruser.html" class="btn-primary w-full mt-3 block text-center" id="view-profile">View
+              profile</a>
           </div>
         </aside>
       </section>
     </main>
   </div>
 
+  <!-- Global Notifications -->
+  <script defer src="./global-notifications.js"></script>
+  <!-- Profile Utils -->
+  <script defer src="./profile-utils.js"></script>
   <!-- home shell JS (menu, modal, etc.) -->
   <script defer src="./home.js"></script>
   <!-- Listing page JS -->
@@ -252,7 +450,9 @@
       <div class="modal-header">
         <h3 id="edit-title" class="text-xl font-bold">Edit Item</h3>
         <button id="close-edit" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body space-y-4">
@@ -287,33 +487,61 @@
       <div class="modal-header">
         <h3 id="maintenance-title" class="text-xl font-bold">Add Maintenance Entry</h3>
         <button id="close-maintenance" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body space-y-4">
         <form id="maintenance-form">
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Date</label>
-            <input id="maintenance-date-input" type="date" class="field w-full" required />
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Type</label>
-            <select id="maintenance-type-input" class="field w-full" required>
-              <option value="">Select type</option>
-              <option value="cleaning">Cleaning</option>
-              <option value="repair">Repair</option>
-              <option value="inspection">Inspection</option>
-              <option value="upgrade">Upgrade</option>
-              <option value="maintenance">General Maintenance</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Description</label>
-            <textarea id="maintenance-description-input" class="field w-full h-24" placeholder="Describe what was done..." required></textarea>
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Cost (optional)</label>
-            <input id="maintenance-cost-input" type="number" step="0.01" class="field w-full" placeholder="0.00" />
+          <div class="space-y-4">
+            <!-- Maintenance Type Selection -->
+            <div id="maintenance-type-section">
+              <label class="block text-sm text-slate-300 mb-2">Maintenance Type</label>
+              <div class="flex gap-4">
+                <label class="flex items-center">
+                  <input type="radio" name="maintenance-type" value="required" class="mr-2" checked>
+                  <span class="text-slate-300">Required</span>
+                </label>
+                <label class="flex items-center">
+                  <input type="radio" name="maintenance-type" value="history" class="mr-2">
+                  <span class="text-slate-300">History</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Maintenance Category Selection -->
+            <div>
+              <label class="block text-sm text-slate-300 mb-2">Maintenance Category</label>
+              <select id="maintenance-category-input" class="field w-full" required>
+                <option value="">Select Maintenance Category</option>
+                <option value="cleaning">Cleaning</option>
+                <option value="repair">Repair</option>
+                <option value="inspection">Inspection</option>
+                <option value="upgrade">Upgrade</option>
+                <option value="general-maintenance">General Maintenance</option>
+              </select>
+            </div>
+
+            <!-- Frequency Field (only shown for Required type) -->
+            <div id="frequency-section">
+              <label class="block text-sm text-slate-300 mb-2">Frequency</label>
+              <select id="maintenance-frequency-input" class="field w-full">
+                <option value="">Select frequency</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+                <option value="as-needed">As Needed</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm text-slate-300 mb-2">Description</label>
+              <textarea id="maintenance-description-input" class="field w-full h-24"
+                placeholder="Describe the maintenance requirement or record..." required></textarea>
+            </div>
           </div>
           <div class="flex justify-end pt-2 gap-2">
             <button type="button" id="cancel-maintenance" class="btn-ghost">Cancel</button>
@@ -330,16 +558,99 @@
       <div class="modal-header">
         <h3 id="delete-title" class="text-xl font-bold">Delete Item</h3>
         <button id="close-delete" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
       <div class="modal-body">
         <p class="text-slate-300 mb-4">Are you sure you want to delete this item? This action cannot be undone.</p>
         <div class="flex justify-end gap-2">
           <button id="cancel-delete" class="btn-ghost">Cancel</button>
-          <button id="confirm-delete" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+          <button id="confirm-delete"
+            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
             Delete Item
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Date Selection Modal -->
+  <div id="date-selection-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="date-selection-title">
+    <div class="modal-card max-w-md">
+      <div class="modal-header border-b border-slate-700/50">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 id="date-selection-title" class="text-xl font-bold text-white">Select Borrowing Dates</h3>
+            <p class="text-sm text-slate-400">Choose your preferred rental period</p>
+          </div>
+        </div>
+        <button id="close-date-selection" class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-700/50" aria-label="Close">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="space-y-6">
+          <div class="text-slate-300 text-sm leading-relaxed">
+            <p>Please select the dates you would like to borrow this item. The owner will be notified of your request with these dates.</p>
+          </div>
+          
+          <!-- Scheduled Periods Warning -->
+          <div id="scheduled-periods"></div>
+          
+          <div class="space-y-4">
+            <div class="grid grid-cols-1 gap-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-200">Start Date</label>
+                <div class="relative">
+                  <input id="start-date-input" type="date" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200" required>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <label class="block text-sm font-medium text-slate-200">End Date</label>
+                <div class="relative">
+                  <input id="end-date-input" type="date" class="w-full px-4 py-3 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200" required>
+                  <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <div class="flex items-start gap-3">
+              <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-sm">
+                <p class="font-semibold text-blue-300 mb-1">Return Date Reminders</p>
+                <p class="text-blue-200/80 leading-relaxed">You'll receive automatic notifications 2 days before the return date to remind you to return the item.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end pt-6 gap-3">
+          <button id="cancel-date-selection" class="px-6 py-2.5 text-slate-300 hover:text-white border border-slate-600 hover:border-slate-500 rounded-lg transition-all duration-200 hover:bg-slate-700/30">Cancel</button>
+          <button id="confirm-date-selection" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105">Request Item</button>
         </div>
       </div>
     </div>
@@ -385,7 +696,7 @@
           cost: 0
         },
         {
-          id: "maint2", 
+          id: "maint2",
           date: "2024-01-01",
           type: "maintenance",
           description: "Reapplied food-safe mineral oil finish to maintain wood quality",
@@ -402,7 +713,7 @@
         },
         {
           id: "req2",
-          type: "maintenance", 
+          type: "maintenance",
           description: "Apply food-safe mineral oil monthly to prevent cracking",
           frequency: "Monthly",
           importance: "medium"
@@ -418,4 +729,5 @@
     };
   </script>
 </body>
+
 </html>

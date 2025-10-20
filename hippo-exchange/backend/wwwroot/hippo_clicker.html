@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hippo Clicker v2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 40% 30%, #e9d5ff 0%, #c084fc 40%, #9333ea 70%, #6b21a8 100%);
+      color: #f8fafc;
+      min-height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.4;
+      animation: float 10s ease-in-out infinite;
+      z-index: 0;
+    }
+    .blob-1 {
+      width: 350px;
+      height: 350px;
+      background: #a855f7;
+      top: 5%;
+      left: -100px;
+    }
+    .blob-2 {
+      width: 400px;
+      height: 400px;
+      background: #ec4899;
+      bottom: 10%;
+      right: -150px;
+      animation-delay: 4s;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(30px); }
+    }
+    .glass {
+      background: rgba(17, 17, 38, 0.65);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .btn {
+      background: linear-gradient(90deg, #ec4899, #a855f7);
+      color: white;
+      font-weight: 600;
+      border-radius: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      transition: all 0.2s ease;
+    }
+    .btn:hover { filter: brightness(1.2); transform: scale(1.03); }
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 0.8rem 1.2rem;
+      border-radius: 0.75rem;
+      margin-top: 0.5rem;
+      animation: fadeInOut 3s forwards;
+      font-size: 0.9rem;
+      z-index: 50;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(20px); }
+      10%, 90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-10px); }
+    }
+  </style>
+</head>
+
+<body class="relative">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+   <main class="relative z-10 flex flex-col items-center justify-start pt-10 pb-20 px-6 space-y-8">
+     <!-- Back to Login Button -->
+     <div class="w-full max-w-6xl flex justify-start">
+       <button onclick="window.location.href='./Login.html'" 
+               class="btn flex items-center gap-2">
+         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+         </svg>
+         Back to Login
+       </button>
+     </div>
+
+     <!-- Top section -->
+     <section class="text-center w-full max-w-5xl">
+       <img src="hippo-exchange-logo.png" alt="Hippo Logo" id="hippo"
+         class="mx-auto w-48 h-48 cursor-pointer transition-transform hover:scale-105 active:scale-95 rounded-full shadow-xl" />
+       <h1 class="text-5xl font-extrabold mt-4 text-white drop-shadow">Hippo Clicker</h1>
+       <p class="text-slate-200 mt-2 mb-4">
+         Click the hippo to earn <span class="font-semibold text-pink-200">items</span>!
+       </p>
+       <div class="text-white text-3xl font-bold"><span id="items">0</span> items</div>
+       <p class="text-sm text-slate-300 mt-1">
+         Generating <span id="ips">0</span> items/sec
+       </p>
+     </section>
+
+    <!-- Main Game Panels -->
+    <div class="grid md:grid-cols-2 gap-6 w-full max-w-6xl">
+      <!-- Left: One-time Upgrades -->
+      <section class="glass p-5 rounded-2xl space-y-4 overflow-y-auto max-h-[70vh]">
+        <h2 class="text-2xl font-bold mb-2">🏆 One-Time Milestone Upgrades</h2>
+        <div id="intervalUpgrades" class="space-y-3 text-sm"></div>
+      </section>
+
+      <!-- Right: Producers + Repeatable Upgrades -->
+      <section class="glass p-5 rounded-2xl space-y-6 overflow-y-auto max-h-[70vh]">
+        <div>
+          <h2 class="text-2xl font-bold mb-2">🦛 Producers</h2>
+          <div id="shop" class="space-y-3 text-sm"></div>
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold mb-2">⚙️ Repeatable Upgrades</h2>
+          <div id="upgrades" class="space-y-3 text-sm"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="toastArea"></div>
+
+  <script>
+    const state = {
+      items: 0,
+      totalEarned: 0,
+      producers: {
+        hippo: { name: "Hippo", owned: 0, baseCost: 15, baseCps: 0.5, costMult: 1.15 },
+        bloat: { name: "Bloat of Hippos", owned: 0, baseCost: 150, baseCps: 2, costMult: 1.15 },
+        scrum: { name: "Scrum Master Hippo", owned: 0, baseCost: 2000, baseCps: 15, costMult: 1.15 }
+      },
+      repeatableUpgrades: {
+        snacks: { name:"🍩 Hippo Snacks", target:"hippo", mult:1.25, cost:50, bought:0 },
+        pond: { name:"💧 Tiny Pond", target:"hippo", mult:1.5, cost:200, bought:0 },
+        spa: { name:"🫧 Premium Mud Spa", target:"bloat", mult:1.5, cost:750, bought:0 },
+        cert: { name:"🎓 Scrum Certifications", target:"scrum", mult:1.5, cost:1000, bought:0 },
+        seminar: { name:"🕒 Time Management Seminar", target:"global", mult:1.2, cost:2500, bought:0 }
+      },
+      intervalUpgrades: {}, // dynamically generated
+      achievements: {},
+      lastTick: Date.now()
+    };
+
+    const hippo = document.getElementById('hippo');
+    const itemsEl = document.getElementById('items');
+    const ipsEl = document.getElementById('ips');
+    const shopEl = document.getElementById('shop');
+    const upgradesEl = document.getElementById('upgrades');
+    const intervalEl = document.getElementById('intervalUpgrades');
+    const toastArea = document.getElementById('toastArea');
+
+    // Helper functions
+    function format(n) { return Math.floor(n).toLocaleString(); }
+    function calcCost(base, owned, mult) { return Math.floor(base * Math.pow(mult, owned)); }
+
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      toastArea.prepend(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    function getProducerCps(key) {
+      const p = state.producers[key];
+      let cps = p.baseCps;
+      // apply repeatable upgrades
+      for (const uKey in state.repeatableUpgrades) {
+        const up = state.repeatableUpgrades[uKey];
+        if (up.bought > 0 && (up.target === key || up.target === "global")) {
+          cps *= Math.pow(up.mult, up.bought);
+        }
+      }
+      // apply interval upgrades
+      for (const iKey in state.intervalUpgrades) {
+        const up = state.intervalUpgrades[iKey];
+        if (up.bought && (up.target === key || up.target === "global")) {
+          cps *= up.mult;
+        }
+      }
+      return cps * p.owned;
+    }
+
+    function getTotalCps() {
+      return Object.keys(state.producers)
+        .reduce((sum, k) => sum + getProducerCps(k), 0);
+    }
+
+    // Build UI
+    function buildShop() {
+      shopEl.innerHTML = '';
+      for (const key in state.producers) {
+        const p = state.producers[key];
+        const cost = calcCost(p.baseCost, p.owned, p.costMult);
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center bg-white/10 rounded-lg px-4 py-2";
+        div.innerHTML = `
+          <div><div class="font-semibold">${p.name}</div>
+          <div class="text-xs text-slate-300">${p.owned} owned • ${p.baseCps}/s base</div></div>
+          <button class="btn" ${state.items < cost ? 'disabled' : ''}>Buy (${format(cost)})</button>`;
+        div.querySelector('button').onclick = () => buyProducer(key);
+        shopEl.appendChild(div);
+      }
+    }
+
+    function buildRepeatable() {
+      upgradesEl.innerHTML = '';
+      for (const key in state.repeatableUpgrades) {
+        const up = state.repeatableUpgrades[key];
+        const cost = Math.floor(up.cost * Math.pow(1.2, up.bought));
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center bg-white/10 rounded-lg px-4 py-2";
+        div.innerHTML = `
+          <div><div class="font-semibold">${up.name}</div>
+          <div class="text-xs text-slate-300">x${up.mult} (${up.bought} owned)</div></div>
+          <button class="btn" ${state.items < cost ? 'disabled' : ''}>Buy (${format(cost)})</button>`;
+        div.querySelector('button').onclick = () => buyRepeatable(key);
+        upgradesEl.appendChild(div);
+      }
+    }
+
+    function buildIntervals() {
+      intervalEl.innerHTML = '';
+      for (const key in state.intervalUpgrades) {
+        const up = state.intervalUpgrades[key];
+        if (up.bought) continue;
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center bg-white/10 rounded-lg px-4 py-2";
+        div.innerHTML = `
+          <div><div class="font-semibold">${up.icon} ${up.name}</div>
+          <div class="text-xs text-slate-300">${up.desc}</div></div>
+          <button class="btn" ${state.items < up.cost ? 'disabled' : ''}>Buy (${format(up.cost)})</button>`;
+        div.querySelector('button').onclick = () => buyInterval(key);
+        intervalEl.appendChild(div);
+      }
+    }
+
+    // Buying actions
+    function buyProducer(key) {
+      const p = state.producers[key];
+      const cost = calcCost(p.baseCost, p.owned, p.costMult);
+      if (state.items >= cost) {
+        state.items -= cost;
+        p.owned++;
+        checkMilestones(key);
+        updateUI();
+      }
+    }
+
+    function buyRepeatable(key) {
+      const up = state.repeatableUpgrades[key];
+      const cost = Math.floor(up.cost * Math.pow(1.2, up.bought));
+      if (state.items >= cost) {
+        state.items -= cost;
+        up.bought++;
+        showToast(`Upgrade purchased: ${up.name}`);
+        updateUI();
+      }
+    }
+
+    function buyInterval(key) {
+      const up = state.intervalUpgrades[key];
+      if (state.items >= up.cost) {
+        state.items -= up.cost;
+        up.bought = true;
+        showToast(`🏅 ${up.name} acquired!`);
+        updateUI();
+      }
+    }
+
+    // Interval generation
+    function checkMilestones(prodKey) {
+      const thresholds = [10, 25, 50, 100, 200, 300, 500];
+      const p = state.producers[prodKey];
+      thresholds.forEach(th => {
+        const id = `${prodKey}-${th}`;
+        if (p.owned >= th && !state.intervalUpgrades[id]) {
+          // Randomly decide global or cumulative
+          const global = Math.random() < 0.5;
+          state.intervalUpgrades[id] = {
+            name: global
+              ? `🌍 Global Boost (${p.name} ${th})`
+              : `💪 ${p.name} Mastery ${th}`,
+            desc: global
+              ? `+10% total production`
+              : `Doubles ${p.name} production`,
+            icon: global ? '🌍' : '💪',
+            target: global ? 'global' : prodKey,
+            mult: global ? 1.1 : 2,
+            cost: th * p.baseCost * 2,
+            bought: false
+          };
+          showToast(`New upgrade unlocked: ${state.intervalUpgrades[id].name}`);
+        }
+      });
+    }
+
+    // Game tick
+    function tick() {
+      const now = Date.now();
+      const delta = (now - state.lastTick) / 1000;
+      state.lastTick = now;
+      state.items += getTotalCps() * delta;
+      state.totalEarned += getTotalCps() * delta;
+      updateUI();
+    }
+
+    // UI update
+    function updateUI() {
+      itemsEl.textContent = format(state.items);
+      ipsEl.textContent = getTotalCps().toFixed(1);
+      buildShop();
+      buildRepeatable();
+      buildIntervals();
+      save();
+    }
+
+    // Save / Load
+    function save() {
+      localStorage.setItem('hippo-v2', JSON.stringify(state));
+    }
+
+    function load() {
+      const s = localStorage.getItem('hippo-v2');
+      if (s) Object.assign(state, JSON.parse(s));
+    }
+
+    // Click handler
+    hippo.addEventListener('click', () => {
+      state.items++;
+      state.totalEarned++;
+      updateUI();
+    });
+
+    // Start
+    load();
+    updateUI();
+    setInterval(tick, 1000);
+    setInterval(save, 10000);
+  </script>
+</body>
+</html>

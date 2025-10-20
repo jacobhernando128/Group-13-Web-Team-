@@ -44,6 +44,18 @@ body {
 .dark-scrollbar::-webkit-scrollbar-thumb{ background-color:#94a3b8; border-radius:4px }
 .dark-scrollbar::-webkit-scrollbar-track{ background-color:transparent }
 
+/* Category filter styles */
+.category-filter {
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+.category-filter.active {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
 .badge { 
   position:absolute; top:.5rem; left:.5rem;
   background:#2563eb; color:white; font-weight:600;
@@ -465,7 +477,26 @@ body {
 .btn-sheen:hover::after { translate: 120% 0; }
 
 /* Clickable eye icon area */
-.toggle-eye { cursor: pointer; }
+.toggle-eye { 
+  cursor: pointer; 
+  transition: color 0.2s ease;
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-eye:hover {
+  color: #374151 !important;
+}
+
+.toggle-eye:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* Password requirements styling */
 .password-req {
@@ -599,4 +630,64 @@ button[data-upload] {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Location loading screen */
+#location-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#location-loading-overlay.active {
+  opacity: 1;
+}
+
+.location-loading-content {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 1rem;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  max-width: 400px;
+  width: 90%;
+}
+
+.location-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.location-loading-content h3 {
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.location-loading-content p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
 }

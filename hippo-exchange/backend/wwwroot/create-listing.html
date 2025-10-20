@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hippo Exchange — Create Listing</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +13,7 @@
 
   <link rel="stylesheet" href="./styles.css" />
 </head>
+
 <body class="relative min-h-screen overflow-hidden">
   <div class="blob blob-1" aria-hidden="true"></div>
   <div class="blob blob-2" aria-hidden="true"></div>
@@ -23,35 +25,45 @@
     <!-- Mobile menu button (hamburger; auto-hides when menu open via styles.css) -->
     <div class="md:hidden fixed top-4 left-4 z-50">
       <button id="menu-button" class="glassy text-white/90 focus:outline-none px-3 py-3 rounded-lg"
-              aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
+        aria-expanded="false" aria-controls="sidebar" aria-label="Toggle menu">
         <svg id="icon-ham" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
       </button>
     </div>
     <!-- Sidebar to match app theme -->
-    <aside id="sidebar" class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300" aria-label="Primary">
+    <aside id="sidebar"
+      class="glass-dark md:w-1/4 lg:w-1/5 xl:w-1/6 p-4 flex flex-col space-y-4 md:static absolute top-0 left-0 h-full z-30 md:z-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300"
+      aria-label="Primary">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
+          <div
+            class="h-10 w-10 rounded-xl overflow-hidden border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg">
             <img src="hippo-exchange-logo.png" alt="Hippo Exchange Logo" class="w-full h-full object-cover" />
           </div>
           <h1 class="text-lg font-bold">Hippo Exchange</h1>
         </div>
         <button id="close-menu" class="md:hidden text-gray-300 hover:text-white" aria-label="Close sidebar">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
       <nav class="flex-grow dark-scrollbar overflow-y-auto mt-4">
         <ul class="space-y-2">
           <li><a href="./Home.html" class="nav-link"><span class="icon-doc"></span><span>Browse all</span></a></li>
-          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a></li>
-          <li><a href="./notifications.html" class="nav-link"><span class="icon-bell"></span><span>Notifications</span></a></li>
-          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Inbox</span></a></li>
+          <li><a href="./asset-hub.html" class="nav-link"><span class="icon-briefcase"></span><span>Asset Hub</span></a>
+          </li>
+          <li><a href="./notifications.html" class="nav-link"><span
+                class="icon-bell"></span><span>Notifications</span></a></li>
+          <li><a href="./inbox.html" class="nav-link"><span class="icon-mail"></span><span>Messaging</span></a></li>
           <li class="mt-2"><span class="text-xs uppercase tracking-wide text-slate-300/80">Actions</span></li>
           <li>
             <a href="./create-listing.html" class="btn-primary w-full block text-center">+ Create new listing</a>
+          </li>
+          <li>
+            <a href="./calendar.html" class="btn-primary w-full block text-center">📅 Calendar view</a>
           </li>
         </ul>
       </nav>
@@ -60,19 +72,19 @@
         <h3 class="font-semibold text-slate-200 mb-2">Account</h3>
         <div class="glass p-3 rounded-lg">
           <div class="flex items-center gap-3">
-            <img id="acct-avatar" src="hippo-exchange-logo.png" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-white/40">
+            <div id="acct-avatar" class="w-9 h-9 rounded-full border-2 border-white/50 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+            </div>
             <div class="min-w-0">
               <p id="acct-name" class="font-semibold text-slate-900 truncate">Username</p>
-              <p id="acct-rank" class="text-xs text-slate-600 truncate">Rank</p>
             </div>
           </div>
-          <div class="mt-3 flex items-center justify-between">
-            <span class="text-xs text-slate-600">Balance</span>
-            <span id="acct-balance" class="text-sm font-semibold text-[#2563eb]">10 HXB</span>
-          </div>
+          <!-- Balance removed per UX request -->
           <div class="mt-3 grid grid-cols-2 gap-2">
-            <a href="./profile.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
-            <a href="./Login.html" class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign out</a>
+            <a href="./profile.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-slate-900/80 text-white hover:bg-slate-900">Manage</a>
+            <a href="./Login.html"
+              class="text-center text-sm font-semibold px-3 py-2 rounded-md bg-white/40 text-slate-900 hover:bg-white/60">Sign
+              out</a>
           </div>
         </div>
       </section>
@@ -82,7 +94,9 @@
     <main class="flex-1 p-4 md:p-8 overflow-y-auto dark-scrollbar">
       <header class="glass flex items-center gap-3 p-3 mb-6">
         <a href="./Home.html" class="btn-back flex items-center gap-2" aria-label="Go back">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
           <span class="hidden sm:inline">Back</span>
         </a>
         <h2 class="text-xl md:text-2xl font-bold text-slate-800">Create a new listing</h2>
@@ -93,27 +107,82 @@
         <article class="lg:col-span-2 space-y-6">
           <div class="glass p-4 rounded-lg">
             <div class="flex items-center gap-3">
-              <img src="hippo-exchange-logo.png" alt="User" class="w-10 h-10 rounded-full ring-2 ring-white/40" />
+              <img id="listing-owner-avatar" src="hippo-exchange-logo.png" alt="User"
+                class="w-10 h-10 rounded-full ring-2 ring-white/40" />
               <div>
-                <div class="font-semibold">Joey Milton</div>
+                <div id="listing-owner-name" class="font-semibold">Loading...</div>
                 <div class="text-sm text-slate-600">Listing to Hippo Exchange • Public</div>
               </div>
             </div>
           </div>
 
           <!-- Media Uploads -->
-          <div class="glass p-4 rounded-lg">
-            <div class="text-sm text-slate-600 mb-3">Photos <span id="photo-count">0</span>/10 &nbsp; Videos <span id="video-count">0</span>/1</div>
+          <div class="glass p-6 rounded-xl">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-slate-800">Media</h3>
+              <div class="flex items-center gap-4 text-sm text-slate-600">
+                <span class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                  </svg>
+                  <span id="photo-count">0</span>/10 photos
+                </span>
+                <span class="flex items-center gap-1">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                  </svg>
+                  <span id="video-count">0</span>/1 video
+                </span>
+              </div>
+            </div>
+            
+            <!-- Uploaded Media Preview -->
+            <div id="uploaded-media-preview" class="mb-6 space-y-4">
+              <!-- Photos preview -->
+              <div id="photos-preview" class="hidden">
+                <div class="flex items-center gap-2 mb-3">
+                  <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <h4 class="text-sm font-medium text-slate-700">Uploaded Photos</h4>
+                </div>
+                <div id="photos-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+              </div>
+              
+              <!-- Videos preview -->
+              <div id="videos-preview" class="hidden">
+                <div class="flex items-center gap-2 mb-3">
+                  <div class="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <h4 class="text-sm font-medium text-slate-700">Uploaded Videos</h4>
+                </div>
+                <div id="videos-grid" class="space-y-3"></div>
+              </div>
+            </div>
+            
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button type="button" data-upload="photos" class="w-full border border-white/20 rounded-lg p-8 text-center hover:border-white/30 transition" onclick="document.getElementById('photo-upload').click()">
-                <svg class="w-7 h-7 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"/></svg>
-                <div class="text-slate-700 font-semibold">Add photos</div>
-                <div class="text-xs text-slate-600">JPG/PNG, up to 10 files</div>
+              <button type="button" data-upload="photos"
+                class="group w-full border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                onclick="document.getElementById('photo-upload').click()">
+                <div class="flex flex-col items-center">
+                  <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6" />
+                </svg>
+                  </div>
+                  <div class="text-slate-700 font-semibold mb-1">Add Photos</div>
+                  <div class="text-xs text-slate-500">JPG, PNG, WebP • Max 5MB each</div>
+                </div>
               </button>
-              <button type="button" data-upload="video" class="w-full border border-white/20 rounded-lg p-8 text-center hover:border-white/30 transition" onclick="document.getElementById('video-upload').click()">
-                <svg class="w-7 h-7 mx-auto mb-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                <div class="text-slate-700 font-semibold">Add video</div>
-                <div class="text-xs text-slate-600">Up to 1 minute</div>
+              <button type="button" data-upload="video"
+                class="group w-full border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-purple-400 hover:bg-purple-50/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                onclick="document.getElementById('video-upload').click()">
+                <div class="flex flex-col items-center">
+                  <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                  </div>
+                  <div class="text-slate-700 font-semibold mb-1">Add Video</div>
+                  <div class="text-xs text-slate-500">MP4, MOV • Max 50MB</div>
+                </div>
               </button>
             </div>
             <input type="file" id="photo-upload" multiple accept="image/*" class="hidden" />
@@ -121,45 +190,55 @@
           </div>
 
           <!-- Step 1: Details form -->
-          <form id="create-form" class="glass p-5 rounded-lg space-y-6">
-            <div class="flex items-center gap-2 mb-4">
-              <div class="w-6 h-6 rounded-full bg-blue-500 text-white text-sm flex items-center justify-center font-semibold">1</div>
+          <form id="create-form" class="glass p-6 rounded-xl space-y-6">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white text-sm flex items-center justify-center font-semibold shadow-lg">
+                1
+              </div>
+              <div>
               <h3 class="text-lg font-semibold text-slate-800">Item Details</h3>
+                <p class="text-sm text-slate-600">Tell us about your item</p>
+              </div>
             </div>
 
             <div>
-              <label class="block text-xs text-slate-500 mb-1">Product</label>
-              <input id="title" name="title" type="text" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent" placeholder="Product name" required />
-              <div class="mt-1 h-px bg-slate-200"></div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Product Name</label>
+              <input id="title" name="title" type="text"
+                class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white transition-colors"
+                placeholder="What are you listing?" required />
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Price</label>
-                <input id="price" name="price" type="number" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent" placeholder="0" min="0" step="0.01" />
-                <div class="mt-1 h-px bg-slate-200"></div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Price (Optional)</label>
+                <div class="relative">
+                <input id="price" name="price" type="number"
+                    class="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white transition-colors"
+                    placeholder="0.00" min="0" step="0.01" />
+                </div>
               </div>
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Category</label>
-                <select id="category" name="category" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent">
-                  <option value="">Select a category</option>
-                  <option value="electronics">Electronics</option>
-                  <option value="furniture">Furniture</option>
-                  <option value="clothing">Clothing</option>
-                  <option value="vehicles">Vehicles</option>
-                  <option value="sports">Sports & Recreation</option>
-                  <option value="books">Books & Media</option>
-                  <option value="home">Home & Garden</option>
-                  <option value="other">Other</option>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Category</label>
+                <select id="category" name="category"
+                  class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white transition-colors">
+                  <option value="">Choose a category</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Furniture">Furniture</option>
+                  <option value="Clothing">Clothing</option>
+                  <option value="Vehicles">Vehicles</option>
+                  <option value="Sports & Recreation">Sports & Recreation</option>
+                  <option value="Books & Media">Books & Media</option>
+                  <option value="Home & Garden">Home & Garden</option>
+                  <option value="Other">Other</option>
                 </select>
-                <div class="mt-1 h-px bg-slate-200"></div>
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Condition</label>
-                <select id="condition" name="condition" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent">
+                <label class="block text-sm font-medium text-slate-700 mb-2">Condition</label>
+                <select id="condition" name="condition"
+                  class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white transition-colors">
                   <option value="">Select condition</option>
                   <option value="new">New</option>
                   <option value="like-new">Like new</option>
@@ -167,34 +246,48 @@
                   <option value="fair">Fair</option>
                   <option value="poor">Poor</option>
                 </select>
-                <div class="mt-1 h-px bg-slate-200"></div>
               </div>
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Location</label>
-                <input id="location" name="location" type="text" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent" placeholder="City, State" />
-                <div class="mt-1 h-px bg-slate-200"></div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Location</label>
+                <input id="location" name="location" type="text"
+                  class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white transition-colors"
+                  placeholder="City, State" />
               </div>
             </div>
 
             <div>
-              <label class="block text-xs text-slate-500 mb-1">Description</label>
-              <textarea id="description" name="description" rows="4" class="w-full px-3 py-2 border-0 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent resize-none" placeholder="Describe your item..."></textarea>
-              <div class="mt-1 h-px bg-slate-200"></div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Description</label>
+              <textarea id="description" name="description" rows="4"
+                class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none bg-white resize-none transition-colors"
+                placeholder="Tell potential borrowers about your item..."></textarea>
             </div>
 
-            <div id="message" class="hidden p-3 rounded-lg"></div>
-            <button type="submit" class="btn-primary w-full next-btn" disabled>Next</button>
+            <div id="message" class="hidden p-4 rounded-lg"></div>
+            <button type="submit" class="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 next-btn" disabled>
+              <span class="flex items-center justify-center gap-2">
+                Next Step
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </span>
+            </button>
           </form>
 
           <!-- Step 2: Maintenance form (hidden initially) -->
-          <div id="maintenance-step" class="glass p-5 rounded-lg space-y-6 hidden">
-            <div class="flex items-center gap-2 mb-4">
-              <div class="w-6 h-6 rounded-full bg-blue-500 text-white text-sm flex items-center justify-center font-semibold">2</div>
+          <div id="maintenance-step" class="glass p-6 rounded-xl space-y-6 hidden">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 text-white text-sm flex items-center justify-center font-semibold shadow-lg">
+                2
+              </div>
+              <div>
               <h3 class="text-lg font-semibold text-slate-800">Maintenance History</h3>
+                <p class="text-sm text-slate-600">Add maintenance records (optional)</p>
+              </div>
             </div>
 
             <div class="text-sm text-slate-600 mb-4">
-              <p>Add any maintenance records for this item. This helps potential borrowers understand the item's condition and care history.</p>
+              <p>Add any maintenance records for this item. This helps potential borrowers understand the item's
+                condition and care history.</p>
             </div>
 
             <div id="maintenance-entries" class="space-y-3">
@@ -202,9 +295,11 @@
             </div>
 
             <div class="border-2 border-dashed border-slate-300 rounded-lg p-4">
-              <button type="button" id="add-maintenance-btn" class="w-full text-center text-slate-600 hover:text-slate-800 transition-colors">
+              <button type="button" id="add-maintenance-btn"
+                class="w-full text-center text-slate-600 hover:text-slate-800 transition-colors">
                 <svg class="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 <span class="text-sm font-medium">Add Maintenance Entry</span>
               </button>
@@ -222,7 +317,9 @@
           <div class="glass p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-3">Preview</h3>
             <div id="preview-content" class="space-y-3">
-              <div id="preview-hero" class="h-48 rounded-lg overflow-hidden glassy flex items-center justify-center text-slate-600">No image</div>
+              <div id="preview-hero"
+                class="h-48 rounded-lg overflow-hidden glassy flex items-center justify-center text-slate-600">No image
+              </div>
               <div>
                 <h4 id="preview-title" class="font-semibold text-lg text-slate-900">Title</h4>
                 <p id="preview-price" class="text-[#2563eb] font-semibold">Price</p>
@@ -235,8 +332,9 @@
               <div>
                 <h5 class="font-medium text-slate-800">Seller information</h5>
                 <div class="flex items-center gap-2 mt-2">
-                  <img src="hippo-exchange-logo.png" alt="Seller" class="w-8 h-8 rounded-full ring-2 ring-white/40" />
-                  <span class="text-sm">Joey Milton</span>
+                  <img id="preview-seller-avatar" src="hippo-exchange-logo.png" alt="Seller"
+                    class="w-8 h-8 rounded-full ring-2 ring-white/40" />
+                  <span id="preview-seller-name" class="text-sm">Loading...</span>
                 </div>
                 <a href="#" class="text-sm text-[#2563eb]">Seller details</a>
               </div>
@@ -254,46 +352,92 @@
       <div class="modal-header">
         <h3 id="maintenance-title" class="text-xl font-bold">Add Maintenance Entry</h3>
         <button id="close-maintenance" class="text-slate-300 hover:text-white" aria-label="Close">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
-      <div class="modal-body space-y-4">
-        <form id="maintenance-form">
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Date</label>
-            <input id="maintenance-date-input" type="date" class="field w-full" required />
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Type</label>
-            <select id="maintenance-type-input" class="field w-full" required>
-              <option value="">Select type</option>
-              <option value="cleaning">Cleaning</option>
-              <option value="repair">Repair</option>
-              <option value="inspection">Inspection</option>
-              <option value="upgrade">Upgrade</option>
-              <option value="maintenance">General Maintenance</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Description</label>
-            <textarea id="maintenance-description-input" class="field w-full h-24" placeholder="Describe what was done..." required></textarea>
-          </div>
-          <div>
-            <label class="block text-sm text-slate-300 mb-2">Cost (optional)</label>
-            <input id="maintenance-cost-input" type="number" step="0.01" class="field w-full" placeholder="0.00" />
-          </div>
-          <div class="flex justify-end pt-2 gap-2">
-            <button type="button" id="cancel-maintenance" class="btn-ghost">Cancel</button>
-            <button type="submit" class="btn-primary">Add Entry</button>
-          </div>
-        </form>
+      <div class="modal-body">
+        <!-- Add New Maintenance Section -->
+        <div>
+          <h4 class="text-lg font-semibold text-slate-300 mb-3">Add New Entry</h4>
+          <form id="maintenance-form">
+            <div class="space-y-4">
+              <!-- Maintenance Type Selection -->
+              <div id="maintenance-type-section">
+                <label class="block text-sm text-slate-300 mb-2">Maintenance Type</label>
+                <div class="flex gap-4">
+                  <label class="flex items-center">
+                    <input type="radio" name="maintenance-type" value="required" class="mr-2" checked>
+                    <span class="text-slate-300">Required</span>
+                  </label>
+                  <label class="flex items-center">
+                    <input type="radio" name="maintenance-type" value="history" class="mr-2">
+                    <span class="text-slate-300">History</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Maintenance Category Selection -->
+              <div>
+                <label class="block text-sm text-slate-300 mb-2">Maintenance Category</label>
+                <select id="maintenance-category-input" class="field w-full" required>
+                  <option value="">Select Maintenance Category</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="repair">Repair</option>
+                  <option value="inspection">Inspection</option>
+                  <option value="upgrade">Upgrade</option>
+                  <option value="general-maintenance">General Maintenance</option>
+                </select>
+              </div>
+
+              <!-- Frequency Field (only shown for Required type) -->
+              <div id="frequency-section">
+                <label class="block text-sm text-slate-300 mb-2">Frequency</label>
+                <select id="maintenance-frequency-input" class="field w-full">
+                  <option value="">Select frequency</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="as-needed">As Needed</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm text-slate-300 mb-2">Description</label>
+                <textarea id="maintenance-description-input" class="field w-full h-24"
+                  placeholder="Describe the maintenance requirement or record..." required></textarea>
+              </div>
+
+              <!-- Receipt Upload (only shown for History type) -->
+              <div id="receipt-section" style="display: none;">
+                <label class="block text-sm text-slate-300 mb-2">Receipt/Photo</label>
+                <div class="border-2 border-dashed border-slate-400 rounded-lg p-4 text-center">
+                  <input type="file" id="maintenance-receipt-upload" accept="image/*" class="hidden" multiple>
+                  <button type="button" id="receipt-upload-btn" class="text-slate-300 hover:text-white transition-colors">
+                    <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    <span class="text-sm">Upload Receipt/Photo</span>
+                  </button>
+                  <div id="receipt-preview" class="mt-2 space-y-2"></div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-end pt-4 gap-2">
+              <button type="button" id="cancel-maintenance" class="btn-ghost">Cancel</button>
+              <button type="submit" class="btn-primary">Add Entry</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
-
-  <script defer src="./home.js"></script>
+  <script defer src="./global-notifications.js"></script>
+  <script defer src="./profile-utils.js"></script>
   <script defer src="./create-listing.js"></script>
 </body>
+
 </html>
-
-

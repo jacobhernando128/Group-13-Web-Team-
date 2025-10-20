@@ -1,5 +1,5 @@
 // login.js
-console.log("login.js loaded at", location.href);
+
 
 (() => {
   // ---- API base ----
@@ -7,6 +7,9 @@ console.log("login.js loaded at", location.href);
   const overrideApi = scriptEl?.getAttribute("data-api");
   const API_BASE = (overrideApi && overrideApi.trim()) || location.origin;
 
+  // ---- Simple API-based authentication (like home.js) ----
+
+  // ---- Generic API helper ----
   async function api(path, { method = "POST", body = undefined, headers = {} } = {}) {
     const res = await fetch(`${API_BASE}${path}`, {
       method,
@@ -33,8 +36,8 @@ console.log("login.js loaded at", location.href);
   const messageBox = document.getElementById("message-box");
   const registerForm = document.getElementById("register-form");
   const loginForm = document.getElementById("login-form");
-  const showRegister = document.getElementById("show-login-btn");   // button inside Register form switches to Login
-  const showLogin = document.getElementById("show-register-btn"); // button inside Login form switches to Register
+  const showRegister = document.getElementById("show-login-btn");
+  const showLogin = document.getElementById("show-register-btn");
   const appSection = document.getElementById("app-section");
   const logoutBtn = document.getElementById("logout-btn");
   const passwordInput = document.getElementById("register-password");
@@ -100,6 +103,45 @@ console.log("login.js loaded at", location.href);
     const isHidden = input.type === 'password';
     input.type = isHidden ? 'text' : 'password';
     btn.setAttribute('aria-pressed', String(isHidden));
+    
+    // Update the eye icon
+    const svg = btn.querySelector('svg');
+    if (svg) {
+      if (isHidden) {
+        // Show eye with slash (password visible)
+        svg.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
+        `;
+      } else {
+        // Show normal eye (password hidden)
+        svg.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        `;
+      }
+    }
+  });
+
+  // ---- Auto-hide password when typing ----
+  document.addEventListener('input', (e) => {
+    if (e.target.type === 'text' && e.target.id && (e.target.id.includes('password') || e.target.id.includes('Password'))) {
+      // Find the corresponding toggle button
+      const toggleBtn = document.querySelector(`[data-toggle="${e.target.id}"]`);
+      if (toggleBtn && toggleBtn.getAttribute('aria-pressed') === 'true') {
+        // Password is currently visible, hide it
+        e.target.type = 'password';
+        toggleBtn.setAttribute('aria-pressed', 'false');
+        
+        // Update the eye icon back to normal eye
+        const svg = toggleBtn.querySelector('svg');
+        if (svg) {
+          svg.innerHTML = `
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          `;
+        }
+      }
+    }
   });
 
   // ---- Toggle between forms ----
@@ -112,44 +154,169 @@ console.log("login.js loaded at", location.href);
     const firstname = e.target["register-firstname"]?.value?.trim() || "";
     const lastname = e.target["register-lastname"]?.value?.trim() || "";
     const email = e.target["register-email"]?.value?.trim() || "";
+    const phone = e.target["register-phone"]?.value?.trim() || "";
     const password = e.target["register-password"]?.value || "";
     const confirm = e.target["confirm-password"]?.value || "";
+
     if (!email) { showMessage("Email is required.", "error"); return; }
     if (!isPasswordValid(password)) { showMessage("Password does not meet all requirements.", "error"); return; }
     if (password !== confirm) { showMessage("Passwords do not match.", "error"); return; }
 
     try {
-      await api("/auth/register", { body: { email, name: `${firstname} ${lastname}`.trim(), password } });
-      showMessage("Registration successful! Please log in.", "success");
-      swapForms(loginForm, registerForm);
+      // Use BCrypt registration (simple approach like home.js)
+      const userProfile = await api("/auth/register", {
+        body: {
+          email,
+          password,
+          firstName: firstname || undefined,
+          lastName: lastname || undefined,
+          phone: phone || undefined
+        }
+      });
+
+      if (!userProfile?.id) {
+        throw new Error("User profile not found after registration.");
+      }
+
+      // Store user data and token
+      localStorage.setItem("hippo_user", JSON.stringify(userProfile));
+      if (userProfile.token) {
+        localStorage.setItem("hippo_token", userProfile.token);
+      }
+      
+      showMessage("Registration successful! Redirecting...", "success");
+      setTimeout(() => { window.location.href = "./Home.html"; }, 1200);
     } catch (err) {
-      console.error(err); showMessage(err.message || "Registration failed.", "error");
+      console.error(err);
+      let errorMessage = "Registration failed.";
+      
+      // Handle specific error cases
+      if (err.message.includes("already registered") || err.message.includes("Email already")) {
+        errorMessage = "This email is already registered.";
+      } else if (err.message.includes("weak password")) {
+        errorMessage = "Password is too weak.";
+      } else if (err.message.includes("invalid email")) {
+        errorMessage = "Invalid email address.";
+      } else {
+        errorMessage = err.message || "Registration failed.";
+      }
+      
+      showMessage(errorMessage, "error");
     }
   });
 
-  // ---- Login ----
+  // ---- Login (simple BCrypt approach like home.js) ----
   loginForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = e.target["login-email"]?.value?.trim() || "";
     const password = e.target["login-password"]?.value || "";
     if (!email || !password) { showMessage("Email and password are required.", "error"); return; }
+    
     try {
-      const user = await api("/auth/login", { body: { email, password } });
-      localStorage.setItem("hippo_user", JSON.stringify(user));
+      // Use BCrypt login (simple approach like home.js)
+      const userProfile = await api("/auth/login", { 
+        body: { email, password } 
+      });
+
+      if (!userProfile?.id) {
+        throw new Error("User profile not found. Please register first.");
+      }
+
+      // Store user data and token
+      localStorage.setItem("hippo_user", JSON.stringify(userProfile));
+      if (userProfile.token) {
+        localStorage.setItem("hippo_token", userProfile.token);
+      }
+      
       showMessage("Login successful! Redirecting...", "success");
       setTimeout(() => { window.location.href = "./Home.html"; }, 1200);
     } catch (err) {
-      console.error(err); showMessage(err.message || "Login failed.", "error");
+      console.error(err);
+      let errorMessage = "Login failed.";
+      
+      // Handle specific error cases
+      if (err.message.includes("Unauthorized") || err.message.includes("401")) {
+        errorMessage = "Invalid email or password.";
+      } else if (err.message.includes("user not found")) {
+        errorMessage = "No account found with this email.";
+      } else if (err.message.includes("wrong password")) {
+        errorMessage = "Incorrect password.";
+      } else if (err.message.includes("invalid email")) {
+        errorMessage = "Invalid email address.";
+      } else {
+        errorMessage = err.message || "Login failed.";
+      }
+      
+      showMessage(errorMessage, "error");
     }
   });
 
-  // ---- Logout ----
-  logoutBtn?.addEventListener("click", () => {
+  // ---- Logout (simple approach like home.js) ----
+  const fullLogout = async () => {
+    // Clear all user data (like home.js signOut function)
     localStorage.removeItem("hippo_user");
+    localStorage.removeItem("hippo_token");
+    localStorage.removeItem("userToken");
+    localStorage.removeItem("userData");
+    sessionStorage.removeItem("userToken");
+    sessionStorage.removeItem("userData");
+    
+    // Clear cookies
+    document.cookie = 'userToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'userData=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
     setAuthUI(false);
     showMessage("You have been logged out.", "info");
     setTimeout(() => messageBox?.classList.add("hidden"), 1800);
-  });
+  };
+  logoutBtn?.addEventListener("click", fullLogout);
+
+  /* Enforce Terms-of-Service agreement on registration */
+  (function () {
+    function init() {
+      const regForm   = document.getElementById('register-form');
+      if (!regForm) return; // nothing to do if the register form isn't on this view
+
+      const terms     = document.getElementById('terms');                  // the checkbox
+      const createBtn = document.getElementById('create-account-btn');     // the submit button
+      const msgBox    = document.getElementById('message-box');            // optional status area
+
+      // Keep the button disabled until the user agrees
+      const syncTerms = () => {
+        if (createBtn) createBtn.disabled = !(terms && terms.checked);
+      };
+      syncTerms();
+      terms?.addEventListener('change', syncTerms);
+
+      // Hard gate on submit (covers scripted submits/AJAX/etc.)
+      regForm.addEventListener('submit', (e) => {
+        if (!terms || !terms.checked) {
+          e.preventDefault();
+
+          if (msgBox) {
+            msgBox.textContent = 'Please agree to the Terms before creating an account.';
+            msgBox.className = 'mb-4 p-3 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200';
+          }
+          terms?.focus();
+          return false;
+        }
+
+        // Preserve any native validation you rely on
+        if (regForm.checkValidity && !regForm.checkValidity()) {
+          e.preventDefault();
+          regForm.reportValidity?.();
+          return false;
+        }
+      }, { passive: false });
+    }
+
+    // Run after DOM is ready (works whether script is in <head> or at the bottom)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
 
   // ---- Init ----
   setAuthUI(false);
