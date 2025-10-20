@@ -93,10 +93,18 @@
               </label>
 
               <!-- Password -->
-              <label class="block">
-                <input id="register-password" name="password" required
-                  class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
-                  placeholder="Password" type="password" autocomplete="new-password">
+              <label class="block relative">
+                <div class="relative">
+                  <input id="register-password" name="password" required
+                    class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                    placeholder="Password" type="password" autocomplete="new-password">
+                  <button type="button" class="toggle-eye absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" data-toggle="register-password" aria-pressed="false" aria-label="Toggle password visibility">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                  </button>
+                </div>
                 <!-- Password Requirements -->
                 <div id="password-requirements" class="mt-2 text-xs text-slate-600 space-y-1">
                   <div class="password-req" data-requirement="length"><span class="req-icon">✗</span> At least 8
@@ -112,10 +120,18 @@
               </label>
 
               <!-- Confirm password -->
-              <label class="block">
-                <input id="confirm-password" name="confirmPassword" required
-                  class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
-                  placeholder="Confirm password" type="password" autocomplete="new-password">
+              <label class="block relative">
+                <div class="relative">
+                  <input id="confirm-password" name="confirmPassword" required
+                    class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                    placeholder="Confirm password" type="password" autocomplete="new-password">
+                  <button type="button" class="toggle-eye absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" data-toggle="confirm-password" aria-pressed="false" aria-label="Toggle password visibility">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                  </button>
+                </div>
               </label>
             </div>
 
@@ -153,10 +169,18 @@
                 placeholder="Email address" autocomplete="email">
             </label>
 
-            <label class="block">
-              <input id="login-password" name="password" required
-                class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
-                placeholder="Password" type="password" autocomplete="current-password">
+            <label class="block relative">
+              <div class="relative">
+                <input id="login-password" name="password" required
+                  class="input w-full pl-3 pr-10 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                  placeholder="Password" type="password" autocomplete="current-password">
+                <button type="button" class="toggle-eye absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none" data-toggle="login-password" aria-pressed="false" aria-label="Toggle password visibility">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
+                </button>
+              </div>
               <div class="flex items-center justify-between mt-2">
                 <a href="./forgot-password.html" class="text-sm text-blue-700 hover:underline">Forgot password?</a>
               </div>

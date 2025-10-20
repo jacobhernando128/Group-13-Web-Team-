@@ -477,7 +477,26 @@ body {
 .btn-sheen:hover::after { translate: 120% 0; }
 
 /* Clickable eye icon area */
-.toggle-eye { cursor: pointer; }
+.toggle-eye { 
+  cursor: pointer; 
+  transition: color 0.2s ease;
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-eye:hover {
+  color: #374151 !important;
+}
+
+.toggle-eye:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* Password requirements styling */
 .password-req {

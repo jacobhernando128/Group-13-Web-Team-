@@ -103,6 +103,45 @@
     const isHidden = input.type === 'password';
     input.type = isHidden ? 'text' : 'password';
     btn.setAttribute('aria-pressed', String(isHidden));
+    
+    // Update the eye icon
+    const svg = btn.querySelector('svg');
+    if (svg) {
+      if (isHidden) {
+        // Show eye with slash (password visible)
+        svg.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"></path>
+        `;
+      } else {
+        // Show normal eye (password hidden)
+        svg.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        `;
+      }
+    }
+  });
+
+  // ---- Auto-hide password when typing ----
+  document.addEventListener('input', (e) => {
+    if (e.target.type === 'text' && e.target.id && (e.target.id.includes('password') || e.target.id.includes('Password'))) {
+      // Find the corresponding toggle button
+      const toggleBtn = document.querySelector(`[data-toggle="${e.target.id}"]`);
+      if (toggleBtn && toggleBtn.getAttribute('aria-pressed') === 'true') {
+        // Password is currently visible, hide it
+        e.target.type = 'password';
+        toggleBtn.setAttribute('aria-pressed', 'false');
+        
+        // Update the eye icon back to normal eye
+        const svg = toggleBtn.querySelector('svg');
+        if (svg) {
+          svg.innerHTML = `
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          `;
+        }
+      }
+    }
   });
 
   // ---- Toggle between forms ----
