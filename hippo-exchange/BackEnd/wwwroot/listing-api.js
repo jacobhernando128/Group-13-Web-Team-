@@ -7,8 +7,11 @@ const money = (n) =>
     ? '$—'
     : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(n));
 
-let LISTING_LISTING_API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+let LISTING_API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 let currentUser = null; // Store current user data
+
+// Debug: Log the API base URL
+console.log('🔍 LISTING_API_BASE_URL initialized:', LISTING_API_BASE_URL);
 
 // Get item ID from URL parameters
 const qs = new URLSearchParams(location.search);
@@ -70,13 +73,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function readListing() {
     try {
       console.log('🔍 Starting readListing, itemId:', itemId);
-      console.log('🔍 LISTING_LISTING_API_BASE_URL:', LISTING_LISTING_API_BASE_URL);
+      console.log('🔍 LISTING_API_BASE_URL:', LISTING_API_BASE_URL);
       
       let item;
 
       if (itemId) {
         console.log('🔍 Fetching item with ID:', itemId);
-        const response = await fetch(`${LISTING_LISTING_API_BASE_URL}/items/${itemId}`);
+        const response = await fetch(`${LISTING_API_BASE_URL}/items/${itemId}`);
 
         console.log('🔍 Response status:', response.status, response.statusText);
         
@@ -90,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         item = await response.json();
         console.log('🔍 Fetched item:', item);
       } else {
-        const response = await fetch(`${LISTING_LISTING_API_BASE_URL}/items`);
+        const response = await fetch(`${LISTING_API_BASE_URL}/items`);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -107,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let seller = null;
       if (item.userId) {
         try {
-          const userResponse = await fetch(`${LISTING_LISTING_API_BASE_URL}/users/${item.userId}`);
+          const userResponse = await fetch(`${LISTING_API_BASE_URL}/users/${item.userId}`);
           if (userResponse.ok) {
             seller = await userResponse.json();
           }
@@ -151,7 +154,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       let maintenanceData = [];
       try {
 
-        const maintenanceResponse = await fetch(`${LISTING_LISTING_API_BASE_URL}/maintenance/item/${item.id}`);
+        const maintenanceResponse = await fetch(`${LISTING_API_BASE_URL}/maintenance/item/${item.id}`);
 
 
         if (maintenanceResponse.ok) {
