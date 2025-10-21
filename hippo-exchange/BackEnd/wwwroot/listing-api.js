@@ -132,6 +132,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const videos = item.Videos || item.videos || [];
       const imageUrl = item.imageUrl || images[0] || PLACEHOLDER_IMG;
 
+      console.log('🎬 Video debugging:');
+      console.log('🎬 item.Videos:', item.Videos);
+      console.log('🎬 item.videos:', item.videos);
+      console.log('🎬 videos array:', videos);
+      console.log('🎬 videos length:', videos.length);
+
 
 
 
@@ -236,13 +242,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-    // Combine images and videos for display
-    const allMedia = [...imgs, ...videos];
+    // Prioritize images, but show video if no images available
+    let firstMedia = null;
+    let isVideo = false;
+    
+    if (imgs.length > 0) {
+      // If we have images, show the first image
+      firstMedia = imgs[0];
+      isVideo = false;
+    } else if (videos.length > 0) {
+      // If no images but we have videos, show the first video
+      firstMedia = videos[0];
+      isVideo = true;
+    }
 
-    if (allMedia.length > 0) {
-      const firstMedia = allMedia[0];
-      if (videos.includes(firstMedia)) {
-        // If first media is a video, show video element
+    if (firstMedia) {
+      if (isVideo) {
+        // Show video element
+        console.log('🎬 Displaying video as hero:', firstMedia);
         hero.style.display = 'none';
         let videoEl = hero.parentElement.querySelector('video');
         if (!videoEl) {
@@ -250,12 +267,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           videoEl.className = 'w-full h-[400px] object-cover rounded-lg';
           videoEl.controls = true;
           videoEl.preload = 'metadata';
+          videoEl.poster = ''; // Let browser generate thumbnail
           hero.parentElement.appendChild(videoEl);
         }
         videoEl.src = firstMedia;
         videoEl.style.display = 'block';
+        console.log('🎬 Video hero element created and displayed');
       } else {
         // Show image
+        console.log('📸 Displaying image as hero:', firstMedia);
         let videoEl = hero.parentElement.querySelector('video');
         if (videoEl) videoEl.style.display = 'none';
         hero.style.display = 'block';
@@ -263,12 +283,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         hero.alt = `${listing.title} photo`;
       }
     } else {
+      // No media at all, show placeholder
+      console.log('🖼️ No media available, showing placeholder');
       hero.src = PLACEHOLDER_IMG;
       hero.alt = `${listing.title} photo`;
     }
 
     thumbs.replaceChildren();
-    allMedia.forEach((src, i) => {
+    
+    // Create combined media array for thumbnails (images first, then videos)
+    const combinedMedia = [...imgs, ...videos];
+    
+    combinedMedia.forEach((src, i) => {
       const isVideo = videos.includes(src);
       const b = document.createElement('button');
       b.className = `detail-thumb ${i === 0 ? 'detail-thumb--active' : ''}`;

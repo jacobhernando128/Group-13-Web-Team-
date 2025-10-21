@@ -3,13 +3,13 @@
 let currentUser = null; // Store current user data
 
 document.addEventListener('DOMContentLoaded', async () => {
-
+    console.log('Create listing page loaded, starting authentication check...');
     // Check authentication and load user data FIRST
     await checkAuthAndLoadUser();
-
+    console.log('Authentication check completed, currentUser:', currentUser);
 
     // ===== CONFIGURATION =====
-    let API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
+    const API_BASE_URL = (typeof location !== 'undefined' && location.origin) ? location.origin : 'http://localhost:5000';
 
     const form = document.getElementById('create-form');
     const message = document.getElementById('message');
@@ -90,10 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const videoUpload = document.getElementById('video-upload');
     const photoCount = document.getElementById('photo-count');
     const videoCount = document.getElementById('video-count');
-    const photosPreview = document.getElementById('photos-preview');
-    const videosPreview = document.getElementById('videos-preview');
-    const photosGrid = document.getElementById('photos-grid');
-    const videosGrid = document.getElementById('videos-grid');
 
     // Maintenance elements
     const addMaintenanceBtn = document.getElementById('add-maintenance-btn');
@@ -178,109 +174,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             previewHero.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-sm">No image</div>';
         }
     }
-
-    function renderMediaPreview() {
-        // Render photos
-        if (uploadedPhotos.length > 0) {
-            photosPreview.classList.remove('hidden');
-            photosGrid.innerHTML = '';
-            
-            uploadedPhotos.forEach((photoUrl, index) => {
-                const photoItem = document.createElement('div');
-                photoItem.className = 'relative group bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
-                photoItem.innerHTML = `
-                    <div class="relative aspect-square">
-                        <img src="${photoUrl}" alt="Uploaded photo ${index + 1}" 
-                             class="w-full h-full object-cover">
-                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200"></div>
-                        <button type="button" 
-                                class="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
-                                onclick="removePhoto(${index})"
-                                title="Remove photo">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <p class="text-white text-xs font-medium truncate">${uploadedPhotoFiles[index]?.name || `Photo ${index + 1}`}</p>
-                        </div>
-                    </div>
-                `;
-                photosGrid.appendChild(photoItem);
-            });
-        } else {
-            photosPreview.classList.add('hidden');
-        }
-
-        // Render videos
-        if (uploadedVideos.length > 0) {
-            videosPreview.classList.remove('hidden');
-            videosGrid.innerHTML = '';
-            
-            uploadedVideos.forEach((videoUrl, index) => {
-                const videoItem = document.createElement('div');
-                videoItem.className = 'relative group bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200';
-                videoItem.innerHTML = `
-                    <div class="relative">
-                        <video src="${videoUrl}" 
-                               class="w-full h-40 object-cover"
-                               controls>
-                            Your browser does not support the video tag.
-                        </video>
-                        <button type="button" 
-                                class="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-600 transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg"
-                                onclick="removeVideo(${index})"
-                                title="Remove video">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <p class="text-white text-xs font-medium truncate">${uploadedVideoFiles[index]?.name || `Video ${index + 1}`}</p>
-                        </div>
-                    </div>
-                `;
-                videosGrid.appendChild(videoItem);
-            });
-        } else {
-            videosPreview.classList.add('hidden');
-        }
-    }
-
-    function removePhoto(index) {
-        // Remove from arrays
-        uploadedPhotos.splice(index, 1);
-        uploadedPhotoFiles.splice(index, 1);
-        
-        // Update counters
-        photoCount.textContent = uploadedPhotos.length;
-        
-        // Re-render previews
-        renderMediaPreview();
-        updatePreview();
-        
-        // Show success message
-        showMessage('Photo removed', 'info');
-    }
-
-    function removeVideo(index) {
-        // Remove from arrays
-        uploadedVideos.splice(index, 1);
-        uploadedVideoFiles.splice(index, 1);
-        
-        // Update counters
-        videoCount.textContent = uploadedVideos.length;
-        
-        // Re-render previews
-        renderMediaPreview();
-        
-        // Show success message
-        showMessage('Video removed', 'info');
-    }
-
-    // Make functions globally available for onclick handlers
-    window.removePhoto = removePhoto;
-    window.removeVideo = removeVideo;
 
     function showStep(step) {
         if (step === 1) {
@@ -471,7 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error('Title is required.');
             }
 
-
+            console.log('📤 Sending data to backend:', data);
 
             const res = await fetch(`${API_BASE_URL}/items`, {
                 method: 'POST',
@@ -482,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body: JSON.stringify(data)
             });
 
-
+            console.log('📥 Response status:', res.status);
 
             if (!res.ok) {
                 let errorMessage = `Server error: ${res.status}`;
@@ -499,11 +392,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const created = await res.json();
-
+            console.log('✅ Created item:', created);
 
             // Upload images if any
             if (uploadedPhotoFiles && uploadedPhotoFiles.length > 0) {
-
+                console.log('📸 Uploading photos:', uploadedPhotoFiles.length);
                 for (const photoFile of uploadedPhotoFiles) {
                     try {
                         const formData = new FormData();
@@ -528,7 +421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } else {
                             const uploadResult = await uploadRes.json();
-
+                            console.log('✅ Photo uploaded:', uploadResult.url);
                         }
                     } catch (err) {
                         console.warn('⚠️ Error uploading photo:', err);
@@ -541,7 +434,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Upload videos if any
             if (uploadedVideoFiles && uploadedVideoFiles.length > 0) {
-
+                console.log('🎥 Uploading videos:', uploadedVideoFiles.length);
                 for (const videoFile of uploadedVideoFiles) {
                     try {
                         const formData = new FormData();
@@ -566,7 +459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } else {
                             const uploadResult = await uploadRes.json();
-
+                            console.log('✅ Video uploaded:', uploadResult.url);
                         }
                     } catch (err) {
                         console.warn('⚠️ Error uploading video:', err);
@@ -581,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (maintenanceList.length > 0) {
                 try {
                     const itemId = created.id || created.Id;
-
+                    console.log('📤 Sending maintenance entries for item:', itemId);
 
                     for (const maintenance of maintenanceList) {
                         const maintenanceData = {
@@ -605,11 +498,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             console.warn('⚠️ Failed to create maintenance entry:', maintenanceRes.status);
                         } else {
                             const createdMaintenance = await maintenanceRes.json();
-
+                            console.log('✅ Created maintenance entry:', createdMaintenance);
 
                             // Upload receipts if any exist
                             if (maintenance.receipts && maintenance.receipts.length > 0) {
-
+                                console.log('📄 Uploading receipts for maintenance:', maintenance.receipts.length);
                                 
                                 for (const receiptFile of maintenance.receipts) {
                                     try {
@@ -626,7 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         if (!receiptRes.ok) {
                                             console.warn('⚠️ Failed to upload receipt:', receiptFile.name, 'Status:', receiptRes.status);
                                         } else {
-
+                                            console.log('✅ Uploaded receipt:', receiptFile.name);
                                         }
                                     } catch (err) {
                                         console.warn('⚠️ Error uploading receipt:', err);
@@ -686,7 +579,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         uploadedPhotoFiles = files;
         uploadedPhotos = files.map(file => URL.createObjectURL(file));
         photoCount.textContent = uploadedPhotos.length;
-        renderMediaPreview();
         updatePreview();
 
         showMessage(`✅ ${files.length} photo${files.length > 1 ? 's' : ''} uploaded`, 'success');
@@ -714,7 +606,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         uploadedVideoFiles = files;
         uploadedVideos = files.map(file => URL.createObjectURL(file));
         videoCount.textContent = uploadedVideos.length;
-        renderMediaPreview();
 
         if (files.length > 0) {
             showMessage('✅ Video uploaded', 'success');
@@ -859,26 +750,92 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Simple location sharing functionality
+    const shareLocationBtn = document.getElementById('share-location-btn');
+    
+    shareLocationBtn?.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            showMessage('Geolocation is not supported by this browser.', 'error');
+            return;
+        }
+
+        // Show loading state
+        const originalText = shareLocationBtn.innerHTML;
+        shareLocationBtn.disabled = true;
+        shareLocationBtn.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span class="hidden sm:inline">Getting location...</span>
+        `;
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                
+                // Reverse geocode to get readable address
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const address = data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                        locationInput.value = address;
+                        showMessage('Location shared successfully!', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Reverse geocoding error:', error);
+                        locationInput.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                        showMessage('Location shared (coordinates only)', 'info');
+                    })
+                    .finally(() => {
+                        // Reset button
+                        shareLocationBtn.disabled = false;
+                        shareLocationBtn.innerHTML = originalText;
+                    });
+            },
+            (error) => {
+                console.error('Geolocation error:', error);
+                let errorMessage = 'Unable to get your location.';
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage = 'Location access denied. Please allow location access and try again.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage = 'Location information is unavailable.';
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage = 'Location request timed out. Please try again.';
+                        break;
+                }
+                
+                showMessage(errorMessage, 'error');
+                
+                // Reset button
+                shareLocationBtn.disabled = false;
+                shareLocationBtn.innerHTML = originalText;
+            }
+        );
+    });
+
     // Initialize
     updateProgress();
     updatePreview();
-    renderMediaPreview();
     renderMaintenanceEntries();
 
-
+    console.log('✅ Create listing page initialized');
 });
 
 // Authentication and user data functions
 async function checkAuthAndLoadUser() {
-
+    console.log('Checking authentication...');
     const token = localStorage.getItem('hippo_token');
     const userData = localStorage.getItem('hippo_user');
 
-
-
+    console.log('Token exists:', !!token);
+    console.log('User data exists:', !!userData);
 
     if (!token || !userData) {
-
+        console.log('No token or user data, redirecting to login');
         // No token or user data, redirect to login
         window.location.href = './Login.html';
         return;
@@ -887,14 +844,14 @@ async function checkAuthAndLoadUser() {
     // First, try to display user info from localStorage as a fallback
     try {
         const storedUser = JSON.parse(userData);
-
+        console.log('Stored user data:', storedUser);
         displayUserInfo(storedUser);
     } catch (error) {
         console.error('Error parsing stored user data:', error);
     }
 
     try {
-
+        console.log('Verifying token with /auth/me...');
         // Verify token is still valid by calling /auth/me
         const response = await fetch('/auth/me', {
             headers: {
@@ -903,22 +860,22 @@ async function checkAuthAndLoadUser() {
             }
         });
 
-
+        console.log('Auth response status:', response.status);
 
         if (!response.ok) {
-
+            console.log('Token invalid, but keeping stored user data for now');
             // Don't redirect immediately, keep the stored user data
             return;
         }
 
         const currentUser = await response.json();
-
+        console.log('Current user from /auth/me:', currentUser);
         displayUserInfo(currentUser);
 
     } catch (error) {
         console.error('Auth check failed:', error);
         // Don't redirect on network errors, keep the stored user data
-
+        console.log('Network error, keeping stored user data');
     }
 }
 
@@ -944,7 +901,7 @@ function displayUserInfo(user) {
     const accountNameElement = document.getElementById('acct-name');
     if (accountNameElement) {
         accountNameElement.textContent = displayName;
-
+        console.log('Set account name to:', displayName);
     } else {
         console.error('Account name element not found!');
     }
@@ -953,14 +910,14 @@ function displayUserInfo(user) {
     const listingOwnerNameElement = document.getElementById('listing-owner-name');
     if (listingOwnerNameElement) {
         listingOwnerNameElement.textContent = displayName;
-
+        console.log('Set listing owner name to:', displayName);
     }
 
     // Update the preview seller name
     const previewSellerNameElement = document.getElementById('preview-seller-name');
     if (previewSellerNameElement) {
         previewSellerNameElement.textContent = displayName;
-
+        console.log('Set preview seller name to:', displayName);
     }
 }
 
